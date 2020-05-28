@@ -35,15 +35,18 @@ from sklearn.tree import DecisionTreeClassifier
 
 # Prefix for intermediate files
 Prefix = "GG"
-THREADS_TO_USE = mp.cpu_count() # Init to all CPUs
+THREADS_TO_USE = mp.cpu_count()  # Init to all CPUs
+
 
 def progress(s):
-    sys.stdout.write("%s"%(str(s)))
+    sys.stdout.write("%s" % (str(s)))
     sys.stdout.flush()
 
+
 def message(s):
-    sys.stdout.write("%s\n"%(str(s)))
+    sys.stdout.write("%s\n" % (str(s)))
     sys.stdout.flush()
+
 
 def locateTargetField():
     """
@@ -66,6 +69,7 @@ def locateTargetField():
         iCnt += 1
 
     fInput.close()
+
 
 def determineCompleteSamples():
     """
@@ -117,7 +121,7 @@ def PCAOnControl():
     """
 
     message("Opening file...")
-    mFeatures_noNaNs, vClass = initializeFeatureMatrices(False, True)
+    mFeatures_noNaNs, vClass, sampleIDs = initializeFeatureMatrices(False, True)
     mFeatures_noNaNs = getControlFeatureMatrix(mFeatures_noNaNs, vClass)
     message("Opening file... Done.")
     X, pca3DRes = getPCA(mFeatures_noNaNs, 3)
@@ -132,7 +136,7 @@ def PCAOnTumor():
     Apply and visualize PCA on tumor data.
     """
     message("Opening file...")
-    mFeatures_noNaNs, vClass = initializeFeatureMatrices(False, True)
+    mFeatures_noNaNs, vClass, sampleIDs = initializeFeatureMatrices(False, True)
     mFeatures_noNaNs = getNonControlFeatureMatrix(mFeatures_noNaNs, vClass)
     message("Opening file... Done.")
     X, pca3DRes = getPCA(mFeatures_noNaNs, 3)
@@ -149,7 +153,7 @@ def draw3DPCA(X, pca3DRes, c=None, cmap=plt.cm.gnuplot, spread=False):
 
     # Percentage of variance explained for each components
     message('explained variance ratio (first 3 components): %s'
-          % str(pca3DRes.explained_variance_ratio_))
+            % str(pca3DRes.explained_variance_ratio_))
 
     if spread:
         X = QuantileTransformer(output_distribution='uniform').fit_transform(X)
@@ -221,7 +225,7 @@ def PCAOnAllData():
             bResetFiles = True
 
     # Initialize feature matrices
-    mFeatures_noNaNs, vClass = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=True)
+    mFeatures_noNaNs, vClass, sampleIDs = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=True)
 
     message("Applying PCA...")
     X, pca3D = getPCA(mFeatures_noNaNs, 3)
@@ -231,10 +235,10 @@ def PCAOnAllData():
 
     # Percentage of variance explained for each components
     message('explained variance ratio (first 3 components): %s'
-          % str(pca3D.explained_variance_ratio_))
+            % str(pca3D.explained_variance_ratio_))
 
     message('3 components values: %s'
-          % str(X))
+            % str(X))
 
     message("Plotting PCA graph...")
     # Assign colors
@@ -303,7 +307,7 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bNormaliz
         clinicalfile = loadTumorStage()
         message("Trying to load saved data... Done.")
     except Exception as eCur:
-        message("Trying to load saved data... Failed:\n%s"%(str(eCur)))
+        message("Trying to load saved data... Failed:\n%s" % (str(eCur)))
         message("Trying to load saved data from CSV...")
         fControl = open("./patientAndControlData.csv", "r")
         message("this is the size of the fControl:")
@@ -337,7 +341,7 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bNormaliz
 
     message("Opening files... Done.")
     # Split feature set to features/target field
-    mFeatures, vClass = splitFeatures(clinicalfile, datafile, labelfile)
+    mFeatures, vClass, sampleIDs = splitFeatures(clinicalfile, datafile, labelfile)
 
     mControlFeatureMatrix = getControlFeatureMatrix(mFeatures, vClass)
 
@@ -349,7 +353,10 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bNormaliz
 
     if bNormalize:
         mFeatures = normalizeDataByControl(mFeatures, mControlFeatureMatrix, bNormalizeLog2Scale)
-    return mFeatures, vClass
+
+    # CV added sampleIDs as return param
+    return mFeatures, vClass, sampleIDs
+        #, labelfile
 
 
 def postProcessFeatures(mFeatures, mControlFeatures):
@@ -411,6 +418,7 @@ def postProcessFeatures(mFeatures, mControlFeatures):
     message(mFeatures)
     return mFeatures
 
+# TODO add sampleid in splitFeatures
 
 def splitFeatures(clinicalfile, datafile, labelfile):
     """
@@ -421,6 +429,7 @@ def splitFeatures(clinicalfile, datafile, labelfile):
     :param datafile: The matrix containing the full feature data from the corresponding file.
     :param labelfile: The matrix containing  the full label data from the corresponding file.
     :return: A tuple of the form (matrix of features, matrix of labels)
+    Chris update: :return: A tuple of the form (matrix of features, matrix of labels, sample ids)
     """
     message("Splitting features...")
     message(np.size(datafile, 1))
@@ -442,8 +451,11 @@ def splitFeatures(clinicalfile, datafile, labelfile):
         # Update the last feature, by joining on ID
         mFeatures[iCnt, iFeatCount - 1] = np.select(condlist, choicelist)
     vClass = labelfile[:, 1]
+    sampleIDs = labelfile[:, 0]
+
     # DEBUG LINES
     message("Found classes:\n%s" % (str(vClass)))
+    message("Found sample IDs:\n%s" % (str(sampleIDs)))
     #############
     # DEBUG LINES
     # message("Found tumor types:\n%s" % (
@@ -452,7 +464,7 @@ def splitFeatures(clinicalfile, datafile, labelfile):
     message("Splitfeatures: This is the mFeatures...")
     message(mFeatures)
     message("Splitting features... Done.")
-    return mFeatures, vClass
+    return mFeatures, vClass, sampleIDs
 
 
 def saveLoadedData(datafile, labelfile):
@@ -520,7 +532,7 @@ def ClusterAllData():
     Creates k-means-based clustering of the control and tumor data, visualizing the results in a PCA-based 3D space.
     """
     # Initialize feature matrices
-    mFeatures_noNaNs, vClass = initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True)
+    mFeatures_noNaNs, vClass, sampleIDs = initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True)
 
     message("Separating instances per class...")
     # Perform clustering, initializing the clusters with a control and a patient
@@ -588,7 +600,8 @@ def isEqualToString(npaVector, sString):
     :param sString: The string to compare to.
     :return: True if equal. Otherwise, False.
     """
-    aRes = np.array([oCur.decode('UTF-8').strip() for oCur in npaVector[:]])
+    #aRes = np.array([oCur.decode('UTF-8').strip() for oCur in npaVector[:]])
+    aRes = np.array([oCur.strip() for oCur in npaVector[:]])
     aStr = np.array([sString.strip() for oCur in npaVector[:]])
     return aRes == aStr
 
@@ -771,7 +784,7 @@ def getFeatureGraph(mAllData, dEdgeThreshold=0.30, bResetGraph=True, dMinDiverge
 
     # Create queue and threads
     threads = []
-    num_worker_threads = THREADS_TO_USE # DONE: Use available processors
+    num_worker_threads = THREADS_TO_USE  # DONE: Use available processors
     qCombination = Queue(1000 * num_worker_threads)
 
     # t = threading.Thread(target=addEdgeAboveThreshold, args=(i, qCombination,))
@@ -785,17 +798,15 @@ def getFeatureGraph(mAllData, dEdgeThreshold=0.30, bResetGraph=True, dMinDiverge
     dStartTime = clock()
     for iFirstFeatIdx, iSecondFeatIdx in lCombinations:
         qCombination.put((iFirstFeatIdx, iSecondFeatIdx, g, mAllData, saFeatures, iFirstFeatIdx, iSecondFeatIdx,
-             iCnt, iAllPairs, dStartTime, dEdgeThreshold))
+                          iCnt, iAllPairs, dStartTime, dEdgeThreshold))
 
         # Wait a while if we reached full queue
         if qCombination.full():
-            message("So far routed %d tasks. Waiting on worker threads to provide more tasks..."%(iCnt))
+            message("So far routed %d tasks. Waiting on worker threads to provide more tasks..." % (iCnt))
             time.sleep(0.05)
 
         iCnt += 1
     message("Routing edge calculation for %d possible pairs... Done." % (iAllPairs))
-
-
 
     message("Waiting for completion...")
     qCombination.join()
@@ -839,18 +850,21 @@ def getGraphAndData(bResetGraph=False, dMinDivergenceToKeep=np.log2(10e6), dEdge
     :param bNormalizeLog2Scale: If true, after normalization apply log2 scale to feature values.
     :return: A tuple of the form (feature correlation graph, all feature matrix, instance/case class matrix,
         important feature names list)
+    CV update:
+    :return: A tuple of the form (feature correlation graph, all feature matrix, instance/case class matrix,
+        important feature names list, sample ids)
     """
     # Do mFeatures_noNaNs has all features? Have we applied a threshold to get here?
-    mFeatures_noNaNs, vClass = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=bPostProcessing,
-                                        bNormalize=bNormalize, bNormalizeLog2Scale=bNormalizeLog2Scale)
+    mFeatures_noNaNs, vClass, sampleIDs = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=bPostProcessing,
+                                                         bNormalize=bNormalize, bNormalizeLog2Scale=bNormalizeLog2Scale)
     gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, dEdgeThreshold=dEdgeThreshold,
                                                        bResetGraph=bResetGraph,
                                                        dMinDivergenceToKeep=dMinDivergenceToKeep)
 
-    return gToDraw, mFeatures_noNaNs, vClass, saRemainingFeatureNames
+    return gToDraw, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs
 
 
-def drawGraph(gToDraw):
+def drawGraph(gToDraw, bShow = True):
     """
     Draws and displays a given graph, by using graphviz.
 
@@ -874,7 +888,8 @@ def drawGraph(gToDraw):
     labels = nx.get_edge_attributes(gToDraw, 'weight')
     nx.draw_networkx_edge_labels(gToDraw, pos, edge_labels=labels)
 
-    plt.show()
+    if bShow:
+        plt.show()
 
 
 def getMeanDegreeCentrality(gGraph):
@@ -911,7 +926,8 @@ def getGraphVector(gGraph):
 
     mRes = np.asarray(
         [len(gGraph.edges()), len(gGraph.nodes()),
-         np.mean(np.array(list(nx.algorithms.centrality.degree_alg.degree_centrality(gGraph).values()))), # Avg deg centrality
+         np.mean(np.array(list(nx.algorithms.centrality.degree_alg.degree_centrality(gGraph).values()))),
+         # Avg deg centrality
          nx.algorithms.clique.graph_number_of_cliques(gGraph),
          # TODO: Shortest path does NOT work.; revisit if needed
          # nx.algorithms.shortest_paths.unweighted.all_pairs_shortest_path_length(gGraph),
@@ -919,7 +935,7 @@ def getGraphVector(gGraph):
          nx.algorithms.connectivity.connectivity.average_node_connectivity(gGraph),
          np.mean([np.mean(list(x[1].values())) for x in
                   list(nx.algorithms.shortest_paths.unweighted.all_pairs_shortest_path_length(gGraph))]),
-]
+         ]
     )
     # DEBUG LINES
     message("Extracting graph feature vector... Done.")
@@ -957,7 +973,8 @@ def spreadingActivation(gGraph, iIterations=100, dPreservationPercent=0.5, bAbso
                 dMassPercentageToMove = gGraph[nCurNode][nNeighborNode]['weight'] / dWeightSum
                 try:
                     # Assign part of the weight to the neighbor
-                    dMassToMove = (1.0 - dPreservationPercent) * gGraph.nodes[nCurNode]['weight'] * dMassPercentageToMove
+                    dMassToMove = (1.0 - dPreservationPercent) * gGraph.nodes[nCurNode][
+                        'weight'] * dMassPercentageToMove
                     # Work with absolute numbers, if requested
                     if bAbsoluteMass:
                         gGraph.nodes[nNeighborNode]['weight'] = abs(gGraph.nodes[nNeighborNode]['weight']) + abs(
@@ -1015,22 +1032,24 @@ def filterGraphNodes(gMainGraph, dKeepRatio):
     return gMainGraph
 
 
-def showAndSaveGraph(gToDraw, sPDFFileName = "corrGraph.pdf"):
+
+def showAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = True, bSave = True ):
     """
     Draws and displays a given graph, also saving it to a given file.
     :param gToDraw: The graph to draw and save.
     :param sPDFFileName:  The output filename. Default: corrGraph.pdf.
     """
     message("Displaying graph...")
-    drawGraph(gToDraw)
+    drawGraph(gToDraw, bShow)
     message("Displaying graph... Done.")
 
     message("Saving graph to file...")
-    plt.savefig("corrGraph.pdf", bbox_inches='tight')
+    if bSave:
+        plt.savefig(sPDFFileName, bbox_inches='tight')
     message("Saving graph to file... Done.")
 
 
-def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFeatureNames):
+def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFeatureNames, sampleIDs):
     """
     Generates graph feature vectors for all samples and returns them as a matrix.
     :param gMainGraph: The generic graph of feature correlations.
@@ -1059,9 +1078,8 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     lResList = []
     # Add all items to queue
     np.apply_along_axis(
-        lambda mSample: qTasks.put((lResList, gMainGraph, mSample, saRemainingFeatureNames, next(iCnt), iAllCount,
-                                                    dStartTime)), 1, mAllSamples)
-
+        lambda mSample: qTasks.put((sampleIDs, lResList, gMainGraph, mSample, saRemainingFeatureNames, next(iCnt), iAllCount,
+                                    dStartTime)), 1, mAllSamples)
 
     message("Waiting for completion...")
     qTasks.join()
@@ -1081,7 +1099,6 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     #     lambda mSample: getSampleGraphFeatureVector(gMainGraph, mSample, saRemainingFeatureNames, next(iCnt), iAllCount, dStartTime), 1, mAllSamples)
 
 
-
 def getSampleGraphFeatureVector(i, qQueue):
     """
     Helper parallelization function, which calculates the graph representation of a given sample.
@@ -1095,8 +1112,11 @@ def getSampleGraphFeatureVector(i, qQueue):
     iAllCount -- the number of all samples to be represented
     dStartTime -- the time when parallelization started
     """
+
+    # dSample = {}
+
     while True:
-        lResList, gMainGraph, mSample, saRemainingFeatureNames, iCnt, iAllCount, dStartTime = qQueue.get()
+        sampleID, lResList, gMainGraph, mSample, saRemainingFeatureNames, iCnt, iAllCount, dStartTime = qQueue.get()
 
         # DEBUG LINES
         message("Working on instance %d of %d..." % (iCnt, iAllCount))
@@ -1109,14 +1129,29 @@ def getSampleGraphFeatureVector(i, qQueue):
         # Assign values
         assignSampleValuesToGraphNodes(gMainGraph, mSample, saRemainingFeatureNames)
         # Apply spreading activation
-        gMainGraph = spreadingActivation(gMainGraph, bAbsoluteMass=True) # TODO: Add parameter, if needed
+        gMainGraph = spreadingActivation(gMainGraph, bAbsoluteMass=True)  # TODO: Add parameter, if needed
         # Keep top performer nodes
-        gMainGraph = filterGraphNodes(gMainGraph, dKeepRatio=0.25) # TODO: Add parameter, if needed
+        gMainGraph = filterGraphNodes(gMainGraph, dKeepRatio=0.25)  # TODO: Add parameter, if needed
         # Extract and return features
         vGraphFeatures = getGraphVector(gMainGraph)
+        # Save graph to .dot arxeio
+        # graphviz swse se grapho
+        # kalese to draw and showAndsave graph,
+        # ftiakse ena katalogo poy na dexetai to sample and to graph
+
+        # All samples dict
+
+
+        #dSample[str(mSample)] = gMainGraph
+        #print(dSample)
+
+        #print("Showing and saving the graph of sample %s" % mSample)
+        #param: sample id,
+        message("Calling showAndSaveGraph...")
+        showAndSaveGraph(gMainGraph, sPDFFileName = "SampleID%s" % sampleID)
+
         #  Add to common result queue
         lResList.append(vGraphFeatures)
-
 
         # Signal done
         qQueue.task_done()
@@ -1125,10 +1160,11 @@ def getSampleGraphFeatureVector(i, qQueue):
         if iCnt % 5 == 0 and (iCnt != 0):
             dNow = clock()
             dRate = ((dNow - dStartTime) / iCnt)
-            dRemaining = (iAllCount  - iCnt) * dRate
+            dRemaining = (iAllCount - iCnt) * dRate
             message("%d (Estimated remaining (sec): %4.2f - Working at a rate of %4.2f samples/sec)\n" % (
                 iCnt, dRemaining, 1.0 / dRate))
         #############
+
 
 def classify(X, y):
     """
@@ -1147,7 +1183,8 @@ def classify(X, y):
     graph.render("Rules")
 
 
-def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, bResetFeatures=True, numOfSelectedSamples=-1):
+def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, bResetFeatures=True,
+                          numOfSelectedSamples=-1):
     """
     Extracts the graph feature vectors of a given set of instances/cases.
     :param gMainGraph: The overall feature correlation graph.
@@ -1175,11 +1212,13 @@ def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames,
         if (numOfSelectedSamples < 0):
             mSamplesSelected = mFeatures_noNaNs
         else:
-            mSamplesSelected = np.concatenate((mFeatures_noNaNs[0:int(numOfSelectedSamples/2)][:], mFeatures_noNaNs[-int(numOfSelectedSamples/2):][:]), axis=0)
-        
+            mSamplesSelected = np.concatenate((mFeatures_noNaNs[0:int(numOfSelectedSamples / 2)][:],
+                                               mFeatures_noNaNs[-int(numOfSelectedSamples / 2):][:]), axis=0)
+
         message("Extracted selected samples:\n" + str(mSamplesSelected[:][0:10]))
         # Extract vectors
-        mGraphFeatures = generateAllSampleGraphFeatureVectors(gMainGraph, mSamplesSelected, saRemainingFeatureNames)
+        # TODO pass SampleID to generateAllSampleGraphFeatureVectors
+        mGraphFeatures = generateAllSampleGraphFeatureVectors(gMainGraph, mSamplesSelected, saRemainingFeatureNames, sampleIDs)
         message("Computing graph feature matrix... Done.")
 
         message("Saving graph feature matrix...")
@@ -1200,7 +1239,8 @@ def main(argv):
     parser.add_argument("-pre", "--prefixForIntermediateFiles", default="")
 
     # Post-processing control
-    parser.add_argument("-p", "--postProcessing", action="store_true", default=True) # If False NO postprocessing occurs
+    parser.add_argument("-p", "--postProcessing", action="store_true",
+                        default=True)  # If False NO postprocessing occurs
     parser.add_argument("-norm", "--normalization", action="store_true", default=True)
     parser.add_argument("-ls", "--logScale", action="store_true", default=True)
 
@@ -1215,7 +1255,6 @@ def main(argv):
     global THREADS_TO_USE
     parser.add_argument("-t", "--numberOfThreads", type=int, default=THREADS_TO_USE)
 
-
     args = parser.parse_args(argv)
 
     message("Run setup: " + (str(args)))
@@ -1227,11 +1266,14 @@ def main(argv):
     # Update global threads to use
     THREADS_TO_USE = args.numberOfThreads
 
-
     # # main function
-    gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames = getGraphAndData(bResetGraph=args.resetGraph,
-                dEdgeThreshold=args.edgeThreshold, dMinDivergenceToKeep=args.minDivergenceToKeep,
-                bResetFiles=args.resetCSVCacheFiles, bPostProcessing=args.postProcessing, bNormalize=args.normalization, bNormalizeLog2Scale=args.logScale)
+    gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs = getGraphAndData(bResetGraph=args.resetGraph,
+                                                                                    dEdgeThreshold=args.edgeThreshold,
+                                                                                    dMinDivergenceToKeep=args.minDivergenceToKeep,
+                                                                                    bResetFiles=args.resetCSVCacheFiles,
+                                                                                    bPostProcessing=args.postProcessing,
+                                                                                    bNormalize=args.normalization,
+                                                                                    bNormalizeLog2Scale=args.logScale)
     # vGraphFeatures = getGraphVector(gMainGraph)
     # print ("Graph feature vector: %s"%(str(vGraphFeatures)))
 
@@ -1241,15 +1283,17 @@ def main(argv):
     # print ("Final graph feature vector: %s"%(str(vGraphFeatures)))
 
     # TODO: Restore to NOT reset features
-    mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames,
-                                           bResetFeatures=args.resetFeatures, numOfSelectedSamples=args.numberOfInstances)
+    mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs,
+                                           bResetFeatures=args.resetFeatures,
+                                           numOfSelectedSamples=args.numberOfInstances)
 
     # Perform PCA
     # Get selected instance classes
     if args.numberOfInstances < 0:
         vSelectedSamplesClasses = vClass
     else:
-        vSelectedSamplesClasses = np.concatenate((vClass[0:int(args.numberOfInstances/2)][:], vClass[-int(args.numberOfInstances/2):][:]), axis=0)
+        vSelectedSamplesClasses = np.concatenate(
+            (vClass[0:int(args.numberOfInstances / 2)][:], vClass[-int(args.numberOfInstances / 2):][:]), axis=0)
 
     # Extract class vector for colors
     aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
