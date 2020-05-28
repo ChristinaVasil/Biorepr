@@ -240,6 +240,8 @@ def PCAOnAllData():
     message('3 components values: %s'
             % str(X))
 
+    # hey there
+ # fhekfhel
     message("Plotting PCA graph...")
     # Assign colors
     aCategories, y = np.unique(vClass, return_inverse=True)
@@ -419,6 +421,8 @@ def postProcessFeatures(mFeatures, mControlFeatures):
     return mFeatures
 
 # TODO add sampleid in splitFeatures
+
+#Test
 
 def splitFeatures(clinicalfile, datafile, labelfile):
     """
@@ -855,7 +859,7 @@ def getGraphAndData(bResetGraph=False, dMinDivergenceToKeep=np.log2(10e6), dEdge
         important feature names list, sample ids)
     """
     # Do mFeatures_noNaNs has all features? Have we applied a threshold to get here?
-    mFeatures_noNaNs, vClass, sampleIDs = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=bPostProcessing,
+    mFeatures_noNaNs, vClass = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=bPostProcessing,
                                                          bNormalize=bNormalize, bNormalizeLog2Scale=bNormalizeLog2Scale)
     gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, dEdgeThreshold=dEdgeThreshold,
                                                        bResetGraph=bResetGraph,
