@@ -345,13 +345,19 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bNormaliz
     # Split feature set to features/target field
     mFeatures, vClass, sampleIDs = splitFeatures(clinicalfile, datafile, labelfile)
 
+
     mControlFeatureMatrix = getControlFeatureMatrix(mFeatures, vClass)
+    message("1 .This is the shape of the control matrix:")
+    message(np.shape(mControlFeatureMatrix))
 
     if bPostProcessing:
         mFeatures = postProcessFeatures(mFeatures, mControlFeatureMatrix)
 
     # Update control matrix, taking into account postprocessed data
     mControlFeatureMatrix = getControlFeatureMatrix(mFeatures, vClass)
+
+    message("2 .This is the shape of the control matrix:")
+    message(np.shape(mControlFeatureMatrix))
 
     if bNormalize:
         mFeatures = normalizeDataByControl(mFeatures, mControlFeatureMatrix, bNormalizeLog2Scale)
@@ -456,7 +462,8 @@ def splitFeatures(clinicalfile, datafile, labelfile):
         mFeatures[iCnt, iFeatCount - 1] = np.select(condlist, choicelist)
     vClass = labelfile[:, 1]
     sampleIDs = labelfile[:, 0]
-
+    print("This is the vClass: ")
+    print(vClass)
     # DEBUG LINES
     message("Found classes:\n%s" % (str(vClass)))
     message("Found sample IDs:\n%s" % (str(sampleIDs)))
@@ -591,7 +598,7 @@ def getControlFeatureMatrix(mAllData, vLabels):
     choicelist = mAllData
     condlist = isEqualToString(vLabels, 'Solid_Tissue_Normal')
     message("This is the control feature matrix:")
-    message(choicelist[condlist])
+    print(choicelist[condlist])
     message("Data shape: %s" % (str(np.shape(choicelist))))
     message("Finding only the control data...Done")
     return choicelist[condlist]
@@ -604,8 +611,10 @@ def isEqualToString(npaVector, sString):
     :param sString: The string to compare to.
     :return: True if equal. Otherwise, False.
     """
-    #aRes = np.array([oCur.decode('UTF-8').strip() for oCur in npaVector[:]])
-    aRes = np.array([oCur.strip() for oCur in npaVector[:]])
+
+    #TODO check whether we have to convert to UTF-8
+    aRes = np.array([oCur.decode('UTF-8').strip() for oCur in npaVector[:]])
+    aRes = np.array([oCur.strip() for oCur in aRes[:]])
     aStr = np.array([sString.strip() for oCur in npaVector[:]])
     return aRes == aStr
 
@@ -859,7 +868,7 @@ def getGraphAndData(bResetGraph=False, dMinDivergenceToKeep=np.log2(10e6), dEdge
         important feature names list, sample ids)
     """
     # Do mFeatures_noNaNs has all features? Have we applied a threshold to get here?
-    mFeatures_noNaNs, vClass = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=bPostProcessing,
+    mFeatures_noNaNs, vClass, sampleIDs = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=bPostProcessing,
                                                          bNormalize=bNormalize, bNormalizeLog2Scale=bNormalizeLog2Scale)
     gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, dEdgeThreshold=dEdgeThreshold,
                                                        bResetGraph=bResetGraph,
