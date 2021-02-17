@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python
 import argparse
 import copy
 import itertools
@@ -6,14 +6,14 @@ import os
 import pickle
 import sys
 import multiprocessing as mp
-import time
+# import time
 # from multiprocessing import JoinableQueue
 # DEBUG LINES
 # mp.log_to_stderr(logging.DEBUG)
 #############
 from queue import Queue
 from threading import Thread
-from time import clock
+from time import time
 
 import graphviz
 import matplotlib.pyplot as plt
@@ -80,8 +80,7 @@ def determineCompleteSamples():
     dSamples = dict()
 
     # Open sample sheet file
-    # fModalities = open('gdc_sample_sheet.2020-02-19.tsv')
-    fModalities = open('')
+    fModalities = open('gdc_sample_sheet.2020-02-19.tsv')
     # Ignore header
     sLine = fModalities.readline()
     # For every line
@@ -312,9 +311,6 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bNormaliz
         message("Trying to load saved data... Failed:\n%s" % (str(eCur)))
         message("Trying to load saved data from CSV...")
         fControl = open("./patientAndControlData.csv", "r")
-        message("this is the size of the fControl:")
-        message(np.shape(fControl))
-        message(fControl)
         message("Loading labels and ids...")
         # labelfile, should have stored tumor_stage or labels?
         labelfile = np.genfromtxt(fControl, skip_header=1, usecols=(0, 73662),
@@ -524,7 +520,8 @@ def loadTumorStage():
     message("Loading tumor stage...")
     fClinical = open("clinicalAll.tsv", "r")
     # While loading stage, also convert string to integer
-    clinicalfile = np.genfromtxt(fClinical, skip_header=1, usecols=(1, 154),
+    clinicalfile = np.genfromtxt(fClinical, skip_header=1,
+                                 usecols=(1, 11),
                                  missing_values=['NA', "na", '-', '--', 'n/a'], delimiter="\t",
                                  dtype=np.dtype("object"),
                                  # converters={11: lambda s : ["stage i", "stage ii", "stage iii", "stage iv", "stage v"].index(s)}
@@ -712,7 +709,7 @@ def addEdgeAboveThreshold(i, qQueue):
         if iCnt != 0 and (iCnt % 1000 == 0):
             progress(".")
             if iCnt % 10000 == 0 and iCnt != 0:
-                dNow = clock()
+                dNow = time()
                 dRate = ((dNow - dStartTime) / iCnt)
                 dRemaining = (iAllPairs - iCnt) * dRate
                 message("%d (Estimated remaining (sec): %4.2f - Working at a rate of %4.2f pairs/sec)\n" % (
@@ -808,7 +805,7 @@ def getFeatureGraph(mAllData, dEdgeThreshold=0.30, bResetGraph=True, dMinDiverge
 
     # Feed tasks
     iCnt = 1
-    dStartTime = clock()
+    dStartTime = time()
     for iFirstFeatIdx, iSecondFeatIdx in lCombinations:
         qCombination.put((iFirstFeatIdx, iSecondFeatIdx, g, mAllData, saFeatures, iFirstFeatIdx, iSecondFeatIdx,
                           iCnt, iAllPairs, dStartTime, dEdgeThreshold))
@@ -824,7 +821,7 @@ def getFeatureGraph(mAllData, dEdgeThreshold=0.30, bResetGraph=True, dMinDiverge
     message("Waiting for completion...")
     qCombination.join()
 
-    message("Total time (sec): %4.2f" % (clock() - dStartTime))
+    message("Total time (sec): %4.2f" % (time() - dStartTime))
 
     message("Creating edges for %d possible pairs... Done." % (iAllPairs))
 
@@ -1085,7 +1082,7 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
 
     # Item iterator
     iCnt = iter(range(1, iAllCount + 1))
-    dStartTime = clock()
+    dStartTime = time()
 
     # Init result list
     lResList = []
@@ -1096,7 +1093,7 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
 
     message("Waiting for completion...")
     qTasks.join()
-    message("Total time (sec): %4.2f" % (clock() - dStartTime))
+    message("Total time (sec): %4.2f" % (time() - dStartTime))
 
     return np.array(lResList)
 
@@ -1104,7 +1101,7 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     # LINEAR EXECUTION
     ########################
     # # For all samples
-    # dStartTime = clock()
+    # dStartTime = time()
     # iAllCount = np.shape(mAllSamples)[1] # Get rows/instances
     # iCnt = iter(range(1,iAllCount+1))
     # # Get the sample vector
@@ -1171,7 +1168,7 @@ def getSampleGraphFeatureVector(i, qQueue):
 
         # DEBUG LINES
         if iCnt % 5 == 0 and (iCnt != 0):
-            dNow = clock()
+            dNow = time()
             dRate = ((dNow - dStartTime) / iCnt)
             dRemaining = (iAllCount - iCnt) * dRate
             message("%d (Estimated remaining (sec): %4.2f - Working at a rate of %4.2f samples/sec)\n" % (
