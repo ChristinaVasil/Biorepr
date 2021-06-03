@@ -1051,18 +1051,25 @@ def showAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = True, bSave =
     :param gToDraw: The graph to draw and save.
     :param sPDFFileName:  The output filename. Default: corrGraph.pdf.
     """
-    message("Displaying graph...")
-    drawGraph(gToDraw, bShow)
-    message("Displaying graph... Done.")
+    
+    if bShow:
+        message("Displaying graph...")
+        drawGraph(gToDraw, bShow)
+        message("Displaying graph... Done.")
+    else:
+        message("Ignoring graph display as requested...");
 
-    message("Saving graph to file...")
-    try:
-        if bSave:
-            plt.savefig(sPDFFileName, bbox_inches='tight')
-        message("Saving graph to file... Done.")
-    except Error as e:
-        print("Could not save file! Exception:\n%s\n"%(str(e)))
-        print("Continuing normally...")
+    if bSave:
+        message("Saving graph to file...")
+        try:
+            if bSave:
+                plt.savefig(sPDFFileName, bbox_inches='tight')
+            message("Saving graph to file... Done.")
+        except Exception as e:
+            print("Could not save file! Exception:\n%s\n"%(str(e)))
+            print("Continuing normally...")
+    else:
+        message("Ignoring graph saving as requested...");
         
 
 
@@ -1255,7 +1262,7 @@ def main(argv):
     parser.add_argument("-rf", "--resetFeatures", action="store_true", default=False)
     parser.add_argument("-pre", "--prefixForIntermediateFiles", default="")
     # Graph saving and display
-    parser.add_argument("-savg", "--saveGraphs", action="store_true", default=True)
+    parser.add_argument("-savg", "--saveGraphs", action="store_true", default=False)
     parser.add_argument("-shg", "--showGraphs", action="store_true", default=False)
 
     # Post-processing control
