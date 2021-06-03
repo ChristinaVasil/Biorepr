@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 import argparse
 import copy
 import itertools
@@ -6,20 +6,21 @@ import os
 import pickle
 import sys
 import multiprocessing as mp
-# import time
+import time
 # from multiprocessing import JoinableQueue
 # DEBUG LINES
 # mp.log_to_stderr(logging.DEBUG)
 #############
 from queue import Queue
 from threading import Thread
-from time import time
+from time import clock
 
 import graphviz
 import matplotlib.pyplot as plt
 # WARNING: This line is important for 3d plotting. DO NOT REMOVE
 from mpl_toolkits.mplot3d import Axes3D
 
+import pydot
 import networkx as nx
 import numpy as np
 from networkx import write_multiline_adjlist, read_multiline_adjlist
@@ -80,7 +81,8 @@ def determineCompleteSamples():
     dSamples = dict()
 
     # Open sample sheet file
-    fModalities = open('gdc_sample_sheet.2020-02-19.tsv')
+    # fModalities = open('gdc_sample_sheet.2020-02-19.tsv')
+    fModalities = open('')
     # Ignore header
     sLine = fModalities.readline()
     # For every line
@@ -239,8 +241,6 @@ def PCAOnAllData():
     message('3 components values: %s'
             % str(X))
 
-    # hey there
- # fhekfhel
     message("Plotting PCA graph...")
     # Assign colors
     aCategories, y = np.unique(vClass, return_inverse=True)
@@ -277,6 +277,8 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bNormaliz
     :param bNormalizeLog2Scale: If True, then apply log2 scaling after normalization to the initial data. Default: True.
     :return: The initial feature matrix of the cases/instances.
     """
+
+    # hello
     # Read control
     message("Opening files...")
     # import pandas as pd
@@ -311,6 +313,9 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bNormaliz
         message("Trying to load saved data... Failed:\n%s" % (str(eCur)))
         message("Trying to load saved data from CSV...")
         fControl = open("./patientAndControlData.csv", "r")
+        message("this is the size of the fControl:")
+        message(np.shape(fControl))
+        message(fControl)
         message("Loading labels and ids...")
         # labelfile, should have stored tumor_stage or labels?
         labelfile = np.genfromtxt(fControl, skip_header=1, usecols=(0, 73662),
@@ -358,7 +363,7 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bNormaliz
     if bNormalize:
         mFeatures = normalizeDataByControl(mFeatures, mControlFeatureMatrix, bNormalizeLog2Scale)
 
-    # CV added sampleIDs as return param
+    # Chris added sampleIDs as return param
     return mFeatures, vClass, sampleIDs
         #, labelfile
 
@@ -423,8 +428,6 @@ def postProcessFeatures(mFeatures, mControlFeatures):
     return mFeatures
 
 # TODO add sampleid in splitFeatures
-
-#Test
 
 def splitFeatures(clinicalfile, datafile, labelfile):
     """
@@ -520,8 +523,7 @@ def loadTumorStage():
     message("Loading tumor stage...")
     fClinical = open("clinicalAll.tsv", "r")
     # While loading stage, also convert string to integer
-    clinicalfile = np.genfromtxt(fClinical, skip_header=1,
-                                 usecols=(1, 11),
+    clinicalfile = np.genfromtxt(fClinical, skip_header=1, usecols=(1, 154),
                                  missing_values=['NA', "na", '-', '--', 'n/a'], delimiter="\t",
                                  dtype=np.dtype("object"),
                                  # converters={11: lambda s : ["stage i", "stage ii", "stage iii", "stage iv", "stage v"].index(s)}
@@ -709,7 +711,7 @@ def addEdgeAboveThreshold(i, qQueue):
         if iCnt != 0 and (iCnt % 1000 == 0):
             progress(".")
             if iCnt % 10000 == 0 and iCnt != 0:
-                dNow = time()
+                dNow = clock()
                 dRate = ((dNow - dStartTime) / iCnt)
                 dRemaining = (iAllPairs - iCnt) * dRate
                 message("%d (Estimated remaining (sec): %4.2f - Working at a rate of %4.2f pairs/sec)\n" % (
@@ -805,7 +807,7 @@ def getFeatureGraph(mAllData, dEdgeThreshold=0.30, bResetGraph=True, dMinDiverge
 
     # Feed tasks
     iCnt = 1
-    dStartTime = time()
+    dStartTime = clock()
     for iFirstFeatIdx, iSecondFeatIdx in lCombinations:
         qCombination.put((iFirstFeatIdx, iSecondFeatIdx, g, mAllData, saFeatures, iFirstFeatIdx, iSecondFeatIdx,
                           iCnt, iAllPairs, dStartTime, dEdgeThreshold))
@@ -821,7 +823,7 @@ def getFeatureGraph(mAllData, dEdgeThreshold=0.30, bResetGraph=True, dMinDiverge
     message("Waiting for completion...")
     qCombination.join()
 
-    message("Total time (sec): %4.2f" % (time() - dStartTime))
+    message("Total time (sec): %4.2f" % (clock() - dStartTime))
 
     message("Creating edges for %d possible pairs... Done." % (iAllPairs))
 
@@ -880,7 +882,7 @@ def drawGraph(gToDraw, bShow = True):
 
     :param gToDraw: The graph to draw.
     """
-    plt.figure(figsize=(len(gToDraw.edges()) * 2, len(gToDraw.edges()) * 2))
+    plt.figure(figsize=(len(gToDraw.edges()) , len(gToDraw.edges())))
     plt.clf()
     # pos = graphviz_layout(gToDraw)
     pos = pydot_layout(gToDraw)
@@ -1082,7 +1084,7 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
 
     # Item iterator
     iCnt = iter(range(1, iAllCount + 1))
-    dStartTime = time()
+    dStartTime = clock()
 
     # Init result list
     lResList = []
@@ -1093,7 +1095,7 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
 
     message("Waiting for completion...")
     qTasks.join()
-    message("Total time (sec): %4.2f" % (time() - dStartTime))
+    message("Total time (sec): %4.2f" % (clock() - dStartTime))
 
     return np.array(lResList)
 
@@ -1101,7 +1103,7 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     # LINEAR EXECUTION
     ########################
     # # For all samples
-    # dStartTime = time()
+    # dStartTime = clock()
     # iAllCount = np.shape(mAllSamples)[1] # Get rows/instances
     # iCnt = iter(range(1,iAllCount+1))
     # # Get the sample vector
@@ -1158,8 +1160,8 @@ def getSampleGraphFeatureVector(i, qQueue):
         #print("Showing and saving the graph of sample %s" % mSample)
         #param: sample id,
         message("Calling showAndSaveGraph...")
-        showAndSaveGraph(gMainGraph, sPDFFileName = "SampleID%s" % sampleID)
-
+        showAndSaveGraph(gMainGraph, sPDFFileName = "SampleID%s" %(sampleID))
+        message("Calling showAndSaveGraph...Done")
         #  Add to common result queue
         lResList.append(vGraphFeatures)
 
@@ -1168,7 +1170,7 @@ def getSampleGraphFeatureVector(i, qQueue):
 
         # DEBUG LINES
         if iCnt % 5 == 0 and (iCnt != 0):
-            dNow = time()
+            dNow = clock()
             dRate = ((dNow - dStartTime) / iCnt)
             dRemaining = (iAllCount - iCnt) * dRate
             message("%d (Estimated remaining (sec): %4.2f - Working at a rate of %4.2f samples/sec)\n" % (
@@ -1309,6 +1311,7 @@ def main(argv):
     aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
     X, pca3D = getPCA(mGraphFeatures, 3)
     fig = draw3DPCA(X, pca3D, c=y)
+
     fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
     classify(X, y)
