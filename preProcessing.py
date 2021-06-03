@@ -1056,12 +1056,17 @@ def showAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = True, bSave =
     message("Displaying graph... Done.")
 
     message("Saving graph to file...")
-    if bSave:
-        plt.savefig(sPDFFileName, bbox_inches='tight')
-    message("Saving graph to file... Done.")
+    try:
+        if bSave:
+            plt.savefig(sPDFFileName, bbox_inches='tight')
+        message("Saving graph to file... Done.")
+    except Error as e:
+        print("Could not save file! Exception:\n%s\n"%(str(e)))
+        print("Continuing normally...")
+        
 
 
-def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFeatureNames, sampleIDs):
+def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFeatureNames, sampleIDs, bShowGraphs, bSaveGraphs):
     """
     Generates graph feature vectors for all samples and returns them as a matrix.
     :param gMainGraph: The generic graph of feature correlations.
@@ -1075,7 +1080,7 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     num_worker_threads = THREADS_TO_USE
     qTasks = Queue(10 * num_worker_threads)
     for i in range(num_worker_threads):
-        t = Thread(target=getSampleGraphFeatureVector, args=(i, qTasks,))
+        t = Thread(target=getSampleGraphFeatureVector, args=(i, qTasks,bShowGraphs, bSaveGraphs,))
         t.setDaemon(True)
         t.start()
 
@@ -1111,7 +1116,7 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     #     lambda mSample: getSampleGraphFeatureVector(gMainGraph, mSample, saRemainingFeatureNames, next(iCnt), iAllCount, dStartTime), 1, mAllSamples)
 
 
-def getSampleGraphFeatureVector(i, qQueue):
+def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
     """
     Helper parallelization function, which calculates the graph representation of a given sample.
     :param i: The thread number calling the helper.
@@ -1159,8 +1164,8 @@ def getSampleGraphFeatureVector(i, qQueue):
 
         #print("Showing and saving the graph of sample %s" % mSample)
         #param: sample id,
-        message("Calling showAndSaveGraph...")
-        showAndSaveGraph(gMainGraph, sPDFFileName = "SampleID%s" %(sampleID))
+        message("Calling showAndSaveGraph for graph %s..."%(str(sampleID)))
+        showAndSaveGraph(gMainGraph, sPDFFileName = "SampleID%s" %(sampleID), bShow = bShowGraphs, bSave = bSaveGraphs)
         message("Calling showAndSaveGraph...Done")
         #  Add to common result queue
         lResList.append(vGraphFeatures)
@@ -1196,7 +1201,7 @@ def classify(X, y):
 
 
 def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, bResetFeatures=True,
-                          numOfSelectedSamples=-1):
+                          numOfSelectedSamples=-1, bShowGraphs=True, bSaveGraphs=True):
     """
     Extracts the graph feature vectors of a given set of instances/cases.
     :param gMainGraph: The overall feature correlation graph.
@@ -1230,7 +1235,7 @@ def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames,
         message("Extracted selected samples:\n" + str(mSamplesSelected[:][0:10]))
         # Extract vectors
         # TODO pass SampleID to generateAllSampleGraphFeatureVectors
-        mGraphFeatures = generateAllSampleGraphFeatureVectors(gMainGraph, mSamplesSelected, saRemainingFeatureNames, sampleIDs)
+        mGraphFeatures = generateAllSampleGraphFeatureVectors(gMainGraph, mSamplesSelected, saRemainingFeatureNames, sampleIDs, bShowGraphs, bSaveGraphs)
         message("Computing graph feature matrix... Done.")
 
         message("Saving graph feature matrix...")
@@ -1249,6 +1254,9 @@ def main(argv):
     parser.add_argument("-rg", "--resetGraph", action="store_true", default=False)
     parser.add_argument("-rf", "--resetFeatures", action="store_true", default=False)
     parser.add_argument("-pre", "--prefixForIntermediateFiles", default="")
+    # Graph saving and display
+    parser.add_argument("-savg", "--saveGraphs", action="store_true", default=True)
+    parser.add_argument("-shg", "--showGraphs", action="store_true", default=False)
 
     # Post-processing control
     parser.add_argument("-p", "--postProcessing", action="store_true",
@@ -1297,7 +1305,7 @@ def main(argv):
     # TODO: Restore to NOT reset features
     mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs,
                                            bResetFeatures=args.resetFeatures,
-                                           numOfSelectedSamples=args.numberOfInstances)
+                                           numOfSelectedSamples=args.numberOfInstances, bShowGraphs=args.showGraphs, bSaveGraphs=args.saveGraphs)
 
     # Perform PCA
     # Get selected instance classes
