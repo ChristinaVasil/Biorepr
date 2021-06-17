@@ -19,7 +19,7 @@ printLog "Enter the name of the sample file\n";
 
 # my $overall_sample_file = "mainSampleSheet.tsv"; # LONG FILE
 # LONG FILE
-my $overall_sample_file = "gdc_sample_sheet.2020-02-19.tsv"; # SHORT FILE
+my $overall_sample_file = "gdc_sample_sheet.2021-06-16.tsv"; # SHORT FILE
 
 printLog "Using file $overall_sample_file.\n";
 my $sample_file = $overall_sample_file;
