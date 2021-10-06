@@ -14,27 +14,25 @@ sub printLog{
     STDOUT->printflush("(".(localtime).") $strToPrint \n");
 }
 
-#printLog "Enter the name of the sample file\n";
-# my $sample_file = "gdc_sample_sheet.2018-06-06.tsv"; #<STDIN>;
+# Base dir for data files
+my $base_dir = "../kidney"; 
 
-# my $overall_sample_file = "mainSampleSheet.tsv"; # LONG FILE
-
-my $base_dir = "../kidney"; # Base dir for data files
-
-# LONG FILE
-my $overall_sample_file = "gdc_sample_sheet.2021-06-16.tsv"; # SHORT FILE
+# Sample sheet downloaded from GDC
+my $overall_sample_file = "gdc_sample_sheet.2021-06-16.tsv";
 
 printLog "Using file $overall_sample_file.\n";
+
 my $sample_file = $overall_sample_file;
 
-# open mapping file
+# open sample sheet
 open INPUT, $sample_file or die "Cannot find file $sample_file";
 
+# Initialize array which stores sample ids
 my @sample_id=();
-my @data_type = (); #apothikeuei ola ta diaforetika eidi dedomenwn gia to kathe deigma
+# Initialize array which stores all data types per sample
+my @data_type = ();
 my $row_counter=0; 
-# initialize an empty hash patient_file_association, value is case id and key is the associated folder and file which is unique 
-#works ok!
+
 my %patient_vital_status_association;
 my %patient_daysToDeath_association;
 my %patient_meth_file_association;
@@ -48,9 +46,9 @@ my $FULL_SET_OF_SAMPLES = Set::Object->new();
 printLog "Reading Gene Annotation file...\n";
 # Get overall symbols hash
 sub get_rnasymbols_hash {
-        use warnings;
+    use warnings;
         
-	# Use fixed fle name for RNA Symbols Lookup
+	# Use fixed file name for annotation file
 	my $input_file = "mart_export_versions.txt";
 	# Create empty hashtable
 	my %hashtable;
@@ -61,24 +59,21 @@ sub get_rnasymbols_hash {
             # Ignore header
             if ($. > 1) {
                 # Then read and split the next lines
-		my @row=split("\t", $line);
-		# Add key-value pair to hashtable
-		chomp $row[0];
-		chomp $row[1];
-		
-		$hashtable{ $row[0] } = $row[1];
-            }
+				my @row=split("\t", $line);
+				# Add key-value pair to hashtable
+				chomp $row[0];
+				chomp $row[1];
+				
+				$hashtable{ $row[0] } = $row[1];
+			}
 	}
 
 	close RNA_SYMBOLS_FILE;
 	
-	# DEBUG OUTPUT
-# 	printLog Dumper \%hashtable;
-	##############
 	my $size = keys %hashtable;
 	printLog "Read ".$size." items.";
 	
-	# Return hashtable by ref
+	# Return hash table by ref
 	return \%hashtable;
 }
 
@@ -88,7 +83,7 @@ my %symbols_look_up = %$symbols_look_up_ref;
 printLog "Reading Gene Annotation file... Done.\n";
 
 printLog "Reading of data types per sample...\n";
-#store folder id/file id, file_id/file name, data type, 
+
 while (my $line = <INPUT>){
 	
 	if ($. > 1){
@@ -99,14 +94,10 @@ while (my $line = <INPUT>){
 		
 		$sample_id[$row_counter] = $column[6];
 		
-		
 		$patient_type_of_data_association {$sample_id[$row_counter]} = undef;
 		
 		$row_counter++;
 
-		
-		
-		
 		@column =();
 	}
 	
@@ -141,10 +132,8 @@ foreach my $sample (@SET_OF_Sample_IDs){
 			
 			}
 		
-		
 		}
 
-	
 	}
 
 	my $datatypes_conc = join (";", @datatype);
@@ -155,8 +144,6 @@ foreach my $sample (@SET_OF_Sample_IDs){
 }
 
 printLog "Filling in data types per sample... Done.\n";
-
-#printLog Dumper \%patient_type_of_data_association;
 
 
 printLog "Extract data paths per sample... \n";
@@ -177,7 +164,6 @@ foreach my $sample (keys %patient_type_of_data_association){
 			my $file_id = $column[1];
 			my $sample_id = $column[6];
 			my $data_type = $column[3];
-			#printLog "my data_type equals $data_type";
 			
 			if ($sample_id eq $sample){
 				
@@ -188,8 +174,7 @@ foreach my $sample (keys %patient_type_of_data_association){
 					$patient_meth_file_association{$sample_id} = $path;
 				
 					$meth++;
-					
-					#printLog "Meth ++ equals $meth";
+
 				}
 
 				elsif (($data_type eq 'miRNA Expression Quantification')&& $mirna<=1){
@@ -218,25 +203,17 @@ foreach my $sample (keys %patient_type_of_data_association){
 	
 	}
 
-	
 	close INPUT;
-
+	
 }
+
 printLog "Extract data paths per sample... Done. \n";
-
-
-#printLog "--------rna----\n";
-#printLog Dumper \%patient_rnaseq_file_association;
-#printLog "--------meth----\n";
-#printLog Dumper \%patient_meth_file_association;
-#printLog "--------mirna----\n";
-#printLog Dumper \%patient_mirna_file_association;
 
 
 get_all_data_for_all_patients(\%patient_rnaseq_file_association,\%patient_meth_file_association,\%patient_mirna_file_association,$FULL_SET_OF_DATA_TYPES,$FULL_SET_OF_SAMPLES);
 
-#input ena hash poy tha sysxetizei astheneis me type of data
-
+# Returns a hash of all samples linked to data types
+# calls write_output() which outputs a feature vector .txt
 sub get_all_data_for_all_patients {
 
 	use warnings;
@@ -288,20 +265,13 @@ sub get_all_data_for_all_patients {
 	
 	printLog "-----type of data---\n";
 	printLog Dumper \%patient_type_of_data_association;
-	#printLog "-----meth---\n";
-	#printLog Dumper \%patient_meth_data_association;
-	#printLog "-----mirna---\n";
-	#printLog Dumper \%patient_mirna_data_association;
-	#printLog "-----mrna---\n";
-	#printLog Dumper \%patient_rnaseq_data_association;
-	
+
 	write_output(\%patient_meth_data_association,\%patient_mirna_data_association,\%patient_rnaseq_data_association, \@gene_symbol_sorted,\@mirna_sorted,\@gene_meth_sorted,\@set_of_samples);
 	
 }
 
-#sub poy tha exei ws input 4 (mazi me ta klinika) hash enos deigmatos {key gene/gene/mirna => value } kai tis listes tous
-#gia kathe stoixeio tis listas bres to key kai grapse se ena arxeio to value toy hash
-
+# write_output() takes as input all constructed hashes from get_all_data_for_all_patients()
+# for each key of each hash, outputs the value of each key to a .txt file
 sub write_output{
 	
 	no warnings;
@@ -320,9 +290,7 @@ sub write_output{
 	printLog "Writing headers...";
 	
 	open WRITE, ">featureVectors_229.txt" or die "Cannot open file for output.";
-	
-	#printLog headers
-	
+
 	print WRITE "DATA\t";
 	
 	foreach my $element (@gene_symbol_list){
@@ -330,11 +298,13 @@ sub write_output{
 		print WRITE "m_$element\t";
 
 	}
+	
 	foreach my $mirna (@mirna_symbol_list){
 
 		print WRITE "$mirna\t";
 
 	}
+	
 	foreach my $dna_meth (@gene_meth_symbol_list){
 
 		print WRITE "$dna_meth\t";
@@ -353,6 +323,7 @@ sub write_output{
 	
 	my $instanceCount = 0;
 	my $allInstancesCount = keys %patient_type_of_data_association;
+	
 	printLog "Writing instances...\n";
 
 	foreach my $sample (keys %patient_type_of_data_association){
@@ -371,6 +342,7 @@ sub write_output{
 			printLog "$sample\t";
 			
 			printLog "Updating RNA data...\n";
+			
 			# For each rna gene symbol
 			foreach my $rnaCurrentGene (@gene_symbol_list) {
                             # if we have a corresponding record
@@ -386,6 +358,7 @@ sub write_output{
 			printLog "Updating RNA data... Done.\n";
 
 			printLog "Updating miRNA data...\n";
+			
 			# For each mirna gene symbol
 			foreach my $mirnaCurrentSymbol (@mirna_symbol_list) {
                             # if we have a corresponding record
@@ -398,10 +371,12 @@ sub write_output{
                                 print WRITE "na\t";
                             }
 			}
+			
 			printLog "Updating miRNA data... Done.\n";
 			
 			printLog "Updating methylation data...\n";
-			# For each meth gene symbol
+			
+			# For each methylation gene symbol
 			foreach my $methCurrentSymbol (@gene_meth_symbol_list) {
                             # if we have a corresponding record
                             if (exists $patient_meth_data_association{$sample} and defined $patient_meth_data_association{$sample}{$methCurrentSymbol}) {
@@ -409,185 +384,53 @@ sub write_output{
                                 print WRITE "$patient_meth_data_association{$sample}{$methCurrentSymbol}\t";
                             }
 							else {
-                                # write na
+                                # or write na
                                 print WRITE "na\t";
                             }
 			}
 			printLog "Updating methylation data... Done.\n";
 			
 			
-# 			# For every patient data type
-# 			for (my $counter_type=0; $counter_type<$length; $counter_type++){
-# 				# If we talk about gene expression
-# 				if ($data_type_per_sample[$counter_type] eq 'Gene Expression Quantification'){
-#                                         # Increase the number of times we faced gene expression
-# 					$rnaseq++;
-# 
-# 				}
-# 				elsif ($data_type_per_sample[$counter_type] eq 'miRNA Expression Quantification'){
-# 				
-# 					$mirna++;
-# 
-# 				}
-# 				elsif($data_type_per_sample[$counter_type] eq 'Methylation Beta Value'){
-# 				
-# 					$meth++;
-# 				}
-# 			}	
-# 			
-# 			if ($rnaseq == 1){
-# 			
-# 				foreach my $rna_patient (keys %patient_rna_data_association){
-# 				
-# 					if ($rna_patient eq $sample){
-# 						
-# 						for ($counter = 0; $counter < $gene_length; $counter++ ){
-# 							
-# 							foreach my $gene ( keys %{$patient_rna_data_association{$rna_patient}}){
-# 
-# 									if($gene_symbol_list[$counter] eq $gene){
-# 
-# 										#printLog "\n $gene_symbol_list[$counter] equals $gene and has this value $patient_rna_data_association{$rna_patient}{$gene}\n";
-# 										
-# 										print WRITE "$patient_rna_data_association{$rna_patient}{$gene}\t";
-# 									
-# 									}
-# 								
-# 							}
-# 
-# 						}
-# 					}
-# 					
-# 				
-# 				}
-# 			}
-# 			elsif($rnaseq == 0){
-# 
-# 				for ($counter = 0; $counter < $gene_length; $counter++ ){
-# 
-# 							print WRITE "-\t";
-# 
-# 				}
-# 			}
+	}
 
+    # Open status_uniq.txt a file which stores info about each sample id and their corresponding status
+	# and output the status of each sample to the .txt feature vector
+	open CLIN, "status_uniq.txt" or die "Cannot find file";
+	while (my $row = <CLIN>){
+	
+		if ($.>1){
 			
-# 			if($mirna == 1){
-# 			
-# 					foreach my $mirna_patient (keys %patient_mirna_data_association){
-# 					
-# 						if ($mirna_patient eq $sample){
-# 							
-# 							for ($counter = 0; $counter < $mirna_length; $counter++ ){
-# 						
-# 								foreach my $mirna ( keys %{$patient_mirna_data_association{$mirna_patient}}){
-# 									
-# 									#printLog "mirna $mirna\n";
-# 
-# 										if($mirna_symbol_list[$counter] eq $mirna){
-# 
-# 											#printLog "\n $mirna_symbol_list[$counter] equals $mirna and has this value $patient_mirna_data_association{$mirna_patient}{$mirna}\n";
-# 											
-# 											print WRITE "$patient_mirna_data_association{$mirna_patient}{$mirna}\t";
-# 										}
-# 									
-# 								}
-# 					
-# 							}
-# 						}
-# 					}
-# 			}			
-# 			elsif($mirna == 0){
-# 
-# 				for ($counter = 0; $counter < $mirna_length; $counter++ ){
-# 
-# 						print WRITE "-\t";
-# 
-# 				}
-# 
-# 			}
+			my @column = split ("\t", $row);
+			my $submitter_id = $column[0]; 
+			my $status = $column[1];
 				
+			if ($submitter_id eq $sample){
 			
-# 			if($meth == 1){
-# 			
-# 				foreach my $meth_patient (keys %patient_meth_data_association){
-# 				
-# 					if ($meth_patient eq $sample){
-# 						
-# 						for ($counter = 0; $counter < $meth_length; $counter++ ){
-# 					
-# 							foreach my $meth_gene ( keys %{$patient_meth_data_association{$meth_patient}}){
-# 								
-# 								#printLog "meth_gene $meth_gene\n";
-# 
-# 									if($gene_meth_symbol_list[$counter] eq $meth_gene){
-# 
-# 										#printLog "\n $gene_meth_symbol_list[$counter] equals $meth_gene and has this value $patient_meth_data_association{$meth_patient}{$meth_gene}\n";
-# 										
-# 										print WRITE "$patient_meth_data_association{$meth_patient}{$meth_gene}\t";
-# 									}
-# 								
-# 								
-# 							}
-# 				
-# 						}
-# 					}
-# 			
-# 				}	
-# 				
-# 			}
-# 			elsif($meth == 0){
-# 				
-# 				for ($counter = 0; $counter < $meth_length; $counter++ ){
-# 
-# 									print WRITE "-\t";
-# 			
-# 				}
-# 			
-# 			}
-
-                        # Append clinical data
-			open CLIN, "status_uniq.txt" or die "Cannot find file";
-			while (my $row = <CLIN>){
-			
-				if ($.>1){
-					
-					my @column = split ("\t", $row);
-					my $submitter_id = $column[0]; 
-					my $status = $column[1];
-						
-					if ($submitter_id eq $sample){
-					
-						print WRITE "$status";
-				
-					}
-			
-				}
-
+				print WRITE "$status";
+		
 			}
-			close CLIN;
-				
-				
-                printLog "Writing data for patient $instanceCount / $allInstancesCount ($sample)... Done.\n"; 
-		
-		
-				
+	
+		}
+
 	}
 	
-	
+	close CLIN;
+						
+    printLog "Writing data for patient $instanceCount / $allInstancesCount ($sample)... Done.\n"; 
+			
 	close WRITE;
-}
 
+}
 
 sub get_gene_symbols_from_rnaseq_files{
 	
 	use warnings;
 	
-	printLog "sub rna seq is called!\n";
 	my ($hash_ref) = @_;
-        my %patient_rnaseq_file_association = %$hash_ref;
+    my %patient_rnaseq_file_association = %$hash_ref;
     
 		
-	# initialize an empty set FULL_SET_OF_miRNAs
+	# Initialize an empty set FULL_SET_OF_miRNAs
 	my $FULL_SET_OF_ENSEMBL_IDS = Set::Object->new();
 	my $FULL_SET_OF_GENE_NAME = Set::Object->new();
 	my $test_counter = 0;
@@ -597,61 +440,31 @@ sub get_gene_symbols_from_rnaseq_files{
 	my $gene_symbol_ref;
 	my $gene_symbol_m;
 
-	# for each case id, get name of folder and methylation file	
+	# For each case id, get name of folder and methylation file	
 	foreach my $key (keys %patient_rnaseq_file_association){
-                $test_counter=$test_counter + 1;
-                printLog "... for patient #$test_counter ($key) in file $patient_rnaseq_file_association{$key}.\n";
-                
-		# open file
+		
+		$test_counter=$test_counter + 1;
+		printLog "... for patient #$test_counter ($key) in file $patient_rnaseq_file_association{$key}.\n";
+
 		my $counter=0;
 
 		open DATA, $patient_rnaseq_file_association{$key} or die "Cannot find file $patient_rnaseq_file_association{$key}";
-		
-		#printLog "\n ----for $patient_rnaseq_file_association{$key}----\n";
 		
 		while (my $row = <DATA>){
 				
 			my @lines = split ("\t", $row);
 			$ensembl_id[$counter] = $lines[0];	
 			
-# 			open ANN, "mart_export_versions.txt" or die "Cannot find file";
-# 						
-# 					while (my $line = <ANN>){
-# 						
-# 						my $mart_ensembl_id;
-# 						my $mart_gene_name;
-# 						
-# 						if ($.>1){
-# 							
-# 							my @rows = split ("\t", $line);
-# 							$mart_ensembl_id = $rows[0];
-# 							$mart_gene_name = $rows[1];
-# 							chomp $mart_gene_name;
-# 							chomp $ensembl_id[$counter];
-# 							if ($ensembl_id[$counter] eq $mart_ensembl_id){
-# 								
-# 								$gene_symbol_m = $mart_gene_name;
-# 								#printLog "Ensembl $mart_ensembl_id or $ensembl_id has gene name $mart_gene_name";
-# 								push(@gene_name,$gene_symbol_m);
-# 							
-# 							}
-# 						}
-# 						
-# 					}
-# 					close ANN;
-# 					
-# 			#printLog "ensemble ids $ensembl_id[$counter]\n";
-
-                        # Get symbol name from hashtable
-                        $gene_symbol_m = $symbols_look_up{$ensembl_id[$counter]};
-                        
-                        # Update list of gene symbols
-                        push(@gene_name,$gene_symbol_m);
+			# Get symbol name from hashtable
+			$gene_symbol_m = $symbols_look_up{$ensembl_id[$counter]};
+			
+			# Update list of gene symbols
+			push(@gene_name,$gene_symbol_m);
 			$counter++;
 	
 		}
+		
 		my $length = @ensembl_id;
-	#	printLog "$length";
 	
 		$FULL_SET_OF_ENSEMBL_IDS -> insert (@ensembl_id);
 		$FULL_SET_OF_GENE_NAME -> insert (@gene_name);
@@ -664,24 +477,23 @@ sub get_gene_symbols_from_rnaseq_files{
 
 
 	
-	#creation of a hash that has as a key the case id and value a hash that is returned from the exractMethylationVector subroutine
+	#creation of a hash that has as a key the case id 
+	# and value a hash that is returned from the exractMethylationVector subroutine
 	my %patient_rnaseq_data_association;
 	$test_counter=0; # Reset counter
 	foreach my $key (keys %patient_rnaseq_file_association){
-		#printLog "hey babe\n$patient_mirna_file_association{$key}\n";
-		#my $gene_ensembl_ref;
 		
-                $test_counter=$test_counter + 1;
-                printLog "Extracting RNAseq vector for patient #$test_counter ($key)... ";
+		$test_counter=$test_counter + 1;
+		
+		printLog "Extracting RNAseq vector for patient #$test_counter ($key)... ";
+		
 		($patient_rnaseq_data_association{$key}, $gene_symbol_ref) = exractRNAseqVector($patient_rnaseq_file_association{$key},\$FULL_SET_OF_ENSEMBL_IDS, \$FULL_SET_OF_GENE_NAME);
-                printLog "Extracting RNAseq vector for patient #$test_counter ($key)... Done.\n";
+		
+		printLog "Extracting RNAseq vector for patient #$test_counter ($key)... Done.\n";
 		
 		@gene_symbol = @$gene_symbol_ref;
-	#	printLog "@gene_symbol/n";
 		
 	}
-	
-	#printLog Dumper \%patient_data_association;
 
 	return (\%patient_rnaseq_data_association,\@gene_symbol);
 	
@@ -725,8 +537,8 @@ sub get_mirna_id_from_mirna_files{
 		#printLog "mirna id @miRNAs_id\n";
 		@miRNAs_id = ();
 }
-	#printLog " set $FULL_SET_OF_miRNAs\n";
-	#creation of a hash that has as a key the case id and value a hash that is returned from the exractMethylationVector subroutine
+	# Creation of a hash that has as a key the sample id 
+	# and value a hash that is returned from the exractMethylationVector subroutine
 	my $mirna_id_sorted_ref;
 	my %patient_mirna_data_association;
 	my @mirna_id_sorted;
@@ -756,16 +568,16 @@ sub get_gene_symbols_from_methylation_files{
 	my @genes_per_probe = ();
 	my @gene_symbol = ();
 	
-        printLog "Reading all methylation symbols...\n";
-        my $test_counter = 0;
+	printLog "Reading all methylation symbols...\n";
+	my $test_counter = 0;
+	
 	# for each case id, get name of folder and methylation file
 	foreach my $key (keys %patient_methylation_file_association){
-		# open methylation file
 		
 		$test_counter = $test_counter + 1;
 		printLog "Reading symbols for patient #$test_counter ($key) from file $patient_methylation_file_association{$key}...";
 		open DATA, $patient_methylation_file_association{$key} or die "Cannot find file";
-		#printLog "\n ----for $patient_methylation_file_association{$key}----\n";
+		
 		my $counter=0;
 		
 		while (my $row = <DATA>){
@@ -781,9 +593,6 @@ sub get_gene_symbols_from_methylation_files{
 		
 		}
 		
-		
-		
-		#$FULL_SET_OF_GENE_NAMES -> insert (@gene_symbol);
 		close DATA;
 		printLog " Done.\n";
 
@@ -792,8 +601,7 @@ sub get_gene_symbols_from_methylation_files{
 	}
         printLog "Reading all methylation symbols... Done.\n ";
 
-	# -- at this point we have the full list of genes- it works fine
-
+	# -- at this point we have the full list of genes- 
 	# init the case list METHYLATION_INFO_OF_CASES
 	# for each id
 		# get name of methylation file
@@ -802,19 +610,19 @@ sub get_gene_symbols_from_methylation_files{
 		# add returned vector to METHYLATION_INFO_OF_CASES
 	# store the METHYLATION_INFO_OF_CASES to a file
 	##################
-	# for each id, get name of methylation file	
-	#creation of a hash that has as a key the case id and value a hash that is returned from the exractMethylationVector subroutine
+		
 	my $gene_sorted_meth_ref;
 	my %patient_meth_data_association;
 	my @gene_sorted_meth;
+	
+	# for each id, get name of methylation file
 	foreach my $patient (keys %patient_methylation_file_association){
-            printLog "Extracting methylation vector for patient $patient in file $patient_methylation_file_association{$patient}...";		
+        printLog "Extracting methylation vector for patient $patient in file $patient_methylation_file_association{$patient}...";		
+		# creation of a hash that has as a key the case id and value a hash that is returned from the exractMethylationVector subroutine
 		($patient_meth_data_association{$patient},$gene_sorted_meth_ref) = exractMethylationVector($patient_methylation_file_association{$patient},\$FULL_SET_OF_GENE_NAMES);
-            printLog " Done.\n";
+        printLog " Done.\n";
 	}
 	@gene_sorted_meth = @$gene_sorted_meth_ref;
-	#printLog "Also Here!!!\n";
-	#printLog Dumper \%patient_meth_data_association;
 	return (\%patient_meth_data_association,\@gene_sorted_meth);
 
 }
@@ -832,16 +640,13 @@ sub get_gene_symbols_from_methylation_files{
 sub exractRNAseqVector{
 
 	no warnings;
-# 	printLog "ExtractRNASeqVector parsing parameters...\n";
+
 	my ($filename, $fullLSetOfEnsemblId_Ref, $fullLSetOfEntrezGeneId_Ref ) = @_;
 	my $fullLSetOfEnsemblId = ${$fullLSetOfEnsemblId_Ref};
 	my $fullLSetOfEntrezGeneId = ${$fullLSetOfEntrezGeneId_Ref};
-#         printLog "ExtractRNASeqVector parsed parameters... Done\n";
 	
-# 	printLog "ExtractRNASeqVector extracting sizes...\n";
 	my $sizeEnsembl = $fullLSetOfEnsemblId -> size();
 	my $sizeEntrez = $fullLSetOfEntrezGeneId -> size();
-# 	printLog "ExtractRNASeqVector extracting sizes... Done.\n";
 	
 	my $FPKM;
 	my @column;
@@ -851,59 +656,46 @@ sub exractRNAseqVector{
 	my $reads_counter = 0;
 	my $ensembl_id;
 	
-	# create a hash RES_VEC containing all the gene names as keys and NA as values
+	# Create a hash RES_VEC containing all the gene names as keys and NA as values
 	my %RES_VEC;
 	
-	#sort @set_ensembl and @set_gene_name alphabetically
-# 	printLog "Sorting gene Ensembl hash...\n";
+	# Sort @set_ensembl and @set_gene_name alphabetically
 	my @set_ensembl = ${$fullLSetOfEnsemblId_Ref}->members();
 	sort { (lc($a) cmp lc($b)) or ($a cmp $b) } @set_ensembl;
-# 	printLog "Sorting gene Ensembl hash...Done. \n";
-	
-# 	printLog "Sorting gene Entrez ids...\n";
+
 	my @set_gene_name = ${$fullLSetOfEntrezGeneId_Ref}->members();
 	sort { (lc($a) cmp lc($b)) or ($a cmp $b) } @set_gene_name;
-# 	printLog "Sorting gene Entrez ids... Done.\n";
-	
-# 	printLog "Initializing vector...\n";
+
 	for ($counter=0; $counter < $sizeEntrez; $counter++){
 		
 		$RES_VEC{$set_gene_name[$counter]} = undef;
 	
 	}
-# 	printLog "Initializing vector... Done.\n";
 
-	#sygkrisi olwn twn genes pou exoun apothikeutei sto set me oles tis grammes gia ola ta arxeia
-	#sygkrisi kathe gene sto @set_elements me oles tis grammes kathe arxeioy
-	
-# 	printLog "Extracting vector from file $filename...\n";
-	
-        open FILE, $filename or die "Cannot find file $filename\n";
-        # For every line in the RNAseq file
-        while (my $row = <FILE>){
-            @column = split ("\t", $row);
-    
-            # Get gene ID
-            $ensembl_id= $column[0];
-            
-            # If the set contains the ensemblID
-            if ($fullLSetOfEnsemblId->member($ensembl_id)){
-                # Get column 1 value and map it to the corresponding gene game (from the overall hashmap)
-                my $geneSymbol = $symbols_look_up{$ensembl_id};
-                chomp $column[1];
-                $RES_VEC{$geneSymbol} = $column[1];
-                
-            }
+	open FILE, $filename or die "Cannot find file $filename\n";
+	# For every line in the RNAseq file
+	while (my $row = <FILE>){
+		@column = split ("\t", $row);
+
+		# Get gene ID
+		$ensembl_id= $column[0];
+		
+		# If the set contains the ensemblID
+		if ($fullLSetOfEnsemblId->member($ensembl_id)){
+			# Get column 1 value and map it to the corresponding gene game (
+			# from the overall hashmap)
+			my $geneSymbol = $symbols_look_up{$ensembl_id};
+			chomp $column[1];
+			$RES_VEC{$geneSymbol} = $column[1];
 			
-            @column = ();
-    
+		}
+		
+		@column = ();
+
 	}
-        close FILE;
-        
-# 	printLog "Extracting vector from file $filename... Done.\n";
+	close FILE;
 	
-        #printLog Dumper \%RES_VEC;
-        return (\%RES_VEC, \@set_gene_name);
+	return (\%RES_VEC, \@set_gene_name);
 }
 	
 	
@@ -920,53 +712,50 @@ sub exractmiRNAVector{
 	my @gene;
 	my $counter;
 	my $reads_counter = 0;
-	printLog "Extracting miRNA Vector for $filename...\n";
-	# create a hash RES_VEC containing all the gene names as keys and NA as values
 	my %RES_VEC;
+	
+	printLog "Extracting miRNA Vector for $filename...\n";
 	
 	sort { (lc($a) cmp lc($b)) or ($a cmp $b) } @set_elements;
 	for ($counter=0; $counter < $size; $counter++){
 		
+		# Create a hash RES_VEC containing 
+		# all the gene names as keys and NA as values
 		$RES_VEC{$set_elements[$counter]} = undef;
 
 	}
 
+	# Open the patient miRNA file
+	open FILE, $filename or die "Cannot find file $filename";
+	
+	# For every row beyond the first (header)
+	while (my $row = <FILE>){
+			if ($. > 1){
+				# Get the miRNA ID from the row
+				@column = split ("\t", $row);
+				$miRNA_id= $column[0];
+				chomp $miRNA_id;
 
-
-	#sygkrisi olwn twn genes pou exoun apothikeutei sto set me oles tis grammes gia ola ta arxeia
-	#sygkrisi kathe gene sto @set_elements me oles tis grammes kathe arxeioy
-        # Open the patient miRNA file
-        open FILE, $filename or die "Cannot find file $filename";
-        
-        # For every row beyond the first (header)
-        while (my $row = <FILE>){
-                if ($. > 1){
-                    # Get the miRNA ID from the row
-                    @column = split ("\t", $row);
-                    $miRNA_id= $column[0];
-                    chomp $miRNA_id;
-
-                    # If the $RES_VEC contains the miRNA_id
-                    if (exists $RES_VEC{$miRNA_id}){
-                        # Update the value of the hash
-                        $RES_VEC{$miRNA_id} = $column[2];
-                    }
-		
-		  }
+				# If the $RES_VEC contains the miRNA_id
+				if (exists $RES_VEC{$miRNA_id}){
+					# Update the value of the hash
+					$RES_VEC{$miRNA_id} = $column[2];
+				}
+	
+			}
+			
 		@column = ();
 	}
-        #@reads_per_million_miRNA_mapped = ();
-        #$reads_counter = 0;
-        close FILE;
-        #printLog Dumper \%RES_VEC;
+	close FILE;
+
 	printLog "Extracting miRNA Vector for %filename... Done.\n";
-        return (\%RES_VEC,\@set_elements);
+	return (\%RES_VEC,\@set_elements);
+	
 }
 	
 sub exractMethylationVector{
 
 	no warnings;
-	#use warnings;
 	
 	my ($filename, $fullLSetOfGeneNames_Ref) = @_;
  	my $fullLSetOfGeneNames = ${$fullLSetOfGeneNames_Ref};
@@ -978,76 +767,65 @@ sub exractMethylationVector{
 	my @gene;
 	my $counter;
 	my $beta_counter = 0;
-	
-	# create a hash beta_values containing all the gene names as keys and NA as values
 	my %betaValues;
 	
 	sort { (lc($a) cmp lc($b)) or ($a cmp $b) } @set_elements;
 	for ($counter=0; $counter < $size; $counter++){
-		
+		# Create a hash beta_values containing 
+		# all the gene names as keys and NA as values
 		$betaValues{$set_elements[$counter]} = undef;
 	
 	}
 	
-	#open file
+	open FILE, $filename or die "Cannot find file $filename";
 	
-	#printLog "\n$filename\n";
-	#sygkrisi olwn twn genes pou exoun apothikeutei sto set me oles tis grammes gia ola ta arxeia
-	#sygkrisi kathe gene sto @set_elements me oles tis grammes kathe arxeioy
-        open FILE, $filename or die "Cannot find file $filename";
-        #printLog "\n heyyyy $set_elements[$counter]\n";
-        
-        my %betaGeneCount;
-        
-        # For every row $currentRow
-        while (my $row = <FILE>){
-            # If it contains something
-            if ($. > 1){
-                # Split the line
-                @column = split ("\t", $row);
-                # Get genes names from corresponding field
-                my @rowGenes = split(";", $column[5]);
-                                
-                # Initialize set to keep visited genes in this row
-                my $visitedGenesInRow = Set::Object->new();
-                # For every gene $rowGene in the row
-                foreach my $rowGene (@rowGenes) {
-                    # If it refers to one of our genes $ourGene, and we have NOT already used $rowGene it in the current row
-                    if ($fullLSetOfGeneNames->member($rowGene) and not $visitedGenesInRow->member($rowGene)) {
-                            # Update the corresponding $rowGene average
-                            # If this is the first time we update the gene
-                            if ($betaValues{$rowGene} eq undef) {
-                                # Set the value
-                                $betaValues{$rowGene} = $column[1];
-                                $betaGeneCount{$rowGene} = 1;
-                            }
-                            else {
-                                my $curWeight = $betaGeneCount{$rowGene};
-                                
-                                # If the value is not NA then
-                                if ($column[1] != 'N/A') {
-                                    # Update the average
-                                    $betaValues{$rowGene} = (($curWeight * $betaValues{$rowGene}) + $column[1]) / ($curWeight + 1);
-                                    # Increase count of times we found the gene
-                                    $betaGeneCount{$rowGene} = $betaGeneCount{$rowGene} + 1;
-                                }
-                            }
-                            # Make sure we do not revisit this gene, in the current row
-                            $visitedGenesInRow->insert($rowGene);
-                    }
-                }
-            }
-        }
-        # Return the result
-        return (\%betaValues,\@set_elements);
+	my %betaGeneCount;
+	
+	# For every row $currentRow
+	while (my $row = <FILE>){
+		# If it contains something
+		if ($. > 1){
+			# Split the line
+			@column = split ("\t", $row);
+			# Get genes names from corresponding field
+			my @rowGenes = split(";", $column[5]);
+							
+			# Initialize set to keep visited genes in this row
+			my $visitedGenesInRow = Set::Object->new();
+			# For every gene $rowGene in the row
+			foreach my $rowGene (@rowGenes) {
+				# If it refers to one of our genes $ourGene, and we have NOT already used $rowGene it in the current row
+				if ($fullLSetOfGeneNames->member($rowGene) and not $visitedGenesInRow->member($rowGene)) {
+					# Update the corresponding $rowGene average
+					# If this is the first time we update the gene
+					if ($betaValues{$rowGene} eq undef) {
+						# Set the value
+						$betaValues{$rowGene} = $column[1];
+						$betaGeneCount{$rowGene} = 1;
+					}
+					else {
+						my $curWeight = $betaGeneCount{$rowGene};
+						
+						# If the value is not NA then
+						if ($column[1] != 'N/A') {
+							# Update the average
+							$betaValues{$rowGene} = (($curWeight * $betaValues{$rowGene}) + $column[1]) / ($curWeight + 1);
+							# Increase count of times we found the gene
+							$betaGeneCount{$rowGene} = $betaGeneCount{$rowGene} + 1;
+						}
+					}
+					# Make sure we do not revisit this gene, in the current row
+					$visitedGenesInRow->insert($rowGene);
+				}
+			}
+		}
+	}
+	return (\%betaValues,\@set_elements);
 
 }
 
 
-
-#osa exoun NA beta_value moy bgazei pws exei 0 average. to opoio einai lathos! na brw tropo na to diorthwsw!
-#den thelw oi NA values na upologzontai sto average giati to 0 exei fysiki simasia
- sub average_beta_value_per_gene{
+sub average_beta_value_per_gene{
 
 	no warnings;
 	printLog "\naverage_beta_value_per_gene is called!\n";
@@ -1064,6 +842,8 @@ sub exractMethylationVector{
 	my $counter;
 	for ( $counter =0; $counter < $length; $counter ++){
 		
+		# N/A shouldn't be taken into account to the beta value average
+		# zero has a biological meaning
 		if ($beta_value_def[$counter] != 'N/A'){
 	
 			$beta_value_array[$counter] = $beta_value_def[$counter];
@@ -1071,7 +851,7 @@ sub exractMethylationVector{
 		}
 		
 	}
-	#printLog "\n beta_value_array is @beta_value_array\n ";
+	
 	if ($array_length == 0 ){
 		
 		return undef;
@@ -1080,13 +860,7 @@ sub exractMethylationVector{
 	
 	else{
 		my $total =0;
-		#my $array_length = @beta_value_array;
-		#printLog "array_length is $array_length \n";
-		#for ( $counter =0; $counter< $array_length; $counter++){
-		#	printLog "\nhey\n";
-		#	$total = $beta_value_array[$counter]+ $total; 
-			
-		#}
+
 		foreach (@beta_value_array) {
 		
 				$total += $_;
