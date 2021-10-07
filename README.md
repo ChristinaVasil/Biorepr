@@ -1,6 +1,6 @@
 # Biorepr
 
-This project aims to extract multi-omic data from Genomic Data Commons Database, construct feature vectors and personalized graphs in order to successfully predict the tumor stage and cae/control status, through Machine Learning.
+This project aims to extract multi-omic data from Genomic Data Commons Database, construct feature vectors and personalized graphs in order to successfully predict the tumor stage and case/control status, through Machine Learning.
 
 ## Package Installation and data download
 
@@ -51,4 +51,4 @@ sed -i 's/stage I/stage i/g' clinical.tsv
 
 Now you may run the python script like this:
 
-`
+`python3 preProcessing.py`
