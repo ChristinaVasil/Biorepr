@@ -1134,7 +1134,7 @@ def spreadingActivation(gGraph, iIterations=100, dPreservationPercent=0.5, bAbso
     return gGraph
 
 
-def assignSampleValuesToGraphNodes(gGraph, mSample, saSampleFeatureNames):
+def assignSampleValuesToGraphNodes(gGraph, mSample, saSampleFeatureNames, feat_names):
     """
     Assigns values/weights to nodes of a given graph (inplace), for a given sample.
     :param gGraph: The generic graph.
@@ -1143,8 +1143,8 @@ def assignSampleValuesToGraphNodes(gGraph, mSample, saSampleFeatureNames):
     """
     # For each node
     for nNode in gGraph.nodes():
-        # Get corresponding feature idx in sample
-        iFeatIdx = saSampleFeatureNames.index(nNode)
+        # Get corresponding feature idx in sample 
+        iFeatIdx = feat_names.index(nNode)
         # Assign value of feature as node weight
         dVal = mSample[iFeatIdx]
         # Handle missing values as zero (i.e. non-important)
