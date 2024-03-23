@@ -1075,18 +1075,13 @@ def getGraphVector(gGraph):
     """
     # DEBUG LINES
     message("Extracting graph feature vector...")
-
+   
     mRes = np.asarray(
         [len(gGraph.edges()), len(gGraph.nodes()),
          np.mean(np.array(list(nx.algorithms.centrality.degree_alg.degree_centrality(gGraph).values()))),
-         # Avg deg centrality
-         nx.algorithms.clique.graph_number_of_cliques(gGraph),
-         # TODO: Shortest path does NOT work.; revisit if needed
-         # nx.algorithms.shortest_paths.unweighted.all_pairs_shortest_path_length(gGraph),
-         # getAvgShortestPath(gGraph)
+         nx.algorithms.clique.number_of_cliques(gGraph),
          nx.algorithms.connectivity.connectivity.average_node_connectivity(gGraph),
-         np.mean([np.mean(list(x[1].values())) for x in
-                  list(nx.algorithms.shortest_paths.unweighted.all_pairs_shortest_path_length(gGraph))]),
+         nx.average_shortest_path_length(gGraph)
          ]
     )
     # DEBUG LINES
@@ -1182,34 +1177,6 @@ def filterGraphNodes(gMainGraph, dKeepRatio):
     gMainGraph.remove_nodes_from(toRemove)
 
     return gMainGraph
-
-
-
-def showAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = True, bSave = True ):
-    """
-    Draws and displays a given graph, also saving it to a given file.
-    :param gToDraw: The graph to draw and save.
-    :param sPDFFileName:  The output filename. Default: corrGraph.pdf.
-    """
-    
-    if bShow:
-        message("Displaying graph...")
-        drawGraph(gToDraw, bShow)
-        message("Displaying graph... Done.")
-    else:
-        message("Ignoring graph display as requested...");
-
-    if bSave:
-        message("Saving graph to file...")
-        try:
-            if bSave:
-                plt.savefig(sPDFFileName, bbox_inches='tight')
-            message("Saving graph to file... Done.")
-        except Exception as e:
-            print("Could not save file! Exception:\n%s\n"%(str(e)))
-            print("Continuing normally...")
-    else:
-        message("Ignoring graph saving as requested...");
         
 
 
