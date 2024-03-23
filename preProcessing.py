@@ -643,7 +643,7 @@ def ClusterAllData():
     Creates k-means-based clustering of the control and tumor data, visualizing the results in a PCA-based 3D space.
     """
     # Initialize feature matrices
-    mFeatures_noNaNs, vClass, sampleIDs = initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True)
+    mFeatures_noNaNs, vClass, sampleIDs, feat_names, tumor_stage = initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True)
 
     message("Separating instances per class...")
     # Perform clustering, initializing the clusters with a control and a patient
@@ -653,34 +653,26 @@ def ClusterAllData():
 
     npInitialCentroids = np.array([np.nanmedian(npaControlFeatures[:, :], 0),
                                    np.nanmedian(npaNonControlFeatures[:, :], 0)])
-
+    
     message("Separating instances per class... Done.")
 
     message("Applying k-means...")
     # Perform clustering
-    clusterer = KMeans(2, npInitialCentroids, n_init=1)
+    clusterer = KMeans(2, init=npInitialCentroids, n_init=1)
+    
     y_pred = clusterer.fit_predict(mFeatures_noNaNs)
+    
     message("Applying k-means... Done.")
 
     message("Applying PCA for visualization...")
     X, pca3D = getPCA(mFeatures_noNaNs, 3)
-    # X = QuantileTransformer(output_distribution='uniform').fit_transform(X)
 
     message("Applying PCA for visualization... Done.")
 
     draw3DPCA(X, pca3D, c=y_pred)
     aCategories, y = np.unique(vClass, return_inverse=True)
     draw3DPCA(X, pca3D, c=y)
-    # splt = fig.add_subplot(122
-    #                        # , projection='3d'
-    #                       )
-    # # Assign colors
-    # aCategories, y = np.unique(vClass, return_inverse=True)
-    # splt.scatter(X[:, 0], X[:, 1], c=y, cmap=plt.cm.gnuplot, marker='.'
-    # # , depthshade=False
-    #              )
-    # splt.title = "True"
-
+    
     message("Plotting... Done.")
 
     # Calculate performance (number/precent of misplaced controls, number/precent of misplaced tumor samples)
