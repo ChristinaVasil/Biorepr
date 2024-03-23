@@ -780,18 +780,24 @@ def testSpreadingActivation():
 
 def getFeatureNames():
     """
-    Returns the names of the features of the data matrix, as a list.
     :return: The list of feature names.
     """
     message("Loading feature names...")
-    fControl = open("./patientAndControlData.csv", "r")
-    # fControl = open("/datastore/cvas/output.txt", "r")
-    saNames = fControl.readline().strip().split("\t")
-    lFeatureNames = [sName.strip() for sName in saNames]
-    fControl.close()
+    # Read the first line from the file
+    with open(FEATURE_VECTOR_FILENAME, 'r') as file:
+        first_line = file.readline()
+    
+    # Separate the contents by space and store them in a list
+    column_names = first_line.split()
+    
+    #Remove label and tumor stage
+    column_names = column_names[:-2]
+    
+    # Remove double quotes from all elements in the list
+    column_names = [element.replace('"', '') for element in column_names]
     message("Loading feature names... Done.")
+    return column_names
 
-    return lFeatureNames
 
 
 def addEdgeAboveThreshold(i, qQueue):
