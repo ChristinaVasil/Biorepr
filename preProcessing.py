@@ -1089,13 +1089,6 @@ def getGraphVector(gGraph):
 
     return mRes
 
-
-# PCAOnControl()
-
-# PCAOnAllData()
-
-# ClusterAllData()
-
 def spreadingActivation(gGraph, iIterations=100, dPreservationPercent=0.5, bAbsoluteMass=False):
     """
     Applies spreading activation to a given graph.
@@ -1106,22 +1099,24 @@ def spreadingActivation(gGraph, iIterations=100, dPreservationPercent=0.5, bAbso
     :return: The (inplace) updated graph.
     """
     message("Applying spreading activation...")
-    # In each iteration
+    #!!! In each iteration
     for iIterCnt in range(iIterations):
-        # For every node
+        #!!! For every node
         for nCurNode in gGraph.nodes():
             # Get max edge weight
             dWeights = np.asarray([gGraph[nCurNode][nNeighborNode]['weight'] for nNeighborNode in gGraph[nCurNode]])
+        
             dWeightSum = np.sum(dWeights)
-
             # For every neighbor
             for nNeighborNode in gGraph[nCurNode]:
                 # Get edge percantile weight
                 dMassPercentageToMove = gGraph[nCurNode][nNeighborNode]['weight'] / dWeightSum
+                
                 try:
                     # Assign part of the weight to the neighbor
                     dMassToMove = (1.0 - dPreservationPercent) * gGraph.nodes[nCurNode][
                         'weight'] * dMassPercentageToMove
+                    
                     # Work with absolute numbers, if requested
                     if bAbsoluteMass:
                         gGraph.nodes[nNeighborNode]['weight'] = abs(gGraph.nodes[nNeighborNode]['weight']) + abs(
@@ -1134,7 +1129,7 @@ def spreadingActivation(gGraph, iIterations=100, dPreservationPercent=0.5, bAbso
 
             # Reduce my weight equivalently
             gGraph.nodes[nCurNode]['weight'] *= dPreservationPercent
-
+            
     message("Applying spreading activation... Done.")
     return gGraph
 
