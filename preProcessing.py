@@ -996,30 +996,50 @@ def getGraphAndData(bResetGraph=False, dMinDivergenceToKeep=np.log2(10e6), dEdge
     return gToDraw, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names
 
 
-def drawGraph(gToDraw, bShow = True):
+def drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = True, bSave = True):
     """
     Draws and displays a given graph, by using graphviz.
 
     :param gToDraw: The graph to draw.
     """
-    plt.figure(figsize=(len(gToDraw.edges()) , len(gToDraw.edges())))
+    if len(gToDraw.edges())<3:
+        figure_size = (len(gToDraw.edges()) * 4, len(gToDraw.edges()) * 4)
+    else:
+        figure_size = (len(gToDraw.edges()) * 2, len(gToDraw.edges()) * 2)
+        
+    plt.figure(figsize=figure_size)
+    
     plt.clf()
-    # pos = graphviz_layout(gToDraw)
-    pos = pydot_layout(gToDraw)
+
+    pos = graphviz_layout(gToDraw, prog='dot')
+    
     try:
         dNodeLabels = {}
         # For each node
         for nCurNode in gToDraw.nodes():
-            # Try to add weight
+            #!!! Try to add weight
             dNodeLabels[nCurNode] = "%s (%4.2f)" % (str(nCurNode), gToDraw.nodes[nCurNode]['weight'])
+            
     except KeyError:
         # Weights could not be added, use nodes as usual
         dNodeLabels = None
 
-    nx.draw_networkx(gToDraw, pos, arrows=False, node_size=1200, color="blue", with_labels=True, labels=dNodeLabels)
-    labels = nx.get_edge_attributes(gToDraw, 'weight')
-    nx.draw_networkx_edge_labels(gToDraw, pos, edge_labels=labels)
+    nx.draw_networkx(gToDraw, pos, arrows=False, node_size=1200, node_color="blue", with_labels=True, labels=dNodeLabels)
+    
+    edge_labels = nx.get_edge_attributes(gToDraw, 'weight')
+    
+    nx.draw_networkx_edge_labels(gToDraw, pos, edge_labels=edge_labels)
 
+    if bSave:
+        message("Saving graph to file...")
+        try:
+            plt.savefig(sPDFFileName, bbox_inches='tight')
+            message("Saving graph to file... Done.")
+        except Exception as e:
+            print("Could not save file! Exception:\n%s\n"%(str(e)))
+            print("Continuing normally...")
+    else:
+        message("Ignoring graph saving as requested...")
     if bShow:
         plt.show()
 
