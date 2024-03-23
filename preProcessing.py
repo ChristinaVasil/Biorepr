@@ -678,7 +678,7 @@ def ClusterAllData():
     # Calculate performance (number/precent of misplaced controls, number/precent of misplaced tumor samples)
 
 
-# Find only the control samples # Chris
+# Find only the control samples
 def getControlFeatureMatrix(mAllData, vLabels):
     """
     Gets the features of control samples only.
@@ -688,10 +688,12 @@ def getControlFeatureMatrix(mAllData, vLabels):
     """
     message("Finding only the control data...")
     choicelist = mAllData
-    condlist = isEqualToString(vLabels, 'Solid_Tissue_Normal')
+    
+    # 0 is the label for controls
+    condlist = vLabels == "0"
     message("This is the control feature matrix:")
     print(choicelist[condlist])
-    message("Data shape: %s" % (str(np.shape(choicelist))))
+    message("Data shape: %s" % (str(np.shape(choicelist[condlist]))))
     message("Finding only the control data...Done")
     return choicelist[condlist]
 
