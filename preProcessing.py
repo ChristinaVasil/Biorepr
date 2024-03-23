@@ -1246,43 +1246,43 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
     dStartTime -- the time when parallelization started
     """
 
-    # dSample = {}
-
+    iWaitingCnt = 0 # Number of tries, finding empty queue
     while True:
-        sampleID, lResList, gMainGraph, mSample, saRemainingFeatureNames, iCnt, iAllCount, dStartTime = qQueue.get()
-
+        try:
+            params = qQueue.get_nowait()
+        
+        except Empty:
+            if iWaitingCnt < 3:
+                message("Found no items... Waiting... (already waited %d times)"%(iWaitingCnt))
+                time.sleep(1)
+                iWaitingCnt += 1 # Waited one more time
+                continue
+                 
+            message("Waited long enough. Reached and of queue... Stopping.")
+            break
+        
+        sampleID, lResList, dGraphDict, gMainGraph, mSample, saRemainingFeatureNames, feat_names, iCnt, iAllCount, dStartTime = params
+        print(feat_names)     
         # DEBUG LINES
         message("Working on instance %d of %d..." % (iCnt, iAllCount))
         #############
 
         # Create a copy of the graph
-        # gMainGraph = gMainGraph.copy()
         gMainGraph = copy.deepcopy(gMainGraph)
 
-        # Assign values
-        assignSampleValuesToGraphNodes(gMainGraph, mSample, saRemainingFeatureNames)
+        # Assign values    
+        assignSampleValuesToGraphNodes(gMainGraph, mSample, saRemainingFeatureNames, feat_names)
         # Apply spreading activation
         gMainGraph = spreadingActivation(gMainGraph, bAbsoluteMass=True)  # TODO: Add parameter, if needed
         # Keep top performer nodes
         gMainGraph = filterGraphNodes(gMainGraph, dKeepRatio=0.25)  # TODO: Add parameter, if needed
         # Extract and return features
         vGraphFeatures = getGraphVector(gMainGraph)
-        # Save graph to .dot arxeio
-        # graphviz swse se grapho
-        # kalese to draw and showAndsave graph,
-        # ftiakse ena katalogo poy na dexetai to sample and to graph
+        
 
-        # All samples dict
-
-
-        #dSample[str(mSample)] = gMainGraph
-        #print(dSample)
-
-        #print("Showing and saving the graph of sample %s" % mSample)
-        #param: sample id,
-        message("Calling showAndSaveGraph for graph %s..."%(str(sampleID)))
-        showAndSaveGraph(gMainGraph, sPDFFileName = "SampleID%s" %(sampleID), bShow = bShowGraphs, bSave = bSaveGraphs)
-        message("Calling showAndSaveGraph...Done")
+        # Add to common graph dictionary
+        dGraphDict[sampleID] = gMainGraph
+        
         #  Add to common result queue
         lResList.append(vGraphFeatures)
 
@@ -1291,13 +1291,12 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
 
         # DEBUG LINES
         if iCnt % 5 == 0 and (iCnt != 0):
-            dNow = clock()
+            dNow = perf_counter()
             dRate = ((dNow - dStartTime) / iCnt)
             dRemaining = (iAllCount - iCnt) * dRate
             message("%d (Estimated remaining (sec): %4.2f - Working at a rate of %4.2f samples/sec)\n" % (
                 iCnt, dRemaining, 1.0 / dRate))
-        #############
-
+        ##############
 
 def classify(X, y):
     """
