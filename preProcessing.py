@@ -345,13 +345,14 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bNormaliz
     return mFeatures, vClass, sampleIDs, feat_names, tumor_stage
 
 
-def postProcessFeatures(mFeatures, mControlFeatures):
+def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage):
     """
     Post-processes feature matrix to replace NaNs with control instance feature mean values, and also to remove
     all-NaN columns.
 
     :param mFeatures: The matrix to pre-process.
     :param mControlFeatures: The subset of the input matrix that reflects control instances.
+    :param sample_ids: A list with sample ids.
     :return: The post-processed matrix, without NaNs.
     """
     message("Replacing NaNs from feature set...")
@@ -363,18 +364,57 @@ def postProcessFeatures(mFeatures, mControlFeatures):
     # imputer = Imputer(strategy="mean", missing_values="NaN", verbose=1)
     # mFeatures_noNaNs = imputer.fit_transform(mFeatures)
 
+    rows_to_remove = CheckRowsNaN(mFeatures)
+    # DEBUG LINES
+    message("rows_to_remove"+str(rows_to_remove))
+    #############
+    levels_indices = omic_level_indices()
+    
+    incomplete_samples = incompleteSamples(mFeatures, levels_indices)
+    # DEBUG LINES
+    message("incomplete_samples"+str(sample_ids[incomplete_samples]))
+    #############
+
+    samples_to_remove = np.concatenate((rows_to_remove, incomplete_samples))
+    samples_to_remove = np.unique(samples_to_remove)
+    
+    features_to_remove = CheckColsNaN(mFeatures)
+   
+    # Remove samples from the matrix
+    mFeatures = np.delete(mFeatures, samples_to_remove, axis=0)
+
+    # Remove features from the matrix
+    mFeatures = np.delete(mFeatures, features_to_remove, axis=1)
+
+    message("Number of features after filtering: %s" % (str(np.shape(mFeatures))))
+    message("Are there any NaNs after filtering?")
+    message(np.any(np.isnan(mFeatures[:, :])))
+
+    # Create a boolean mask to keep elements not in the indices_to_remove array
+    mask = np.ones(len(sample_ids), dtype=bool)
+    mask[samples_to_remove] = False
+
+    message("vClass:"+str(np.shape(vClass)))
+    # Use the mask to filter the array
+    filtered_sample_ids = sample_ids[mask]
+    filtered_vClass = vClass[mask]
+    filtered_tumor_stage = tumor_stage[mask]
+
+    features = getFeatureNames()
+    
+    # Create a new list without the elements at the specified indices
+    filtered_features = [element for index, element in enumerate(features) if index not in features_to_remove]
+
+    message(mFeatures)
+    mControlFeatures = getControlFeatureMatrix(mFeatures, filtered_vClass)
+    
     # Extract means per control col
-    mMeans = np.nanmean(mControlFeatures, axis=0)
+
+    mMeans = np.nanmean(mControlFeatures[:, :], axis=0)
     # Find nans
-    inds = np.where(np.isnan(mFeatures))
+    inds = np.where(np.isnan(mFeatures[:, :]))
     # Do replacement
     mFeatures[inds] = np.take(mMeans, inds[1])
-
-    message("Are there any NaNs after postProcessing?")
-    message(np.any(np.isnan(mFeatures)))
-    # DEBUG LINES
-    message("Data shape after replacement: %s" % (str(np.shape(mFeatures))))
-    #############
 
     # TODO: Check below
     # WARNING: If a control data feature was fully NaN, but the corresponding case data had only SOME NaN,
@@ -383,26 +423,121 @@ def postProcessFeatures(mFeatures, mControlFeatures):
     #############
     message("Replacing NaNs from feature set... Done.")
 
+    # DEBUG LINES
     # Convert np array to panda dataframe
-    arr = np.array(mFeatures)
-
-    message("Removing features that have only NaN values...")
-    mask = np.all(np.isnan(mFeatures), axis=0)
-    # a = np.array(mFeatures)
-    # mask = (np.nan_to_num(a)).any(axis=0)
-    # message(mask)
-
-    mFeatures = mFeatures[:, ~mask]
-    message("Number of features after removal: %s" % (str(np.shape(mFeatures))))
-    message(mFeatures)
-    message("Removing features that have only NaN values...Done")
+    # arr = np.array(mFeatures)
+    #############
 
     message("Are there any NaNs after postProcessing?")
-    message(np.any(np.isnan(mFeatures)))
+    message(np.any(np.isnan(mFeatures[:, :])))
 
     message("This is mFeatures in postProcessing...")
     message(mFeatures)
-    return mFeatures
+    return mFeatures, filtered_sample_ids, filtered_vClass, filtered_features, filtered_tumor_stage
+
+def omic_level_indices():
+    """
+    Returns the columns corresponding to each omic level
+    """
+    feature_names = getFeatureNames()
+
+    # Search for elements that start with "ENSG" and contain "."
+    indices_of_mrna = np.where(np.core.defchararray.startswith(feature_names, "ENSG") & (np.core.defchararray.find(feature_names, ".") != -1))[0]
+    
+    # Search for elements that start with "hsa"
+    indices_of_mirna = np.where(np.core.defchararray.startswith(feature_names, "hsa"))[0]
+    
+    # Search for elements that start with "ENSG" and do not contain "."
+    indices_of_methylation = np.where(np.core.defchararray.startswith(feature_names, "ENSG") & (np.core.defchararray.find(feature_names, ".") == -1))[0]
+
+    mrna = []
+    mirna = []
+    methylation = []
+
+    mrna.append(indices_of_mrna[0])
+    mrna.append(indices_of_mrna[0] + indices_of_mrna.shape[0])
+    message("The columns for the mRNA level are:" + str(mrna))
+    mirna.append(indices_of_mirna[0])
+    mirna.append(indices_of_mirna[0] + indices_of_mirna.shape[0])
+    message("The columns for the miRNA level are:" + str(mirna))
+    methylation.append(indices_of_methylation[0])
+    methylation.append(indices_of_methylation[0] + indices_of_methylation.shape[0])
+    message("The columns for the DNA methylation level are:"+str(methylation))
+
+    all_levels = []
+    all_levels.append(mrna)
+    all_levels.append(mirna)
+    all_levels.append(methylation)
+    return all_levels
+
+def CheckRowsNaN(input_matrix, nan_threshold=0.2):
+    """
+    It returns the filtered matrix for rows and an array with the index of the rows that were kept
+    """
+    message("Rows' filtering... Done")
+    
+    rows_length = input_matrix.shape[1]
+    # count nan per row
+    nan_per_row = count_nan_per_row(input_matrix)
+    # compute the frequency of nan per row
+    nan_frequency  = nan_per_row / rows_length
+    # return an array with boolean values, that show the rows with <=nan_threshold 
+    rows_to_remove = nan_frequency > nan_threshold
+
+    rows_to_remove = np.where(rows_to_remove)
+    # Flatten the 2D array into a 1D array 
+    rows_to_remove = np.ravel(rows_to_remove)
+    return rows_to_remove
+
+def count_nan_per_row(input_matrix):
+    nan_count_per_column = np.sum(np.isnan(input_matrix), axis=1)
+    return nan_count_per_column
+
+def incompleteSamples(mAllData, level_indices):
+    """
+    :param mAllData: The full feature matrix of case/instance data.
+    :param level_indices: The columns of the omic level to search
+    :return: The indices of the rows that don't have data at least in one level
+    """
+    # create empty array
+    indices_of_empty_rows = np.empty(0)
+    
+    for omic_level in level_indices:
+        # Create a boolean mask indicating NaN values
+        nan_mask = np.isnan(mAllData[:, omic_level[0]:omic_level[1]])
+    
+        # Use np.all along axis 1 to check if all values in each row are True (indicating NaN)
+        rows_with_nan = np.all(nan_mask, axis=1)
+    
+        # Get the indices of rows with NaN
+        indices_of_rows_with_nan = np.where(rows_with_nan)[0]
+        
+        indices_of_empty_rows = np.append(indices_of_empty_rows, indices_of_rows_with_nan)
+
+    indices_of_empty_rows = np.unique(indices_of_empty_rows).astype(int)
+    return indices_of_empty_rows
+
+def CheckColsNaN(input_matrix,nan_threshold=0.2):
+    """
+    It returns the filtered matrix for columns and an array with the index of the columns that were kept
+    """
+    message("Columns' filtering... ")
+    columns_length = input_matrix.shape[0]
+    # count nan per column
+    nan_per_column = count_nan_per_column(input_matrix)
+    # compute the frequency of nan per column
+    nan_frequency  = nan_per_column / columns_length
+    # return an array with boolean values, that show the columns with <=nan_threshold t
+    columns_to_remove = nan_frequency > nan_threshold
+
+    columns_to_remove = np.where(columns_to_remove)
+    # Flatten the 2D array into a 1D array 
+    columns_to_remove = np.ravel(columns_to_remove)
+    return columns_to_remove
+
+def count_nan_per_column(input_matrix):
+    nan_count_per_column = np.sum(np.isnan(input_matrix), axis=0)
+    return nan_count_per_column
 
 # TODO add sampleid in splitFeatures
 
