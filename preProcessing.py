@@ -972,7 +972,7 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True,
 
 
 def getGraphAndData(bResetGraph=False, dMinDivergenceToKeep=np.log2(10e6), dEdgeThreshold=0.3,
-                    bResetFiles=False, bPostProcessing=True, bNormalize=True, bNormalizeLog2Scale=True):
+                    bResetFiles=False, bPostProcessing=True, bNormalize=True, bNormalizeLog2Scale=True): # TODO: dMinDivergenceToKeep: Add as parameter
     """
     Loads the feature correlation graph and all feature data.
     :param bResetGraph: If True, recalculate graph, else load from disc. Default: False.
@@ -989,13 +989,11 @@ def getGraphAndData(bResetGraph=False, dMinDivergenceToKeep=np.log2(10e6), dEdge
         important feature names list, sample ids)
     """
     # Do mFeatures_noNaNs has all features? Have we applied a threshold to get here?
-    mFeatures_noNaNs, vClass, sampleIDs = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=bPostProcessing,
+    mFeatures_noNaNs, vClass, sampleIDs, feat_names, tumor_stage = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=bPostProcessing,
                                                          bNormalize=bNormalize, bNormalizeLog2Scale=bNormalizeLog2Scale)
-    gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, dEdgeThreshold=dEdgeThreshold,
-                                                       bResetGraph=bResetGraph,
-                                                       dMinDivergenceToKeep=dMinDivergenceToKeep)
+    gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=dEdgeThreshold, bResetGraph=bResetGraph, dMinDivergenceToKeep=dMinDivergenceToKeep)
 
-    return gToDraw, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs
+    return gToDraw, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names
 
 
 def drawGraph(gToDraw, bShow = True):
