@@ -698,19 +698,19 @@ def getControlFeatureMatrix(mAllData, vLabels):
     return choicelist[condlist]
 
 
-def isEqualToString(npaVector, sString):
-    """
-    Compares the string value of a vector to a given string, token by token.
-    :param npaVector: The input vector.
-    :param sString: The string to compare to.
-    :return: True if equal. Otherwise, False.
-    """
+#def isEqualToString(npaVector, sString):
+#    """
+#    Compares the string value of a vector to a given string, token by token.
+#    :param npaVector: The input vector.
+#    :param sString: The string to compare to.
+#    :return: True if equal. Otherwise, False.
+#    """
 
-    #TODO check whether we have to convert to UTF-8
-    aRes = np.array([oCur.decode('UTF-8').strip() for oCur in npaVector[:]])
-    aRes = np.array([oCur.strip() for oCur in aRes[:]])
-    aStr = np.array([sString.strip() for oCur in npaVector[:]])
-    return aRes == aStr
+#    #TODO check whether we have to convert to UTF-8
+#    aRes = np.array([oCur.decode('UTF-8').strip() for oCur in npaVector[:]])
+#    aRes = np.array([oCur.strip() for oCur in aRes[:]])
+#    aStr = np.array([sString.strip() for oCur in npaVector[:]])
+#    return aRes == aStr
 
 
 def getNonControlFeatureMatrix(mAllData, vLabels):
@@ -721,7 +721,11 @@ def getNonControlFeatureMatrix(mAllData, vLabels):
     :return: The subset of the feature matrix, corresponding to non-control (i.e. tumor) data
     """
     choicelist = mAllData
-    condlist = isEqualToString(vLabels, 'Primary_Tumor')
+    condlist = vLabels == "1"
+    message("This is the non control feature matrix:")
+    print(choicelist[condlist])
+    message("Data shape: %s" % (str(np.shape(choicelist[condlist]))))
+    message("Finding only the non control data...Done")
     return choicelist[condlist]
 
 
