@@ -1183,8 +1183,7 @@ def filterGraphNodes(gMainGraph, dKeepRatio):
     return gMainGraph
         
 
-
-def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFeatureNames, sampleIDs, bShowGraphs, bSaveGraphs):
+def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFeatureNames, sampleIDs, feat_names, bShowGraphs, bSaveGraphs):
     """
     Generates graph feature vectors for all samples and returns them as a matrix.
     :param gMainGraph: The generic graph of feature correlations.
@@ -1195,43 +1194,42 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     ########################
     # Create queue and threads
     threads = []
-    num_worker_threads = THREADS_TO_USE
-    qTasks = Queue(10 * num_worker_threads)
+    num_worker_threads = THREADS_TO_USE 
+    qTasks = Queue(10 * num_worker_threads) 
     for i in range(num_worker_threads):
         t = Thread(target=getSampleGraphFeatureVector, args=(i, qTasks,bShowGraphs, bSaveGraphs,))
-        t.setDaemon(True)
-        t.start()
+        t.daemon = True 
+        t.start() 
 
     # Count instances
-    iAllCount = np.shape(mAllSamples)[0]
+    iAllCount = np.shape(mAllSamples)[0] 
 
     # Item iterator
-    iCnt = iter(range(1, iAllCount + 1))
-    dStartTime = clock()
+    iCnt = iter(range(1, iAllCount + 1)) 
+    dStartTime = perf_counter()
 
     # Init result list
     lResList = []
-    # Add all items to queue
-    np.apply_along_axis(
-        lambda mSample: qTasks.put((sampleIDs, lResList, gMainGraph, mSample, saRemainingFeatureNames, next(iCnt), iAllCount,
-                                    dStartTime)), 1, mAllSamples)
 
+    # Init graph dictionary
+    dGraphDict = {}
+    
+    # Add all items to queue
+    for idx in range (np.shape(mAllSamples)[0]):
+        qTasks.put((sampleIDs[idx], lResList, dGraphDict, gMainGraph, mAllSamples[idx, :], saRemainingFeatureNames, feat_names, next(iCnt), iAllCount, dStartTime))
+    
     message("Waiting for completion...")
-    qTasks.join()
-    message("Total time (sec): %4.2f" % (clock() - dStartTime))
+    t.join() 
+
+    for sampleID, gSampleGraph in dGraphDict.items():
+        message("Calling drawAndSaveGraph for graph %s..."%(str(sampleID)))
+        drawAndSaveGraph(gMainGraph, sPDFFileName = "SampleID%s.pdf" %(sampleID), bShow = bShowGraphs, bSave = bSaveGraphs)
+        
+    message("Calling drawAndSaveGraph...Done")
+    message("Total time (sec): %4.2f" % (perf_counter() - dStartTime))
+    
 
     return np.array(lResList)
-
-    ########################
-    # LINEAR EXECUTION
-    ########################
-    # # For all samples
-    # dStartTime = clock()
-    # iAllCount = np.shape(mAllSamples)[1] # Get rows/instances
-    # iCnt = iter(range(1,iAllCount+1))
-    # # Get the sample vector
-    # return np.apply_along_axis(
-    #     lambda mSample: getSampleGraphFeatureVector(gMainGraph, mSample, saRemainingFeatureNames, next(iCnt), iAllCount, dStartTime), 1, mAllSamples)
 
 
 def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
