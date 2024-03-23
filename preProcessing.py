@@ -1165,6 +1165,15 @@ def filterGraphNodes(gMainGraph, dKeepRatio):
     """
     # Get all weights
     mWeights = np.asarray([gMainGraph.nodes[curNode]['weight'] for curNode in gMainGraph.nodes().keys()])
+    message("mWeights: "+str(mWeights))
+    # DEBUG LINES
+    message("Filtering nodes... Weights: %s"%(str(mWeights.shape)))
+    # If empty weights (possibly because the threshold is too high
+    if (mWeights.shape[0] == 0):
+        # Update the user and continue
+        message("WARNING: The graph is empty...")
+        
+    ##########
     # Find appropriate percentile
     dMinWeight = np.percentile(mWeights, (1.0 - dKeepRatio) * 100)
     # Select and remove nodes with lower value
