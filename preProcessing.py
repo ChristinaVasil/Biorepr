@@ -759,18 +759,23 @@ def testSpreadingActivation():
     """
     A harmless test of graph drawing and spreading activation effect.
     """
-    g = nx.Graph()
-    g.add_path([1, 2, 3, 4], weight=0.5)
-    g.add_path([2, 6], weight=0.2)
-    g.add_path([5, 6], weight=0.8)
+    g = nx.Graph()  
+
+    # adds edges to the graph
+    g.add_edge(1, 2, weight=0.5)
+    g.add_edge(2, 3, weight=0.5)
+    g.add_edge(3, 4, weight=0.5)
+    g.add_edge(2, 6, weight=0.2)
+    g.add_edge(5, 6, weight=0.8)
 
     for nNode in g.nodes():
         g.nodes[nNode]['weight'] = nNode * 10
-
-    drawGraph(g)
+        
+    drawAndSaveGraph(g, bSave = False)
 
     spreadingActivation(g)
-    drawGraph(g)
+    drawAndSaveGraph(g, bSave = False)
+    
 
 
 def getFeatureNames():
