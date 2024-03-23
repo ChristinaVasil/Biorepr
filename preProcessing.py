@@ -130,7 +130,7 @@ def PCAOnTumor():
     Apply and visualize PCA on tumor data.
     """
     message("Opening file...")
-    mFeatures_noNaNs, vClass, sampleIDs = initializeFeatureMatrices(False, True)
+    mFeatures_noNaNs, vClass, sampleIDs, feat_names, tumor_stage = initializeFeatureMatrices(False, True)
     mFeatures_noNaNs = getNonControlFeatureMatrix(mFeatures_noNaNs, vClass)
     message("Opening file... Done.")
     X, pca3DRes = getPCA(mFeatures_noNaNs, 3)
