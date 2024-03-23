@@ -1,38 +1,33 @@
 #!/usr/bin/python3
-import argparse
+import sys
+import numpy as np
+import pickle
+import os
+import time
+from matplotlib import pyplot as plt 
+import pandas as pd
+import graphviz
 import copy
 import itertools
-import os
-import pickle
-import sys
 import multiprocessing as mp
-import time
-# from multiprocessing import JoinableQueue
-# DEBUG LINES
-# mp.log_to_stderr(logging.DEBUG)
-#############
+from time import perf_counter
 from queue import Queue
+from queue import Empty
+import networkx as nx
+from networkx import write_multiline_adjlist, read_multiline_adjlist
+from networkx.drawing.nx_agraph import graphviz_layout
 from threading import Thread
-from time import clock
+from scipy.stats import pearsonr
 
-import graphviz
-import matplotlib.pyplot as plt
 # WARNING: This line is important for 3d plotting. DO NOT REMOVE
 from mpl_toolkits.mplot3d import Axes3D
 
-import pydot
-import networkx as nx
-import numpy as np
-from networkx import write_multiline_adjlist, read_multiline_adjlist
-from networkx.drawing.nx_pydot import pydot_layout
-from numpy import random
-from scipy.stats import pearsonr
-from sklearn import decomposition
 from sklearn import tree
+from sklearn import decomposition
 from sklearn.cluster import KMeans
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import QuantileTransformer
-from sklearn.tree import DecisionTreeClassifier
 
 # Prefix for intermediate files
 Prefix = "GG"
@@ -122,13 +117,11 @@ def PCAOnControl():
     """
 
     message("Opening file...")
-    mFeatures_noNaNs, vClass, sampleIDs = initializeFeatureMatrices(False, True)
+    mFeatures_noNaNs, vClass, sampleIDs, feat_names, tumor_stage = initializeFeatureMatrices(False, True)
     mFeatures_noNaNs = getControlFeatureMatrix(mFeatures_noNaNs, vClass)
     message("Opening file... Done.")
     X, pca3DRes = getPCA(mFeatures_noNaNs, 3)
-
     fig = draw3DPCA(X, pca3DRes)
-
     fig.savefig("controlPCA3D.pdf", bbox_inches='tight')
 
 
