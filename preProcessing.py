@@ -199,32 +199,30 @@ def rand_jitter(arr):
 # def expander(t):
 #     return log10(t)
 
-def convertTumorType(s):
-    """
-    Converts tumor types to float numbers, based on an index of classes.
+#def convertTumorType(s):
+#    """
+#    Converts tumor types to float numbers, based on an index of classes.
 
-    :param s: The string representing the tumor type.
-    :return: A class index mapped to this type.
-    """
-    fRes = float(["not reported", "stage i", "stage ii", "stage iii", "stage iv", "stage v"].index(s.decode('UTF-8')))
-    if int(fRes) == 0:
-        return np.nan
-    return fRes
+#    :param s: The string representing the tumor type.
+#    :return: A class index mapped to this type.
+#    """
+#    fRes = float(["not reported", "stage i", "stage ii", "stage iii", "stage iv", "stage v"].index(s.decode('UTF-8')))
+#    if int(fRes) == 0:
+#        return np.nan
+#    return fRes
 
 
-def PCAOnAllData():
+def PCAOnAllData(bResetFiles = False):
     """
     Applies and visualizes PCA on all data.
     """
-    # Check if we need to reset the files
     bResetFiles = False
     if len(sys.argv) > 1:
-        if "-resetFiles" in sys.argv:
+        if "-resetFiles" in sys.argv: 
             bResetFiles = True
 
     # Initialize feature matrices
-    mFeatures_noNaNs, vClass, sampleIDs = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=True)
-
+    mFeatures_noNaNs, vClass, sampleIDs, feat_names, tumor_stage = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=True)
     message("Applying PCA...")
     X, pca3D = getPCA(mFeatures_noNaNs, 3)
 
@@ -241,26 +239,14 @@ def PCAOnAllData():
     message("Plotting PCA graph...")
     # Assign colors
     aCategories, y = np.unique(vClass, return_inverse=True)
+
     draw3DPCA(X, pca3D, c=y / 2)
     # DEBUG LINES
     message("Returning categories: \n %s" % (str(aCategories)))
     message("Returning categorical vector: \n %s" % (str(y)))
-    ############
-    # fig = plt.figure()
-    # plt.clf()
-    # ax = fig.add_subplot(111, projection='3d')
-    # ax.scatter(X[:, 0], X[:, 1], X[:, 2],
-    #            c=y / 2, cmap=plt.cm.gnuplot, depthshade=False, marker='.')
-    #
-    # ax.set_xlabel("X coordinate (%4.2f)" % (pca3D.explained_variance_ratio_[0]))
-    # ax.set_ylabel("Y coordinate (%4.2f)" % (pca3D.explained_variance_ratio_[1]))
-    # # ax.set_zlabel("Z coordinate (%4.2f)"%(pca.explained_variance_ratio_[2]))
-    #
-    # ax.set_xticklabels([])
-    # ax.set_yticklabels([])
-    # # ax.set_zticklabels([])
-    # plt.show()
+    ####################
     message("Plotting PCA graph... Done.")
+
 
 
 def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bNormalize=True,
