@@ -845,7 +845,7 @@ def addEdgeAboveThreshold(i, qQueue):
 
 
 # Is this the step where we make the generalised graph? The output is one Graph?
-def getFeatureGraph(mAllData, dEdgeThreshold=0.30, bResetGraph=True, dMinDivergenceToKeep=np.log2(10e5)):
+def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True, dMinDivergenceToKeep=np.log2(10e5)):
     """
     Returns the overall feature graph, indicating interconnections between features.
 
@@ -862,8 +862,8 @@ def getFeatureGraph(mAllData, dEdgeThreshold=0.30, bResetGraph=True, dMinDiverge
 
         message("Trying to load graph...")
         g = nx.Graph()
-        g = read_multiline_adjlist(Prefix + "graphAdjacencyList.txt", create_using=g)
-        with open(Prefix + "usefulFeatureNames.pickle", "rb") as fIn:
+        g = read_multiline_adjlist(Prefix + "graphAdjacencyList.txt", create_using=g) 
+        with open(Prefix + "usefulFeatureNames.pickle", "rb") as fIn: 
             saUsefulFeatureNames = pickle.load(fIn)
         message("Trying to load graph... Done.")
         return g, saUsefulFeatureNames
@@ -878,16 +878,23 @@ def getFeatureGraph(mAllData, dEdgeThreshold=0.30, bResetGraph=True, dMinDiverge
 
     # Determine meaningful features (with a divergence of more than MIN_DIVERGENCE from the control mean)
 
-    iFeatureCount = np.shape(mAllData)[1]
-    mMeans = np.nanmean(mAllData, 0)  # Ignore nans
+    iFeatureCount = np.shape(mAllData)[1] 
+    mMeans = np.nanmean(mAllData, 0)  # Ignore nans 
 
-    # Q1 Chris: is this the step where we apply the threshold? WHat is the threshold?
+    # DEBUG LINES
+    message("Means: %s"%(str(mMeans)))
+    dMeanDescribe = pd.DataFrame(mMeans)
+    print(str(dMeanDescribe.describe()))
+    #############
+    
+    # Q1 Chris: is this the step where we apply the threshold? What is the threshold?
     # So, basically keep in vUseful, only the features that their value is greater than dMinDivergenceToKeep
-    vUseful = [abs(mMeans[iFieldNum]) - dMinDivergenceToKeep > 0.00 for iFieldNum in range(1, iFeatureCount)]
-
-    saFeatures = getFeatureNames()[1:iFeatureCount]
+    vUseful = [abs(mMeans[iFieldNum]) > dMinDivergenceToKeep for iFieldNum in range(0, iFeatureCount)] 
+   
     saUsefulIndices = [iFieldNum for iFieldNum, _ in enumerate(saFeatures) if vUseful[iFieldNum]]
-    saUsefulFeatureNames = [saFeatures[iFieldNum] for iFieldNum in saUsefulIndices]
+    
+    saUsefulFeatureNames = [saFeatures[iFieldNum] for iFieldNum in saUsefulIndices] 
+    
     iUsefulFeatureCount = len(saUsefulIndices)
     message("Keeping %d features out of %d." % (len(saUsefulIndices), len(saFeatures)))
     ###############################
@@ -903,27 +910,29 @@ def getFeatureGraph(mAllData, dEdgeThreshold=0.30, bResetGraph=True, dMinDiverge
 
     # Measure correlations
     iAllPairs = (iUsefulFeatureCount * iUsefulFeatureCount) * 0.5
+    
     message("Routing edge calculation for %d possible pairs..." % (iAllPairs))
     lCombinations = itertools.combinations(saUsefulIndices, 2)
 
     # Create queue and threads
     threads = []
     num_worker_threads = THREADS_TO_USE  # DONE: Use available processors
+    
     qCombination = Queue(1000 * num_worker_threads)
-
-    # t = threading.Thread(target=addEdgeAboveThreshold, args=(i, qCombination,))
+    
     processes = [Thread(target=addEdgeAboveThreshold, args=(i, qCombination,)) for i in range(num_worker_threads)]
+
     for t in processes:
-        t.setDaemon(True)
+        t.daemon = True
         t.start()
 
     # Feed tasks
     iCnt = 1
-    dStartTime = clock()
+    dStartTime = perf_counter()
     for iFirstFeatIdx, iSecondFeatIdx in lCombinations:
         qCombination.put((iFirstFeatIdx, iSecondFeatIdx, g, mAllData, saFeatures, iFirstFeatIdx, iSecondFeatIdx,
                           iCnt, iAllPairs, dStartTime, dEdgeThreshold))
-
+        
         # Wait a while if we reached full queue
         if qCombination.full():
             message("So far routed %d tasks. Waiting on worker threads to provide more tasks..." % (iCnt))
@@ -934,8 +943,8 @@ def getFeatureGraph(mAllData, dEdgeThreshold=0.30, bResetGraph=True, dMinDiverge
 
     message("Waiting for completion...")
     qCombination.join()
-
-    message("Total time (sec): %4.2f" % (clock() - dStartTime))
+    
+    message("Total time (sec): %4.2f" % (perf_counter() - dStartTime))
 
     message("Creating edges for %d possible pairs... Done." % (iAllPairs))
 
@@ -943,16 +952,17 @@ def getFeatureGraph(mAllData, dEdgeThreshold=0.30, bResetGraph=True, dMinDiverge
 
     message("Removing single nodes... Nodes before removal: %d" % (g.number_of_nodes()))
     toRemove = [curNode for curNode in g.nodes().keys() if len(g[curNode]) == 0]
+    
     while len(toRemove) > 0:
-        g.remove_nodes_from(toRemove)
-        toRemove = [curNode for curNode in g.nodes().keys() if len(g[curNode]) == 0]
+        g.remove_nodes_from(toRemove) 
+        toRemove = [curNode for curNode in g.nodes().keys() if len(g[curNode]) == 0] 
         message("Nodes after removal step: %d" % (g.number_of_nodes()))
     message("Removing single nodes... Done. Nodes after removal: %d" % (g.number_of_nodes()))
 
     message("Saving graph...")
-    write_multiline_adjlist(g, Prefix + "graphAdjacencyList.txt")
-    with open(Prefix + "usefulFeatureNames.pickle", "wb") as fOut:
-        pickle.dump(saUsefulFeatureNames, fOut)
+    write_multiline_adjlist(g, Prefix + "graphAdjacencyList.txt") 
+    with open(Prefix + "usefulFeatureNames.pickle", "wb") as fOut: 
+        pickle.dump(saUsefulFeatureNames, fOut) 
 
     message("Saving graph... Done.")
 
