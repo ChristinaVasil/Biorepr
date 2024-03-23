@@ -814,14 +814,15 @@ def addEdgeAboveThreshold(i, qQueue):
         if params is None:
             message("Reached and of queue... Stopping.")
             break
-
+        
         iFirstFeatIdx, iSecondFeatIdx, g, mAllData, saFeatures, iFirstFeatIdx, iSecondFeatIdx, iCnt, iAllPairs, dStartTime, dEdgeThreshold = params
 
         # DEBUG LINES
+        
         if iCnt != 0 and (iCnt % 1000 == 0):
             progress(".")
             if iCnt % 10000 == 0 and iCnt != 0:
-                dNow = clock()
+                dNow = perf_counter()
                 dRate = ((dNow - dStartTime) / iCnt)
                 dRemaining = (iAllPairs - iCnt) * dRate
                 message("%d (Estimated remaining (sec): %4.2f - Working at a rate of %4.2f pairs/sec)\n" % (
@@ -829,16 +830,17 @@ def addEdgeAboveThreshold(i, qQueue):
 
         iCnt += 1
         #############
-
+        
+        
         # Fetch feature columns and calculate pearson
         vFirstRepr = mAllData[:, iFirstFeatIdx]
         vSecondRepr = mAllData[:, iSecondFeatIdx]
         fCurCorr = pearsonr(vFirstRepr, vSecondRepr)[0]
+        
         # Add edge, if above threshold
         if fCurCorr > dEdgeThreshold:
-            g.add_edge(saFeatures[iFirstFeatIdx], saFeatures[iSecondFeatIdx], weight=round(fCurCorr * 100) / 100)
+            g.add_edge(saFeatures[iFirstFeatIdx], saFeatures[iSecondFeatIdx], weight=round(fCurCorr * 100) / 100)## dtrogg se 2 dekadika psifia
 
-        # Update queue
         qQueue.task_done()
 
 
