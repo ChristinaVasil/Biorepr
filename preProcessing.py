@@ -541,7 +541,7 @@ def count_nan_per_column(input_matrix):
 
 # TODO add sampleid in splitFeatures
 
-def splitFeatures(clinicalfile, datafile, labelfile):
+def splitFeatures(clinicalfile, datafile, labelfile): 
     """
     Extracts class and instance info, returning them as separate matrices, where rows correspond to the same
     case/instance.
@@ -553,24 +553,18 @@ def splitFeatures(clinicalfile, datafile, labelfile):
     Chris update: :return: A tuple of the form (matrix of features, matrix of labels, sample ids)
     """
     message("Splitting features...")
-    message(np.size(datafile, 1))
+    message("Number of features: %d"%(np.size(datafile, 1)))
     message("This is the label file:")
     message(labelfile)
     message("This is the shape of the labelfile: %s" % (str(np.shape(labelfile))))
-    mFeaturesOnly = datafile[:, 1:73662]
-    # Create matrix with extra column (to add tumor stage)
-    iFeatCount = np.shape(mFeaturesOnly)[1] + 1
-    mFeatures = np.zeros((np.shape(mFeaturesOnly)[0], iFeatCount))
-    mFeatures[:, :-1] = mFeaturesOnly
-    mFeatures[:, iFeatCount - 1] = np.nan
-    # For every row
-    for iCnt in range(np.shape(labelfile)[0]):
-        condlist = clinicalfile[:, 0] == labelfile[iCnt, 0]
-        # Create a converter
-        tumorStageToInt = np.vectorize(convertTumorType)
-        choicelist = tumorStageToInt(clinicalfile[:, 1])
-        # Update the last feature, by joining on ID
-        mFeatures[iCnt, iFeatCount - 1] = np.select(condlist, choicelist)
+    mFeatures = datafile[:, :]
+    
+    # DEBUG LINES
+    message("Label file rows: %d\tFeature file rows: %d"%(np.shape(labelfile)[0], np.shape(mFeatures)[0]))
+    #############
+
+    tumor_stage = clinicalfile[:, 1]
+    
     vClass = labelfile[:, 1]
     sampleIDs = labelfile[:, 0]
     print("This is the vClass: ")
@@ -579,14 +573,12 @@ def splitFeatures(clinicalfile, datafile, labelfile):
     message("Found classes:\n%s" % (str(vClass)))
     message("Found sample IDs:\n%s" % (str(sampleIDs)))
     #############
-    # DEBUG LINES
-    # message("Found tumor types:\n%s" % (
-    #     "\n".join(["%s:%s" % (x, y) for x, y in zip(labelfile[:, 0], mFeatures[:, iFeatCount - 1])])))
-    #############
+
     message("Splitfeatures: This is the mFeatures...")
     message(mFeatures)
     message("Splitting features... Done.")
-    return mFeatures, vClass, sampleIDs
+
+    return mFeatures, vClass, sampleIDs, tumor_stage
 
 
 def saveLoadedData(datafile, labelfile):
