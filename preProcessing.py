@@ -1305,7 +1305,7 @@ def classify(X, y):
     :param y: The labels.
     """
     classifier = DecisionTreeClassifier()
-    scores = cross_val_score(classifier, X, y, cv=min(10, len(y)));
+    scores = cross_val_score(classifier, X, y, cv=min(10, len(y)))
     message("Avg. Performanace: %4.2f (st. dev. %4.2f) \n %s" % (np.mean(scores), np.std(scores), str(scores)))
 
     # Output model
@@ -1315,7 +1315,7 @@ def classify(X, y):
     graph.render("Rules")
 
 
-def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, bResetFeatures=True,
+def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names, bResetFeatures=True,
                           numOfSelectedSamples=-1, bShowGraphs=True, bSaveGraphs=True):
     """
     Extracts the graph feature vectors of a given set of instances/cases.
@@ -1341,21 +1341,24 @@ def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames,
         message("Trying to load graph feature matrix... Failed:\n%s" % (str(e)))
         message("Computing graph feature matrix...")
 
-        if (numOfSelectedSamples < 0):
+        if (numOfSelectedSamples < 0): 
             mSamplesSelected = mFeatures_noNaNs
+            sampleIDsSelected = sampleIDs
         else:
-            mSamplesSelected = np.concatenate((mFeatures_noNaNs[0:int(numOfSelectedSamples / 2)][:],
-                                               mFeatures_noNaNs[-int(numOfSelectedSamples / 2):][:]), axis=0)
-
+            mSamplesSelected = np.concatenate((mFeatures_noNaNs[0:int(numOfSelectedSamples / 2)][:], 
+                                               mFeatures_noNaNs[-int(numOfSelectedSamples / 2):][:]), axis=0) 
+            sampleIDsSelected = np.concatenate((sampleIDs[0:int(numOfSelectedSamples / 2)],sampleIDs[-int(numOfSelectedSamples / 2):]))
+            
         message("Extracted selected samples:\n" + str(mSamplesSelected[:][0:10]))
         # Extract vectors
         # TODO pass SampleID to generateAllSampleGraphFeatureVectors
-        mGraphFeatures = generateAllSampleGraphFeatureVectors(gMainGraph, mSamplesSelected, saRemainingFeatureNames, sampleIDs, bShowGraphs, bSaveGraphs)
+        mGraphFeatures = generateAllSampleGraphFeatureVectors(gMainGraph, mSamplesSelected, saRemainingFeatureNames, sampleIDsSelected, feat_names, bShowGraphs, bSaveGraphs)
+        
         message("Computing graph feature matrix... Done.")
 
         message("Saving graph feature matrix...")
         with open(Prefix + "graphFeatures.pickle", "wb") as fOut:
-            pickle.dump(mGraphFeatures, fOut)
+            pickle.dump(mGraphFeatures, fOut) 
         message("Saving graph feature matrix... Done.")
     return mGraphFeatures
 
