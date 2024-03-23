@@ -261,13 +261,7 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bNormaliz
     :return: The initial feature matrix of the cases/instances.
     """
 
-    # hello
-    # Read control
     message("Opening files...")
-    # import pandas as pd
-    # df = pd.read_csv('./patientAndControlData.csv', sep='\t')
-    # df.reindex_axis(sorted(df.columns), axis=1)
-    # datafile = df.as_matrix()
 
     try:
         if bResetFiles:
@@ -277,66 +271,67 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bNormaliz
         # Apply np.load hack
         ###################
         # save np.load
-        np_load_old = np.load
+        np_load_old = np.load 
 
         # modify the default parameters of np.load
         np.load = lambda *a, **k: np_load_old(*a, allow_pickle=True, **k)
-
-        # call load_data with allow_pickle implicitly set to true
+        
         datafile = np.load(Prefix + "patientAndControlData.mat.npy")
         labelfile = np.load(Prefix + "patientAndControlDataLabels.mat.npy")
 
         # restore np.load for future normal usage
-        np.load = np_load_old
+        np.load = np_load_old 
         ####################
-
+        feat_names = getFeatureNames()
         clinicalfile = loadTumorStage()
         message("Trying to load saved data... Done.")
     except Exception as eCur:
         message("Trying to load saved data... Failed:\n%s" % (str(eCur)))
-        message("Trying to load saved data from CSV...")
-        fControl = open("./patientAndControlData.csv", "r")
-        message("this is the size of the fControl:")
-        message(np.shape(fControl))
-        message(fControl)
+        message("Trying to load saved data from txt...")
+        fControl = open(FEATURE_VECTOR_FILENAME, "r")
         message("Loading labels and ids...")
-        # labelfile, should have stored tumor_stage or labels?
-        labelfile = np.genfromtxt(fControl, skip_header=1, usecols=(0, 73662),
-                                  missing_values=['NA', "na", '-', '--', 'n/a'], delimiter="\t",
-                                  dtype=np.dtype("object")
-                                  )
-
-        message("Splitting features, this is the size of labelfile")
-        message(np.shape(labelfile))
-        # message(labelfile)
+        # labelfile, should have stored tumor_stage or labels?       
+        
+        labelfile = np.genfromtxt(fControl, skip_header=1, usecols=(0, 100472),
+                                  missing_values=['NA', "na", '-', '--', 'n/a'],
+                                  dtype=np.dtype("object"), delimiter=' ').astype(str)
+        
+        labelfile[:, 0] = np.char.replace(labelfile[:, 0], '"', '')
 
         fControl.close()
+        
+        message("This is the label file...")
+        message(labelfile)
+        
+        message("Splitting features, this is the size of labelfile")
+        message(np.shape(labelfile))
 
         message("Loading labels and ids... Done.")
-        # # DEBUG LINES
-        # message(str(labelfile))
-        # #############
-
+        
         clinicalfile = loadTumorStage()
+        
+        feat_names = getFeatureNames()
 
         datafile = loadPatientAndControlData()
-        message("Trying to load saved data from CSV... Done.")
+        message("Trying to load saved data from txt... Done.")
 
         # Saving
         saveLoadedData(datafile, labelfile)
 
     message("Opening files... Done.")
+	
     # Split feature set to features/target field
-    mFeatures, vClass, sampleIDs = splitFeatures(clinicalfile, datafile, labelfile)
-
-
+    mFeatures, vClass, sampleIDs, tumor_stage = splitFeatures(clinicalfile, datafile, labelfile)
+    
     mControlFeatureMatrix = getControlFeatureMatrix(mFeatures, vClass)
     message("1 .This is the shape of the control matrix:")
     message(np.shape(mControlFeatureMatrix))
 
-    if bPostProcessing:
-        mFeatures = postProcessFeatures(mFeatures, mControlFeatureMatrix)
 
+    # the new bPostProcessing removes columns from mFeatures and mControlFeatureMatrix
+    if bPostProcessing:
+        mFeatures, sampleIDs, vClass, feat_names, tumor_stage = postProcessFeatures(mFeatures, vClass, sampleIDs, tumor_stage)
+        
     # Update control matrix, taking into account postprocessed data
     mControlFeatureMatrix = getControlFeatureMatrix(mFeatures, vClass)
 
@@ -346,9 +341,8 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bNormaliz
     if bNormalize:
         mFeatures = normalizeDataByControl(mFeatures, mControlFeatureMatrix, bNormalizeLog2Scale)
 
-    # Chris added sampleIDs as return param
-    return mFeatures, vClass, sampleIDs
-        #, labelfile
+    # return feat_names in the function with updated postProcessFeatures
+    return mFeatures, vClass, sampleIDs, feat_names, tumor_stage
 
 
 def postProcessFeatures(mFeatures, mControlFeatures):
