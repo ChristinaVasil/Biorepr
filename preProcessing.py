@@ -603,11 +603,9 @@ def loadPatientAndControlData():
     :return: the patient and control feature data file as a matrix
     """
     message("Loading features...")
-    fControl = open("./patientAndControlData.csv", "r")
-    # fControl = open("/datastore/cvas/output.txt", "r")
-    # Q Chris: I need to remember why -3
-    datafile = np.genfromtxt(fControl, skip_header=1, usecols=range(1, 73663 - 1),
-                             missing_values=['NA', "na", '-', '--', 'n/a'], delimiter="\t",
+    fControl = open(FEATURE_VECTOR_FILENAME, "r")
+    datafile = np.genfromtxt(fControl, skip_header=1, usecols=range(1, 100472),
+                             missing_values=['NA', "na", '-', '--', 'n/a'], delimiter=" ",
                              dtype=np.dtype("float")
                              )
     fControl.close()
@@ -623,16 +621,15 @@ def loadTumorStage():
     Gets tumor stage data from clinical data file.
     :return: A matrix indicating the tumor stage per case/instance.
     """
-    # Tumor stage
     message("Loading tumor stage...")
-    fClinical = open("clinicalAll.tsv", "r")
-    # While loading stage, also convert string to integer
-    clinicalfile = np.genfromtxt(fClinical, skip_header=1, usecols=(1, 154),
-                                 missing_values=['NA', "na", '-', '--', 'n/a'], delimiter="\t",
-                                 dtype=np.dtype("object"),
-                                 # converters={11: lambda s : ["stage i", "stage ii", "stage iii", "stage iv", "stage v"].index(s)}
-                                 )
-    fClinical.close()
+    fControl = open(FEATURE_VECTOR_FILENAME, "r")
+    
+    clinicalfile = np.genfromtxt(fControl, skip_header=1, usecols=(0, 100473),
+                                  missing_values=['NA', "na", '-', '--', 'n/a'],
+                                  dtype=np.dtype("object"), delimiter=' ').astype(str)
+    
+    clinicalfile[:, 0] = np.char.replace(clinicalfile[:, 0], '"', '')
+    fControl.close()
     message("Loading tumor stage... Done.")
     message("This is the clinical file...")
     message(clinicalfile)
