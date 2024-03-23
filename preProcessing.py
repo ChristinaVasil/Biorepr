@@ -141,24 +141,28 @@ def PCAOnTumor():
 
 
 def draw3DPCA(X, pca3DRes, c=None, cmap=plt.cm.gnuplot, spread=False):
+    
     """
     Draw a 3D PCA given, allowing different classes coloring.
+    c: This argument allows for different classes to be color-coded in the scatter plot. 
+    cmap: The colormap to be used for coloring the data points
+    spread:  applies the QuantileTransformer to spread out the data distribution. 
     """
-
+    
     # Percentage of variance explained for each components
     message('explained variance ratio (first 3 components): %s'
             % str(pca3DRes.explained_variance_ratio_))
-
+   
     if spread:
         X = QuantileTransformer(output_distribution='uniform').fit_transform(X)
-
-    fig = plt.figure()
+       
+    fig = plt.figure(figsize =(15, 15))
     plt.clf()
     ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(X[:, 0], X[:, 1], X[:, 2], edgecolor='k', c=c, cmap=cmap, depthshade=False)
-    ax.set_xlabel("X coordinate (%4.2f)" % (pca3DRes.explained_variance_ratio_[0]))
-    ax.set_ylabel("Y coordinate (%4.2f)" % (pca3DRes.explained_variance_ratio_[1]))
-    ax.set_zlabel("Z coordinate (%4.2f)" % (pca3DRes.explained_variance_ratio_[2]))
+    ax.scatter(X[:, 0], X[:, 1], X[:, 2], edgecolor='k', c=c, cmap=cmap, depthshade=False, s=100)
+    ax.set_xlabel("X coordinate (%4.2f)" % (pca3DRes.explained_variance_ratio_[0]), fontsize=20) 
+    ax.set_ylabel("Y coordinate (%4.2f)" % (pca3DRes.explained_variance_ratio_[1]), fontsize=20)
+    ax.set_zlabel("Z coordinate (%4.2f)" % (pca3DRes.explained_variance_ratio_[2]), fontsize=20)
     ax.set_xticklabels([])
     ax.set_yticklabels([])
     ax.set_zticklabels([])
