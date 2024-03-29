@@ -2,6 +2,8 @@
 import sys
 import numpy as np
 import pickle
+import argparse
+# import pydot
 import os
 import time
 from matplotlib import pyplot as plt 
@@ -15,8 +17,11 @@ from queue import Queue
 from queue import Empty
 import networkx as nx
 from networkx import write_multiline_adjlist, read_multiline_adjlist
+# from networkx.drawing.nx_pydot import pydot_layout
 from networkx.drawing.nx_agraph import graphviz_layout
-from threading import Thread
+from networkx.drawing.nx_pydot import write_dot
+import logging
+from threading import Thread, Lock
 from scipy.stats import pearsonr
 
 # WARNING: This line is important for 3d plotting. DO NOT REMOVE
@@ -40,8 +45,7 @@ def progress(s):
 
 
 def message(s):
-    sys.stdout.write("%s\n" % (str(s)))
-    sys.stdout.flush()
+    logger.info(s)
 
 
 def locateTargetField():
@@ -845,7 +849,7 @@ def addEdgeAboveThreshold(i, qQueue):
 
 
 # Is this the step where we make the generalised graph? The output is one Graph?
-def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True, dMinDivergenceToKeep=np.log2(10e5)):
+def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True):
     """
     Returns the overall feature graph, indicating interconnections between features.
 
@@ -856,14 +860,15 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True,
     Features with a deviation below this value are considered trivial. Default: log2(10e5).
     :return: The graph containing only useful features and their connections, indicating correlation.
     """
+    
     try:
         if bResetGraph:
             raise Exception("User requested graph recreation.")
 
         message("Trying to load graph...")
         g = nx.Graph()
-        g = read_multiline_adjlist(Prefix + "graphAdjacencyList.txt", create_using=g) 
-        with open(Prefix + "usefulFeatureNames.pickle", "rb") as fIn: 
+        g = read_multiline_adjlist(Prefix + "graphAdjacencyList.txt", create_using=g) ## reads the graph from a file using read_multiline_adjlist
+        with open(Prefix + "usefulFeatureNames.pickle", "rb") as fIn: ## reads a list of useful feature names from a pickle file
             saUsefulFeatureNames = pickle.load(fIn)
         message("Trying to load graph... Done.")
         return g, saUsefulFeatureNames
@@ -877,28 +882,43 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True,
     # Init graph
 
     # Determine meaningful features (with a divergence of more than MIN_DIVERGENCE from the control mean)
-
-    iFeatureCount = np.shape(mAllData)[1] 
-    mMeans = np.nanmean(mAllData, 0)  # Ignore nans 
-
-    # DEBUG LINES
-    message("Means: %s"%(str(mMeans)))
-    dMeanDescribe = pd.DataFrame(mMeans)
-    print(str(dMeanDescribe.describe()))
-    #############
     
+    #!iFeatureCount = np.shape(mAllData)[1] ## the number of features in the input data mAllData
+    #!mMeans = np.nanmean(mAllData, 0)  # Ignore nans ##computes the mean of each feature, ignoring NaN values.
+
+    #! DEBUG LINES
+    #!message("Means: %s"%(str(mMeans)))
+    #!dMeanDescribe = pd.DataFrame(mMeans)
+    #!print(str(dMeanDescribe.describe()))
+    #############
+    fUsefulFeatureNames = open("/home/thlamp/tcga/bladder_results/DEGs.csv", "r")
+
+    # labelfile, should have stored tumor_stage or labels?       
+
+    saUsefulFeatureNames = np.genfromtxt(fUsefulFeatureNames, skip_header=1, usecols=(0),
+                                    missing_values=['NA', "na", '-', '--', 'n/a'],
+                                    dtype=np.dtype("object"), delimiter=',').astype(str)
+    ##numpy.genfromtxt function to read data from a file. This function is commonly used to load data from text files into a NumPy array.
+    ##dtype=np.dtype("object"): This sets the data type for the resulting NumPy array to "object," which is a generic data type that can hold any type of data
+
+    #+ removes " from first column 
+    saUsefulFeatureNames[:] = np.char.replace(saUsefulFeatureNames[:], '"', '')
+
+    fUsefulFeatureNames.close()
     # Q1 Chris: is this the step where we apply the threshold? What is the threshold?
     # So, basically keep in vUseful, only the features that their value is greater than dMinDivergenceToKeep
-    vUseful = [abs(mMeans[iFieldNum]) > dMinDivergenceToKeep for iFieldNum in range(0, iFeatureCount)] 
-   
-    saUsefulIndices = [iFieldNum for iFieldNum, _ in enumerate(saFeatures) if vUseful[iFieldNum]]
-    
-    saUsefulFeatureNames = [saFeatures[iFieldNum] for iFieldNum in saUsefulIndices] 
-    
+    #!vUseful = [abs(mMeans[iFieldNum]) > dMinDivergenceToKeep for iFieldNum in range(0, iFeatureCount)] ##boolean list indicating whether each feature's absolute deviation from the mean is greater than dMinDivergenceToKeep
+    # saFeatures = getFeatureNames()[1:iFeatureCount] ## obtaining the names of the features in the dataset
+    # REMOVED and take as input filtered features names from initializeFeatureMatrices
+
+    #!saUsefulIndices = [iFieldNum for iFieldNum, _ in enumerate(saFeatures) if vUseful[iFieldNum]]
+
+    saUsefulIndices = [saFeatures.index(iFieldNum) for iFieldNum in saUsefulFeatureNames if iFieldNum in saFeatures]
+
     iUsefulFeatureCount = len(saUsefulIndices)
     message("Keeping %d features out of %d." % (len(saUsefulIndices), len(saFeatures)))
     ###############################
-
+    
     g = nx.Graph()
     message("Adding nodes...")
     # Add a node for each feature
@@ -910,21 +930,30 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True,
 
     # Measure correlations
     iAllPairs = (iUsefulFeatureCount * iUsefulFeatureCount) * 0.5
-    
+    ## (iUsefulFeatureCount * iUsefulFeatureCount) calculates the total number of possible pairs of "useful" features
+    ## Multiplying by 0.5 is equivalent to dividing by 2, which accounts for the fact that combinations are used (unordered pairs).
     message("Routing edge calculation for %d possible pairs..." % (iAllPairs))
     lCombinations = itertools.combinations(saUsefulIndices, 2)
+    ## itertools.combinations generates all possible combinations of length 2 from the elements in saUsefulIndices.
+    ## Each combination represents an unordered pair of indices, which will be used to calculate correlations between pairs of "useful" features.
 
     # Create queue and threads
     threads = []
     num_worker_threads = THREADS_TO_USE  # DONE: Use available processors
-    
+    ## THREADS_TO_USE likely represents the desired number of worker threads to use for parallel processing.
     qCombination = Queue(1000 * num_worker_threads)
+    ##This creates a queue (qCombination) with a maximum size of 1000 * num_worker_threads. The queue is used to pass combinations of feature indices to the worker threads for processing.
     
     processes = [Thread(target=addEdgeAboveThreshold, args=(i, qCombination,)) for i in range(num_worker_threads)]
-
+    ## This creates a list of Thread objects (processes), each corresponding to a worker thread.
+    ## The target is set to the addEdgeAboveThreshold function, which is the function that will be executed in parallel.
+    ## The args parameter is a tuple containing arguments to be passed to the addEdgeAboveThreshold function. In this case, it includes the thread index i and the queue qCombination
     for t in processes:
         t.daemon = True
+        #t.setDaemon(True)
+        ## This sets each thread in the processes list as a daemon thread. Daemon threads are background threads that are terminated when the main program finishes.
         t.start()
+        ## This starts each thread in the processes list, initiating parallel execution of the addEdgeAboveThreshold function.
 
     # Feed tasks
     iCnt = 1
@@ -932,7 +961,9 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True,
     for iFirstFeatIdx, iSecondFeatIdx in lCombinations:
         qCombination.put((iFirstFeatIdx, iSecondFeatIdx, g, mAllData, saFeatures, iFirstFeatIdx, iSecondFeatIdx,
                           iCnt, iAllPairs, dStartTime, dEdgeThreshold))
-        
+        ## This line puts a tuple containing various parameters onto the queue (qCombination)
+        ##  this tuple encapsulates all the necessary information for a worker thread to calculate the correlation between two features, determine whether an edge should be added to the graph, and perform the task efficiently. 
+        ## The worker threads will dequeue these tuples and execute the corresponding tasks in parallel.
         # Wait a while if we reached full queue
         if qCombination.full():
             message("So far routed %d tasks. Waiting on worker threads to provide more tasks..." % (iCnt))
@@ -943,7 +974,9 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True,
 
     message("Waiting for completion...")
     qCombination.join()
-    
+   
+    ## The qCombination.join() method is used to block the program execution until all tasks in the queue (qCombination) are done. It is typically used in a scenario where multiple threads are performing parallel tasks, 
+    ## and the main program needs to wait for all threads to finish their work before proceeding.
     message("Total time (sec): %4.2f" % (perf_counter() - dStartTime))
 
     message("Creating edges for %d possible pairs... Done." % (iAllPairs))
@@ -952,17 +985,18 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True,
 
     message("Removing single nodes... Nodes before removal: %d" % (g.number_of_nodes()))
     toRemove = [curNode for curNode in g.nodes().keys() if len(g[curNode]) == 0]
-    
+    ## a list (toRemove) containing the nodes in the graph (g) that have no edges, meaning they are isolated nodes (nodes with degree zero). 
+    ## The condition len(g[curNode]) == 0 checks if the node's degree is zero.
     while len(toRemove) > 0:
-        g.remove_nodes_from(toRemove) 
-        toRemove = [curNode for curNode in g.nodes().keys() if len(g[curNode]) == 0] 
+        g.remove_nodes_from(toRemove) ## This removes the nodes listed in toRemove from the graph g
+        toRemove = [curNode for curNode in g.nodes().keys() if len(g[curNode]) == 0] ## After removal, it updates the toRemove list with the names of nodes that are still isolated.
         message("Nodes after removal step: %d" % (g.number_of_nodes()))
     message("Removing single nodes... Done. Nodes after removal: %d" % (g.number_of_nodes()))
 
     message("Saving graph...")
-    write_multiline_adjlist(g, Prefix + "graphAdjacencyList.txt") 
-    with open(Prefix + "usefulFeatureNames.pickle", "wb") as fOut: 
-        pickle.dump(saUsefulFeatureNames, fOut) 
+    write_multiline_adjlist(g, Prefix + "graphAdjacencyList.txt") ## save a file using write_multiline_adjlist
+    with open(Prefix + "usefulFeatureNames.pickle", "wb") as fOut: ## This line opens a file named "usefulFeatureNames.pickle" in binary write mode ("wb"). The with statement is used to ensure that the file is properly closed after writing.
+        pickle.dump(saUsefulFeatureNames, fOut) ## serialize the Python object saUsefulFeatureNames and write the serialized data to the file fOut. The object is serialized into a binary format suitable for storage or transmission.
 
     message("Saving graph... Done.")
 
@@ -971,8 +1005,7 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True,
     return g, saUsefulFeatureNames
 
 
-def getGraphAndData(bResetGraph=False, dMinDivergenceToKeep=np.log2(10e6), dEdgeThreshold=0.3,
-                    bResetFiles=False, bPostProcessing=True, bNormalize=True, bNormalizeLog2Scale=True): # TODO: dMinDivergenceToKeep: Add as parameter
+def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bPostProcessing=True, bNormalize=True, bNormalizeLog2Scale=True): # TODO: dMinDivergenceToKeep: Add as parameter
     """
     Loads the feature correlation graph and all feature data.
     :param bResetGraph: If True, recalculate graph, else load from disc. Default: False.
@@ -991,7 +1024,7 @@ def getGraphAndData(bResetGraph=False, dMinDivergenceToKeep=np.log2(10e6), dEdge
     # Do mFeatures_noNaNs has all features? Have we applied a threshold to get here?
     mFeatures_noNaNs, vClass, sampleIDs, feat_names, tumor_stage = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=bPostProcessing,
                                                          bNormalize=bNormalize, bNormalizeLog2Scale=bNormalizeLog2Scale)
-    gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=dEdgeThreshold, bResetGraph=bResetGraph, dMinDivergenceToKeep=dMinDivergenceToKeep)
+    gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=dEdgeThreshold, bResetGraph=bResetGraph)
 
     return gToDraw, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names
 
@@ -1079,7 +1112,7 @@ def getGraphVector(gGraph):
     mRes = np.asarray(
         [len(gGraph.edges()), len(gGraph.nodes()),
          np.mean(np.array(list(nx.algorithms.centrality.degree_alg.degree_centrality(gGraph).values()))),
-         nx.algorithms.clique.number_of_cliques(gGraph),
+         len(list(nx.find_cliques(gGraph))),
          nx.algorithms.connectivity.connectivity.average_node_connectivity(gGraph),
          nx.average_shortest_path_length(gGraph)
          ]
@@ -1196,10 +1229,7 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     threads = []
     num_worker_threads = THREADS_TO_USE 
     qTasks = Queue(10 * num_worker_threads) 
-    for i in range(num_worker_threads):
-        t = Thread(target=getSampleGraphFeatureVector, args=(i, qTasks,bShowGraphs, bSaveGraphs,))
-        t.daemon = True 
-        t.start() 
+    
 
     # Count instances
     iAllCount = np.shape(mAllSamples)[0] 
@@ -1210,24 +1240,21 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
 
     # Init result list
     lResList = []
-
-    # Init graph dictionary
-    dGraphDict = {}
-    
     # Add all items to queue
     for idx in range (np.shape(mAllSamples)[0]):
-        qTasks.put((sampleIDs[idx], lResList, dGraphDict, gMainGraph, mAllSamples[idx, :], saRemainingFeatureNames, feat_names, next(iCnt), iAllCount, dStartTime))
+        qTasks.put((sampleIDs[idx], lResList, gMainGraph, mAllSamples[idx, :], saRemainingFeatureNames, feat_names, next(iCnt), iAllCount, dStartTime))
+    
+    threads = [Thread(target=getSampleGraphFeatureVector, args=(i, qTasks,bShowGraphs, bSaveGraphs,)) for i in range(num_worker_threads)]
+    for t in threads:
+        
+        
+        t.daemon = True 
+        t.start() 
     
     message("Waiting for completion...")
-    t.join() 
-
-    for sampleID, gSampleGraph in dGraphDict.items():
-        message("Calling drawAndSaveGraph for graph %s..."%(str(sampleID)))
-        drawAndSaveGraph(gMainGraph, sPDFFileName = "SampleID%s.pdf" %(sampleID), bShow = bShowGraphs, bSave = bSaveGraphs)
-        
-    message("Calling drawAndSaveGraph...Done")
-    message("Total time (sec): %4.2f" % (perf_counter() - dStartTime))
     
+    qTasks.join() 
+    message("Total time (sec): %4.2f" % (perf_counter() - dStartTime))
 
     return np.array(lResList)
 
@@ -1245,6 +1272,7 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
     iAllCount -- the number of all samples to be represented
     dStartTime -- the time when parallelization started
     """
+    # dSample = {}
 
     iWaitingCnt = 0 # Number of tries, finding empty queue
     while True:
@@ -1261,9 +1289,10 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
             message("Waited long enough. Reached and of queue... Stopping.")
             break
         
-        sampleID, lResList, dGraphDict, gMainGraph, mSample, saRemainingFeatureNames, feat_names, iCnt, iAllCount, dStartTime = params
-        print(feat_names)     
+        sampleID, lResList, gMainGraph, mSample, saRemainingFeatureNames, feat_names, iCnt, iAllCount, dStartTime = params
+           
         # DEBUG LINES
+        print(feat_names)  
         message("Working on instance %d of %d..." % (iCnt, iAllCount))
         #############
 
@@ -1279,13 +1308,14 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
         # Extract and return features
         vGraphFeatures = getGraphVector(gMainGraph)
         
-
-        # Add to common graph dictionary
-        dGraphDict[sampleID] = gMainGraph
-        
+        #message("Calling drawAndSaveGraph for graph %s..."%(str(sampleID)))
+        #drawAndSaveGraph(gMainGraph, sPDFFileName = "SampleID%s.pdf" %(sampleID), bShow = bShowGraphs, bSave = bSaveGraphs)
+        #message("Calling drawAndSaveGraph...Done")
         #  Add to common result queue
-        lResList.append(vGraphFeatures)
-
+        
+        with lock:  # Acquire the lock before modifying the shared resource
+            lResList.append(vGraphFeatures)
+        
         # Signal done
         qQueue.task_done()
 
@@ -1296,7 +1326,6 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
             dRemaining = (iAllCount - iCnt) * dRate
             message("%d (Estimated remaining (sec): %4.2f - Working at a rate of %4.2f samples/sec)\n" % (
                 iCnt, dRemaining, 1.0 / dRate))
-        ##############
 
 def classify(X, y):
     """
@@ -1403,6 +1432,23 @@ def main(argv):
 
     # Update global threads to use
     THREADS_TO_USE = args.numberOfThreads
+
+    # Create a custom logger
+    logger = logging.getLogger(__name__)
+
+    # Set level of logger
+    logger.setLevel(logging.INFO)
+
+    # Create handlers
+    c_handler = logging.StreamHandler()
+    c_handler.setLevel(logging.INFO)
+
+    # Create formatters and add it to handlers
+    c_format = logging.Formatter('%(asctime)s - %(message)s', datefmt='%d/%m/%Y %I:%M:%S %p')
+    c_handler.setFormatter(c_format)
+
+    # Add handlers to the logger
+    logger.addHandler(c_handler)
 
     # # main function
     gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs = getGraphAndData(bResetGraph=args.resetGraph,
