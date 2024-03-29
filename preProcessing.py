@@ -37,12 +37,30 @@ from sklearn.preprocessing import QuantileTransformer
 # Prefix for intermediate files
 Prefix = "GG"
 THREADS_TO_USE = mp.cpu_count()  # Init to all CPUs
-
+FEATURE_VECTOR_FILENAME = "/home/thlamp/tcga/bladder_results/raw_data_integrated_matrix.txt"
+os.chdir("/home/thlamp/scripts")
+lock = Lock()
 
 def progress(s):
     sys.stdout.write("%s" % (str(s)))
     sys.stdout.flush()
 
+# Create a custom logger
+logger = logging.getLogger(__name__)
+
+# Set level of logger
+logger.setLevel(logging.INFO)
+
+# Create handlers
+c_handler = logging.StreamHandler()
+c_handler.setLevel(logging.INFO)
+
+# Create formatters and add it to handlers
+c_format = logging.Formatter('%(asctime)s - %(message)s', datefmt='%d/%m/%Y %I:%M:%S %p')
+c_handler.setFormatter(c_format)
+
+# Add handlers to the logger
+logger.addHandler(c_handler)
 
 def message(s):
     logger.info(s)
@@ -1112,14 +1130,23 @@ def getGraphVector(gGraph):
     # DEBUG LINES
     message("Extracting graph feature vector...")
    
-    mRes = np.asarray(
-        [len(gGraph.edges()), len(gGraph.nodes()),
-         np.mean(np.array(list(nx.algorithms.centrality.degree_alg.degree_centrality(gGraph).values()))),
-         len(list(nx.find_cliques(gGraph))),
-         nx.algorithms.connectivity.connectivity.average_node_connectivity(gGraph),
-         nx.average_shortest_path_length(gGraph)
-         ]
-    )
+    try:
+        mRes = np.asarray(
+            [len(gGraph.edges()), len(gGraph.nodes()),
+            np.mean(np.array(list(nx.algorithms.centrality.degree_alg.degree_centrality(gGraph).values()))),
+            len(list(nx.find_cliques(gGraph))),
+            nx.algorithms.connectivity.connectivity.average_node_connectivity(gGraph),
+            nx.average_shortest_path_length(gGraph)
+            ])
+
+    except:
+        mRes = np.asarray(
+            [len(gGraph.edges()), len(gGraph.nodes()),
+            np.mean(np.array(list(nx.algorithms.centrality.degree_alg.degree_centrality(gGraph).values()))),
+            len(list(nx.find_cliques(gGraph))),
+            nx.algorithms.connectivity.connectivity.average_node_connectivity(gGraph), 0
+            ])
+        
     # DEBUG LINES
     message("Extracting graph feature vector... Done.")
 
@@ -1243,20 +1270,21 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
 
     # Init result list
     lResList = []
+    
+    
+    threads = [Thread(target=getSampleGraphFeatureVector, args=(i, qTasks,bShowGraphs, bSaveGraphs,)) for i in range(num_worker_threads)]
+    for t in threads:
+        t.daemon = True 
+        t.start() 
+    
     # Add all items to queue
     for idx in range (np.shape(mAllSamples)[0]):
         qTasks.put((sampleIDs[idx], lResList, gMainGraph, mAllSamples[idx, :], saRemainingFeatureNames, feat_names, next(iCnt), iAllCount, dStartTime))
     
-    threads = [Thread(target=getSampleGraphFeatureVector, args=(i, qTasks,bShowGraphs, bSaveGraphs,)) for i in range(num_worker_threads)]
-    for t in threads:
-        
-        
-        t.daemon = True 
-        t.start() 
-    
     message("Waiting for completion...")
     
     qTasks.join() 
+
     message("Total time (sec): %4.2f" % (perf_counter() - dStartTime))
 
     return np.array(lResList)
@@ -1294,8 +1322,7 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
         
         sampleID, lResList, gMainGraph, mSample, saRemainingFeatureNames, feat_names, iCnt, iAllCount, dStartTime = params
            
-        # DEBUG LINES
-        print(feat_names)  
+        # DEBUG LINES  
         message("Working on instance %d of %d..." % (iCnt, iAllCount))
         #############
 
@@ -1416,7 +1443,7 @@ def main(argv):
 
     # Graph generation parameters
     parser.add_argument("-e", "--edgeThreshold", type=float, default=0.3)
-    parser.add_argument("-d", "--minDivergenceToKeep", type=float, default=6)
+    #parser.add_argument("-d", "--minDivergenceToKeep", type=float, default=6)
 
     # Model building parameters
     parser.add_argument("-n", "--numberOfInstances", type=int, default=-1)
@@ -1436,27 +1463,9 @@ def main(argv):
     # Update global threads to use
     THREADS_TO_USE = args.numberOfThreads
 
-    # Create a custom logger
-    logger = logging.getLogger(__name__)
-
-    # Set level of logger
-    logger.setLevel(logging.INFO)
-
-    # Create handlers
-    c_handler = logging.StreamHandler()
-    c_handler.setLevel(logging.INFO)
-
-    # Create formatters and add it to handlers
-    c_format = logging.Formatter('%(asctime)s - %(message)s', datefmt='%d/%m/%Y %I:%M:%S %p')
-    c_handler.setFormatter(c_format)
-
-    # Add handlers to the logger
-    logger.addHandler(c_handler)
-
     # # main function
-    gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs = getGraphAndData(bResetGraph=args.resetGraph,
+    gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names = getGraphAndData(bResetGraph=args.resetGraph,
                                                                                     dEdgeThreshold=args.edgeThreshold,
-                                                                                    dMinDivergenceToKeep=args.minDivergenceToKeep,
                                                                                     bResetFiles=args.resetCSVCacheFiles,
                                                                                     bPostProcessing=args.postProcessing,
                                                                                     bNormalize=args.normalization,
@@ -1470,7 +1479,7 @@ def main(argv):
     # print ("Final graph feature vector: %s"%(str(vGraphFeatures)))
 
     # TODO: Restore to NOT reset features
-    mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs,
+    mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
                                            bResetFeatures=args.resetFeatures,
                                            numOfSelectedSamples=args.numberOfInstances, bShowGraphs=args.showGraphs, bSaveGraphs=args.saveGraphs)
 
