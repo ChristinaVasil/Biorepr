@@ -1030,21 +1030,21 @@ def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bP
 
 
 def drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = True, bSave = True):
-    """
-    Draws and displays a given graph, by using graphviz.
+    
+    """Draws and displays a given graph, by using graphviz.
 
     :param gToDraw: The graph to draw.
     """
     if len(gToDraw.edges())<3:
         figure_size = (len(gToDraw.edges()) * 4, len(gToDraw.edges()) * 4)
     else:
-        figure_size = (len(gToDraw.edges()) * 2, len(gToDraw.edges()) * 2)
+        figure_size = (100, 100)
         
     plt.figure(figsize=figure_size)
-    
+    # plt.figure(figsize=(len(gToDraw.edges()) , len(gToDraw.edges())))## ru8mizei mege8os figure me bash ton ari8mo ton edges
     plt.clf()
 
-    pos = graphviz_layout(gToDraw, prog='dot')
+    pos = graphviz_layout(gToDraw, prog='circo')
     
     try:
         dNodeLabels = {}
@@ -1058,15 +1058,18 @@ def drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = True, bSave =
         dNodeLabels = None
 
     nx.draw_networkx(gToDraw, pos, arrows=False, node_size=1200, node_color="blue", with_labels=True, labels=dNodeLabels)
-    
+    ##nx.draw_networkx: Draws the nodes and edges of the graph using the specified positions (pos) and other parameters
     edge_labels = nx.get_edge_attributes(gToDraw, 'weight')
-    
+    ##extract the 'weight' attribute from the edges of a NetworkX graph (gToDraw)
     nx.draw_networkx_edge_labels(gToDraw, pos, edge_labels=edge_labels)
+    ##nx.draw_networkx_edge_labels: Draws labels for the edges, assuming there are 'weight' attributes associated with the edges
 
     if bSave:
         message("Saving graph to file...")
         try:
-            plt.savefig(sPDFFileName, bbox_inches='tight')
+            write_dot(gToDraw, 'corrGraph.dot')
+            plt.savefig(sPDFFileName, bbox_inches='tight')## bbox_inches='tight': This parameter adjusts the bounding box around the saved figure. The argument 'tight' is used to minimize the whitespace around the actual content of the figure
+            # plt.savefig(sPDFFileName)
             message("Saving graph to file... Done.")
         except Exception as e:
             print("Could not save file! Exception:\n%s\n"%(str(e)))
