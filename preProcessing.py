@@ -29,7 +29,7 @@ from mpl_toolkits.mplot3d import Axes3D
 
 from sklearn import tree
 from sklearn import decomposition
-from sklearn.cluster import KMeans
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import QuantileTransformer
@@ -658,6 +658,16 @@ def loadTumorStage():
     message("These are the dimensions of the clinical file")
     message(np.shape(clinicalfile))
     return clinicalfile
+
+def kneighbors(X, y):
+    """
+    Calculates and outputs the performance of classification, through 10-fold cross-valuation, given a set of feature vectors and a set of labels.
+    :param X: The feature vector matrix.
+    :param y: The labels.
+    """
+    neigh = KNeighborsClassifier(n_neighbors=3)
+    scores = cross_val_score(neigh, X, y, cv=min(10, len(y)))
+    message("Avg. Performanace: %4.2f (st. dev. %4.2f) \n %s" % (np.mean(scores), np.std(scores), str(scores)))
 
 
 def ClusterAllData():
@@ -1543,6 +1553,25 @@ def main(argv):
             fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
             classify(X, y)
+    
+    if args.kneighbors:
+        if args.graphFeatures:
+            aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+            X, pca3D = getPCA(mGraphFeatures, 3)
+            fig = draw3DPCA(X, pca3D, c=y)
+
+            fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+            kneighbors(X, y)
+        elif args.featurevectors:
+            # Extract class vector for colors
+            aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+            X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+            fig = draw3DPCA(X, pca3D, c=y)
+
+            fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+            kneighbors(X, y)
 
     # end of main function
 
