@@ -1054,7 +1054,7 @@ def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bP
                                                          bNormalize=bNormalize, bNormalizeLog2Scale=bNormalizeLog2Scale)
     gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=dEdgeThreshold, bResetGraph=bResetGraph)
 
-    return gToDraw, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names
+    return gToDraw, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names, tumor_stage
 
 
 def drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = True, bSave = True):
@@ -1475,6 +1475,9 @@ def main(argv):
     parser.add_argument("-gfeat", "--graphFeatures", action="store_true", default=False)
     parser.add_argument("-featv", "--featurevectors", action="store_true", default=False)
 
+    # Labels
+    parser.add_argument("-cls", "--classes", action="store_true", default=False)
+    parser.add_argument("-tums", "--tumorStage", action="store_true", default=False)
     # Graph generation parameters
     parser.add_argument("-e", "--edgeThreshold", type=float, default=0.3)
     #parser.add_argument("-d", "--minDivergenceToKeep", type=float, default=6)
@@ -1498,7 +1501,7 @@ def main(argv):
     THREADS_TO_USE = args.numberOfThreads
 
     # # main function
-    gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names = getGraphAndData(bResetGraph=args.resetGraph,
+    gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names, vtumorStage = getGraphAndData(bResetGraph=args.resetGraph,
                                                                                     dEdgeThreshold=args.edgeThreshold,
                                                                                     bResetFiles=args.resetCSVCacheFiles,
                                                                                     bPostProcessing=args.postProcessing,
@@ -1519,24 +1522,30 @@ def main(argv):
                                             numOfSelectedSamples=args.numberOfInstances, bShowGraphs=args.showGraphs, bSaveGraphs=args.saveGraphs)
         # Get selected instance classes
     if args.numberOfInstances < 0:
-        vSelectedSamplesClasses = vClass
+        if args.classes:
+            vSelectedSamplesClasses = vClass
+        elif args.tumorStage:
+            vSelectedtumorStage = vtumorStage
     else:
-        vSelectedSamplesClasses = np.concatenate(
-            (vClass[0:int(args.numberOfInstances / 2)][:], vClass[-int(args.numberOfInstances / 2):][:]), axis=0)
-    
+        if args.classes:
+            vSelectedSamplesClasses = np.concatenate((vClass[0:int(args.numberOfInstances / 2)][:], vClass[-int(args.numberOfInstances / 2):][:]), axis=0)
+        elif args.tumorStage:
+            vSelectedtumorStage = np.concatenate((vtumorStage[0:int(args.numberOfInstances / 2)][:], vtumorStage[-int(args.numberOfInstances / 2):][:]), axis=0)
+
     if args.featurevectors:
             saUsefulFeatureNames = getDegs()
             saUsefulIndices = np.concatenate([np.where(saRemainingFeatureNames == sFieldNum)[0] for sFieldNum in saUsefulFeatureNames if sFieldNum in saRemainingFeatureNames])
-            message("saUsefulIndices")
-            message(saUsefulIndices[0:2])
             mSelectedFeatures_noNaNs = mFeatures_noNaNs[ :, saUsefulIndices]
-            message("mSelectedFeatures_noNaNs")
-            message(mSelectedFeatures_noNaNs[0:2, :])
     
     if args.decisionTree:
         if args.graphFeatures:
-            # Extract class vector for colors
-            aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+            if args.classes:
+                # Extract class vector for colors
+                aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+            else:
+                # Extract tumor stages vector for colors
+                aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
+            
             X, pca3D = getPCA(mGraphFeatures, 3)
             fig = draw3DPCA(X, pca3D, c=y)
 
@@ -1545,8 +1554,13 @@ def main(argv):
             classify(X, y)
         
         elif args.featurevectors:
-            # Extract class vector for colors
-            aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+            if args.classes:
+                # Extract class vector for colors
+                aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+            else:
+                # Extract tumor stages vector for colors
+                aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
+                
             X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
             fig = draw3DPCA(X, pca3D, c=y)
 
