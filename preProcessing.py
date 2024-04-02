@@ -1228,8 +1228,9 @@ def filterGraphNodes(gMainGraph, dKeepRatio):
     """
     # Get all weights
     mWeights = np.asarray([gMainGraph.nodes[curNode]['weight'] for curNode in gMainGraph.nodes().keys()])
-    message("mWeights: "+str(mWeights))
+    
     # DEBUG LINES
+    #message("mWeights: "+str(mWeights))
     message("Filtering nodes... Weights: %s"%(str(mWeights.shape)))
     # If empty weights (possibly because the threshold is too high
     if (mWeights.shape[0] == 0):
@@ -1421,6 +1422,22 @@ def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames,
         message("Saving graph feature matrix... Done.")
     return mGraphFeatures
 
+def getDegs():
+    fUsefulFeatureNames = open("/home/thlamp/tcga/bladder_results/DEGs.csv", "r")
+
+    # labelfile, should have stored tumor_stage or labels?       
+
+    saUsefulFeatureNames = np.genfromtxt(fUsefulFeatureNames, skip_header=1, usecols=(0),
+                                    missing_values=['NA', "na", '-', '--', 'n/a'],
+                                    dtype=np.dtype("object"), delimiter=',').astype(str)
+    ##numpy.genfromtxt function to read data from a file. This function is commonly used to load data from text files into a NumPy array.
+    ##dtype=np.dtype("object"): This sets the data type for the resulting NumPy array to "object," which is a generic data type that can hold any type of data
+
+    #+ removes " from first column 
+    saUsefulFeatureNames[:] = np.char.replace(saUsefulFeatureNames[:], '"', '')
+
+    fUsefulFeatureNames.close()
+    return saUsefulFeatureNames
 
 def main(argv):
     # Init arguments
@@ -1436,10 +1453,17 @@ def main(argv):
     parser.add_argument("-shg", "--showGraphs", action="store_true", default=False)
 
     # Post-processing control
-    parser.add_argument("-p", "--postProcessing", action="store_true",
-                        default=True)  # If False NO postprocessing occurs
+    parser.add_argument("-p", "--postProcessing", action="store_true", default=True)  # If False NO postprocessing occurs
     parser.add_argument("-norm", "--normalization", action="store_true", default=True)
     parser.add_argument("-ls", "--logScale", action="store_true", default=True)
+
+    # Classification model 
+    parser.add_argument("-dect", "--decisionTree", action="store_true", default=False)
+    parser.add_argument("-knn", "--kneighbors", action="store_true", default=False)
+
+    # Features
+    parser.add_argument("-gfeat", "--graphFeatures", action="store_true", default=False)
+    parser.add_argument("-featv", "--featurevectors", action="store_true", default=False)
 
     # Graph generation parameters
     parser.add_argument("-e", "--edgeThreshold", type=float, default=0.3)
@@ -1479,26 +1503,46 @@ def main(argv):
     # print ("Final graph feature vector: %s"%(str(vGraphFeatures)))
 
     # TODO: Restore to NOT reset features
-    mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
-                                           bResetFeatures=args.resetFeatures,
-                                           numOfSelectedSamples=args.numberOfInstances, bShowGraphs=args.showGraphs, bSaveGraphs=args.saveGraphs)
-
-    # Perform PCA
-    # Get selected instance classes
+    if args.graphFeatures:
+        mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
+                                            bResetFeatures=args.resetFeatures,
+                                            numOfSelectedSamples=args.numberOfInstances, bShowGraphs=args.showGraphs, bSaveGraphs=args.saveGraphs)
+        # Get selected instance classes
     if args.numberOfInstances < 0:
         vSelectedSamplesClasses = vClass
     else:
         vSelectedSamplesClasses = np.concatenate(
             (vClass[0:int(args.numberOfInstances / 2)][:], vClass[-int(args.numberOfInstances / 2):][:]), axis=0)
+    
+    if args.featurevectors:
+            saUsefulFeatureNames = getDegs()
+            saUsefulIndices = np.concatenate([np.where(saRemainingFeatureNames == sFieldNum)[0] for sFieldNum in saUsefulFeatureNames if sFieldNum in saRemainingFeatureNames])
+            message("saUsefulIndices")
+            message(saUsefulIndices[0:2])
+            mSelectedFeatures_noNaNs = mFeatures_noNaNs[ :, saUsefulIndices]
+            message("mSelectedFeatures_noNaNs")
+            message(mSelectedFeatures_noNaNs[0:2, :])
+    
+    if args.decisionTree:
+        if args.graphFeatures:
+            # Extract class vector for colors
+            aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+            X, pca3D = getPCA(mGraphFeatures, 3)
+            fig = draw3DPCA(X, pca3D, c=y)
 
-    # Extract class vector for colors
-    aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-    X, pca3D = getPCA(mGraphFeatures, 3)
-    fig = draw3DPCA(X, pca3D, c=y)
+            fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-    fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+            classify(X, y)
+        
+        elif args.featurevectors:
+            # Extract class vector for colors
+            aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+            X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+            fig = draw3DPCA(X, pca3D, c=y)
 
-    classify(X, y)
+            fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+            classify(X, y)
 
     # end of main function
 
