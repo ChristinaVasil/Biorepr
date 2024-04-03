@@ -1478,6 +1478,7 @@ def main(argv):
     # Labels
     parser.add_argument("-cls", "--classes", action="store_true", default=False)
     parser.add_argument("-tums", "--tumorStage", action="store_true", default=False)
+    
     # Graph generation parameters
     parser.add_argument("-e", "--edgeThreshold", type=float, default=0.3)
     #parser.add_argument("-d", "--minDivergenceToKeep", type=float, default=6)
@@ -1542,10 +1543,11 @@ def main(argv):
             if args.classes:
                 # Extract class vector for colors
                 aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+                message("Decision tree on graph feature vectors and classes")
             else:
                 # Extract tumor stages vector for colors
                 aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
-            
+                message("Decision tree on graph feature vectors and tumor stages")
             X, pca3D = getPCA(mGraphFeatures, 3)
             fig = draw3DPCA(X, pca3D, c=y)
 
@@ -1557,10 +1559,11 @@ def main(argv):
             if args.classes:
                 # Extract class vector for colors
                 aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+                message("Decision tree on feature vectors and classes")
             else:
                 # Extract tumor stages vector for colors
                 aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
-                
+                message("Decision tree on feature vectors and tumor stages")
             X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
             fig = draw3DPCA(X, pca3D, c=y)
 
@@ -1570,7 +1573,14 @@ def main(argv):
     
     if args.kneighbors:
         if args.graphFeatures:
-            aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+            if args.classes:
+                # Extract class vector for colors
+                aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+                message("KNN on graph feature vectors and classes")
+            else:
+                # Extract tumor stages vector for colors
+                aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
+                message("KNN on graph feature vectors and tumor stages")
             X, pca3D = getPCA(mGraphFeatures, 3)
             fig = draw3DPCA(X, pca3D, c=y)
 
@@ -1578,8 +1588,14 @@ def main(argv):
 
             kneighbors(X, y)
         elif args.featurevectors:
-            # Extract class vector for colors
-            aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+            if args.classes:
+                # Extract class vector for colors
+                aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+                message("KNN on feature vectors and classes")
+            else:
+                # Extract tumor stages vector for colors
+                aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
+                message("KNN on feature vectors and tumor stages")
             X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
             fig = draw3DPCA(X, pca3D, c=y)
 
