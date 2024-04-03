@@ -31,8 +31,12 @@ from sklearn import tree
 from sklearn import decomposition
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.model_selection import cross_val_score
+#from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import QuantileTransformer
+from sklearn.metrics import make_scorer, accuracy_score, precision_score, recall_score, f1_score, mean_squared_error
+from sklearn.model_selection import cross_validate, LeaveOneOut
+
+
 
 # Prefix for intermediate files
 Prefix = "GG"
@@ -666,8 +670,27 @@ def kneighbors(X, y):
     :param y: The labels.
     """
     neigh = KNeighborsClassifier(n_neighbors=3)
-    scores = cross_val_score(neigh, X, y, cv=min(10, len(y)))
-    message("Avg. Performanace: %4.2f (st. dev. %4.2f) \n %s" % (np.mean(scores), np.std(scores), str(scores)))
+    
+    scoring = {
+    'accuracy': make_scorer(accuracy_score),
+    'f1_micro': make_scorer(f1_score, average="micro"),
+    'f1_macro': make_scorer(f1_score, average="macro"),
+    }
+    
+    cv = LeaveOneOut() 
+
+    # Calculate cross-validation scores for both accuracy and F1
+    scores = cross_validate(neigh, X, y, cv=cv, scoring=scoring)
+    
+    # Calculate SEM 
+    sem_accuracy = np.std(scores['test_accuracy']) / np.sqrt(len(scores['test_accuracy']))
+    sem_f1_micro = np.std(scores['test_f1_micro']) / np.sqrt(len(scores['test_f1_micro']))
+    sem_f1_macro = np.std(scores['test_f1_macro']) / np.sqrt(len(scores['test_f1_macro']))
+
+    message("Avg. Performanace: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_accuracy']), np.std(scores['test_accuracy']), sem_accuracy, str(scores['test_accuracy'])))
+    message("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_micro']), np.std(scores['test_f1_micro']), sem_f1_micro, str(scores['test_f1_micro'])))
+    message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_macro']), np.std(scores['test_f1_macro']), sem_f1_macro, str(scores['test_f1_macro'])))
+    
 
 
 def ClusterAllData():
@@ -1374,10 +1397,28 @@ def classify(X, y):
     :param X: The feature vector matrix.
     :param y: The labels.
     """
-    classifier = DecisionTreeClassifier()
-    scores = cross_val_score(classifier, X, y, cv=min(10, len(y)))
-    message("Avg. Performanace: %4.2f (st. dev. %4.2f) \n %s" % (np.mean(scores), np.std(scores), str(scores)))
+    scoring = {
+    'accuracy': make_scorer(accuracy_score),
+    'f1_micro': make_scorer(f1_score, average="micro"),
+    'f1_macro': make_scorer(f1_score, average="macro"),
+    }
 
+    classifier = DecisionTreeClassifier()
+    
+    cv = LeaveOneOut() 
+
+    # Calculate cross-validation scores for both accuracy and F1
+    scores = cross_validate(classifier, X, y, cv=cv, scoring=scoring)
+    
+    # Calculate SEM 
+    sem_accuracy = np.std(scores['test_accuracy']) / np.sqrt(len(scores['test_accuracy']))
+    sem_f1_micro = np.std(scores['test_f1_micro']) / np.sqrt(len(scores['test_f1_micro']))
+    sem_f1_macro = np.std(scores['test_f1_macro']) / np.sqrt(len(scores['test_f1_macro']))
+
+    message("Avg. Performanace: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_accuracy']), np.std(scores['test_accuracy']), sem_accuracy, str(scores['test_accuracy'])))
+    message("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_micro']), np.std(scores['test_f1_micro']), sem_f1_micro, str(scores['test_f1_micro'])))
+    message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_macro']), np.std(scores['test_f1_macro']), sem_f1_macro, str(scores['test_f1_macro'])))
+    
     # Output model
     classifier.fit(X, y)
     dot_data = tree.export_graphviz(classifier, out_file=None)
