@@ -33,7 +33,7 @@ from sklearn import decomposition
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 #from sklearn.model_selection import cross_val_score
-from sklearn.preprocessing import QuantileTransformer
+from sklearn.preprocessing import QuantileTransformer, MinMaxScaler
 from sklearn.metrics import make_scorer, accuracy_score, f1_score 
 from sklearn.model_selection import cross_validate, LeaveOneOut
 
@@ -395,7 +395,7 @@ def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage):
     # DEBUG LINES
     message("rows_to_remove"+str(rows_to_remove))
     #############
-    levels_indices = omic_level_indices()
+    levels_indices = getLevelIndices()
     
     incomplete_samples = incompleteSamples(mFeatures, levels_indices)
     # DEBUG LINES
@@ -462,7 +462,7 @@ def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage):
     message(mFeatures)
     return mFeatures, filtered_sample_ids, filtered_vClass, filtered_features, filtered_tumor_stage
 
-def omic_level_indices():
+def getLevelIndices():
     """
     Returns the columns corresponding to each omic level
     """
@@ -785,7 +785,7 @@ def getNonControlFeatureMatrix(mAllData, vLabels):
     return choicelist[condlist]
 
 
-def normalizeDataByControl(mFeaturesToNormalize, mControlData, logScale=True):
+def normalizeData(mFeaturesToNormalize, logScale=True):
     """
     Calculates relative change per feature, transforming also to a log 2 norm/scale
 
@@ -794,21 +794,22 @@ def normalizeDataByControl(mFeaturesToNormalize, mControlData, logScale=True):
     :param logScale: If True, log scaling will occur to the result. Default: True.
     :return: The normalized and - possibly - log scaled version of the input feature matrix.
     """
-    message("Normalizing based on control set...")
-    centroid = np.nanmean(mControlData[:, :], 0)
-    # Using percentile change instead of ratio, to avoid lower bound problems
-    # Q1
-    mOut = ((mFeaturesToNormalize - centroid) + 10e-8) / (centroid + 10e-8)
     # DEBUG LINES
     message("Data shape before normalization: %s" % (str(np.shape(mFeaturesToNormalize))))
     #############
+    message("Normalizing data...")
+    levels = getLevelIndices()
+    scaler = MinMaxScaler()
+    scaler.fit(mFeaturesToNormalize[:, levels[0][0]:levels[1][1]])
+    mFeaturesToNormalize[:, levels[0][0]:levels[1][1]] = scaler.transform(mFeaturesToNormalize[:, levels[0][0]:levels[1][1]])
+    
     if logScale:
-        mOut = np.log2(2.0 + mOut)  # Ascertain positive numbers
+        mFeaturesToNormalize = np.log2(2.0 + mFeaturesToNormalize)  # Ascertain positive numbers
     # DEBUG LINES
-    message("Data shape after normalization: %s" % (str(np.shape(mOut))))
+    message("Data shape after normalization: %s" % (str(np.shape(mFeaturesToNormalize))))
     #############
     message("Normalizing based on control set... Done.")
-    return mOut
+    return mFeaturesToNormalize
 
 
 def testSpreadingActivation():
