@@ -6,12 +6,13 @@ import argparse
 # import pydot
 import os
 import time
-from matplotlib import pyplot as plt 
+import matplotlib.pyplot as plt
 import pandas as pd
 import graphviz
 import copy
 import itertools
 import multiprocessing as mp
+import seaborn as sns
 from time import perf_counter
 from queue import Queue
 from queue import Empty
@@ -33,7 +34,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 #from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import QuantileTransformer
-from sklearn.metrics import make_scorer, accuracy_score, precision_score, recall_score, f1_score, mean_squared_error
+from sklearn.metrics import make_scorer, accuracy_score, f1_score 
 from sklearn.model_selection import cross_validate, LeaveOneOut
 
 
@@ -1418,7 +1419,7 @@ def classify(X, y):
     message("Avg. Performanace: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_accuracy']), np.std(scores['test_accuracy']), sem_accuracy, str(scores['test_accuracy'])))
     message("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_micro']), np.std(scores['test_f1_micro']), sem_f1_micro, str(scores['test_f1_micro'])))
     message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_macro']), np.std(scores['test_f1_macro']), sem_f1_macro, str(scores['test_f1_macro'])))
-    
+
     # Output model
     classifier.fit(X, y)
     dot_data = tree.export_graphviz(classifier, out_file=None)
@@ -1566,12 +1567,12 @@ def main(argv):
     if args.numberOfInstances < 0:
         if args.classes:
             vSelectedSamplesClasses = vClass
-        elif args.tumorStage:
+        if args.tumorStage:
             vSelectedtumorStage = vtumorStage
     else:
         if args.classes:
             vSelectedSamplesClasses = np.concatenate((vClass[0:int(args.numberOfInstances / 2)][:], vClass[-int(args.numberOfInstances / 2):][:]), axis=0)
-        elif args.tumorStage:
+        if args.tumorStage:
             vSelectedtumorStage = np.concatenate((vtumorStage[0:int(args.numberOfInstances / 2)][:], vtumorStage[-int(args.numberOfInstances / 2):][:]), axis=0)
 
     if args.featurevectors:
@@ -1579,70 +1580,95 @@ def main(argv):
             saUsefulIndices = np.concatenate([np.where(saRemainingFeatureNames == sFieldNum)[0] for sFieldNum in saUsefulFeatureNames if sFieldNum in saRemainingFeatureNames])
             mSelectedFeatures_noNaNs = mFeatures_noNaNs[ :, saUsefulIndices]
     
-    if args.decisionTree:
-        if args.graphFeatures:
-            if args.classes:
-                # Extract class vector for colors
-                aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-                message("Decision tree on graph feature vectors and classes")
-            else:
-                # Extract tumor stages vector for colors
-                aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
-                message("Decision tree on graph feature vectors and tumor stages")
-            X, pca3D = getPCA(mGraphFeatures, 3)
-            fig = draw3DPCA(X, pca3D, c=y)
-
-            fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-            classify(X, y)
-        
-        elif args.featurevectors:
-            if args.classes:
-                # Extract class vector for colors
-                aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-                message("Decision tree on feature vectors and classes")
-            else:
-                # Extract tumor stages vector for colors
-                aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
-                message("Decision tree on feature vectors and tumor stages")
-            X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
-            fig = draw3DPCA(X, pca3D, c=y)
-
-            fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-            classify(X, y)
     
-    if args.kneighbors:
-        if args.graphFeatures:
-            if args.classes:
-                # Extract class vector for colors
-                aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-                message("KNN on graph feature vectors and classes")
-            else:
-                # Extract tumor stages vector for colors
-                aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
-                message("KNN on graph feature vectors and tumor stages")
-            X, pca3D = getPCA(mGraphFeatures, 3)
-            fig = draw3DPCA(X, pca3D, c=y)
+    if args.decisionTree and args.graphFeatures and args.classes:
+        # Extract class vector for colors
+        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+        message("Decision tree on graph feature vectors and classes")
+        X, pca3D = getPCA(mGraphFeatures, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-            fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        classify(X, y)
+    
+    if args.decisionTree and args.graphFeatures and args.tumorStage:
+        # Extract tumor stages vector for colors
+        aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
+        message("Decision tree on graph feature vectors and tumor stages")
+        X, pca3D = getPCA(mGraphFeatures, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-            kneighbors(X, y)
-        elif args.featurevectors:
-            if args.classes:
-                # Extract class vector for colors
-                aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-                message("KNN on feature vectors and classes")
-            else:
-                # Extract tumor stages vector for colors
-                aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
-                message("KNN on feature vectors and tumor stages")
-            X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
-            fig = draw3DPCA(X, pca3D, c=y)
+        classify(X, y)
+        
+    if args.decisionTree and args.featurevectors and args.classes:  
+        # Extract class vector for colors
+        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+        message("Decision tree on feature vectors and classes")
+        X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
 
-            fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-            kneighbors(X, y)
+        classify(X, y)
+
+    if args.decisionTree and args.featurevectors and args.tumorStage: 
+        # Extract tumor stages vector for colors
+        aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
+        message("Decision tree on feature vectors and tumor stages")
+    
+        X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        classify(X, y)
+    
+    if args.kneighbors and args.graphFeatures and args.classes:
+        # Extract class vector for colors
+        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+        message("KNN on graph feature vectors and classes")
+        X, pca3D = getPCA(mGraphFeatures, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        kneighbors(X, y)
+            
+            
+    if args.kneighbors and args.graphFeatures and args.tumorStage:
+        # Extract tumor stages vector for colors
+        aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
+        message("KNN on graph feature vectors and tumor stages")
+        X, pca3D = getPCA(mGraphFeatures, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        kneighbors(X, y)
+    
+    if args.kneighbors and args.featurevectors and args.tumoclassesrStage:
+        # Extract class vector for colors
+        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+        message("KNN on feature vectors and classes")
+           
+        X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        kneighbors(X, y)
+
+    if args.kneighbors and args.featurevectors and args.tumoclassesrStage:
+        # Extract tumor stages vector for colors
+        aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
+        message("KNN on feature vectors and tumor stages")
+        X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        kneighbors(X, y)
 
     # end of main function
 
