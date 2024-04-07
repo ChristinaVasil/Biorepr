@@ -366,7 +366,7 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bNormaliz
     message(np.shape(mControlFeatureMatrix))
 
     if bNormalize:
-        mFeatures = normalizeDataByControl(mFeatures, mControlFeatureMatrix, bNormalizeLog2Scale)
+        mFeatures = normalizeData(mFeatures, bNormalizeLog2Scale)
 
     # return feat_names in the function with updated postProcessFeatures
     return mFeatures, vClass, sampleIDs, feat_names, tumor_stage
@@ -664,7 +664,7 @@ def loadTumorStage():
     message(np.shape(clinicalfile))
     return clinicalfile
 
-def kneighbors(X, y):
+def kneighbors(X, y, lmetricResults, sfeatClass):
     """
     Calculates and outputs the performance of classification, through 10-fold cross-valuation, given a set of feature vectors and a set of labels.
     :param X: The feature vector matrix.
@@ -681,7 +681,7 @@ def kneighbors(X, y):
     cv = LeaveOneOut() 
 
     # Calculate cross-validation scores for both accuracy and F1
-    scores = cross_validate(neigh, X, y, cv=cv, scoring=scoring)
+    scores = cross_validate(neigh, X, y, cv=10, scoring=scoring)
     
     # Calculate SEM 
     sem_accuracy = np.std(scores['test_accuracy']) / np.sqrt(len(scores['test_accuracy']))
@@ -692,7 +692,53 @@ def kneighbors(X, y):
     message("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_micro']), np.std(scores['test_f1_micro']), sem_f1_micro, str(scores['test_f1_micro'])))
     message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_macro']), np.std(scores['test_f1_macro']), sem_f1_macro, str(scores['test_f1_macro'])))
     
+    lmetricResults.append([sfeatClass, np.mean(scores['test_accuracy']), sem_accuracy, np.mean(scores['test_f1_micro']), sem_f1_micro, 
+                      np.mean(scores['test_f1_macro']), sem_f1_macro])
 
+def plotAccuracy(df):
+    # Plot
+    plt.clf()
+    sns.barplot(x='Method', y='Mean_Accuracy', data=df, hue='Method', errorbar='se')  
+    plt.errorbar(x=df['Method'], y=df['Mean_Accuracy'], yerr=df['SEM_Accuracy'], fmt='o', color='red')
+    addlabels(df['Mean_Accuracy'], df['SEM_Accuracy'])
+    plt.xlabel('Method')
+    plt.ylabel('Mean Accuracy')
+    plt.title('Mean Accuracy with Standard Error')
+    plt.xticks(rotation=45)  # Rotate x-axis labels for better readability
+    plt.tight_layout()  # Adjust layout to prevent clipping of labels
+    plt.savefig('barplotAccuracy.png')
+    plt.show()
+
+def plotF1micro(df):
+    plt.clf()
+    sns.barplot(x='Method', y='Mean_F1_micro', data=df, hue='Method', errorbar='se')  
+    plt.errorbar(x=df['Method'], y=df['Mean_F1_micro'], yerr=df['SEM_F1_micro'], fmt='o', color='red')
+    addlabels(df['Mean_F1_micro'], df['SEM_F1_micro'])
+    plt.xlabel('Method')
+    plt.ylabel('Mean F1_micro')
+    plt.title('Mean F1_micro with Standard Error')
+    plt.xticks(rotation=45)  # Rotate x-axis labels for better readability
+    plt.tight_layout()  # Adjust layout to prevent clipping of labels
+    plt.savefig('barplotF1micro.png')
+    plt.show()
+
+def plotF1macro(df):
+    plt.clf()
+    sns.barplot(x='Method', y='Mean_F1_macro', data=df, hue='Method', errorbar='se')  
+    plt.errorbar(x=df['Method'], y=df['Mean_F1_macro'], yerr=df['SEM_F1_macro'], fmt='o', color='red')
+    addlabels(df['Mean_F1_macro'], df['SEM_F1_macro'])
+    plt.xlabel('Method')
+    plt.ylabel('Mean F1_macro')
+    plt.title('Mean F1_macro with Standard Error')
+    plt.xticks(rotation=45)  # Rotate x-axis labels for better readability
+    plt.tight_layout()  # Adjust layout to prevent clipping of labels
+    plt.savefig('barplotF1macro.png')
+    plt.show()
+
+def addlabels(values,stdErr):
+    for i in range(len(values)):
+        label=str(round(values[i], 2))+"("+ str(round(stdErr[i],2))+")"
+        plt.text(i, values[i]/2, label, ha = 'center')
 
 def ClusterAllData():
     """
@@ -1393,7 +1439,7 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
             message("%d (Estimated remaining (sec): %4.2f - Working at a rate of %4.2f samples/sec)\n" % (
                 iCnt, dRemaining, 1.0 / dRate))
 
-def classify(X, y):
+def classify(X, y, lmetricResults, sfeatClass):
     """
     Calculates and outputs the performance of classification, through 10-fold cross-valuation, given a set of feature vectors and a set of labels.
     :param X: The feature vector matrix.
@@ -1410,7 +1456,7 @@ def classify(X, y):
     cv = LeaveOneOut() 
 
     # Calculate cross-validation scores for both accuracy and F1
-    scores = cross_validate(classifier, X, y, cv=cv, scoring=scoring)
+    scores = cross_validate(classifier, X, y, cv=10, scoring=scoring)
     
     # Calculate SEM 
     sem_accuracy = np.std(scores['test_accuracy']) / np.sqrt(len(scores['test_accuracy']))
@@ -1420,7 +1466,9 @@ def classify(X, y):
     message("Avg. Performanace: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_accuracy']), np.std(scores['test_accuracy']), sem_accuracy, str(scores['test_accuracy'])))
     message("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_micro']), np.std(scores['test_f1_micro']), sem_f1_micro, str(scores['test_f1_micro'])))
     message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_macro']), np.std(scores['test_f1_macro']), sem_f1_macro, str(scores['test_f1_macro'])))
-
+    
+    lmetricResults.append([sfeatClass, np.mean(scores['test_accuracy']), sem_accuracy, np.mean(scores['test_f1_micro']), sem_f1_micro, 
+                      np.mean(scores['test_f1_macro']), sem_f1_macro])
     # Output model
     classifier.fit(X, y)
     dot_data = tree.export_graphviz(classifier, out_file=None)
@@ -1581,7 +1629,8 @@ def main(argv):
             saUsefulIndices = np.concatenate([np.where(saRemainingFeatureNames == sFieldNum)[0] for sFieldNum in saUsefulFeatureNames if sFieldNum in saRemainingFeatureNames])
             mSelectedFeatures_noNaNs = mFeatures_noNaNs[ :, saUsefulIndices]
     
-    
+    metricResults =[]
+
     if args.decisionTree and args.graphFeatures and args.classes:
         # Extract class vector for colors
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
@@ -1590,7 +1639,7 @@ def main(argv):
         fig = draw3DPCA(X, pca3D, c=y)
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        classify(X, y)
+        classify(X, y, metricResults, "DT_GFeatures_Class")
     
     if args.decisionTree and args.graphFeatures and args.tumorStage:
         # Extract tumor stages vector for colors
@@ -1600,7 +1649,7 @@ def main(argv):
         fig = draw3DPCA(X, pca3D, c=y)
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        classify(X, y)
+        classify(X, y, metricResults, "DT_GFeatures_TumorStage")
         
     if args.decisionTree and args.featurevectors and args.classes:  
         # Extract class vector for colors
@@ -1611,7 +1660,7 @@ def main(argv):
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        classify(X, y)
+        classify(X, y, metricResults, "DT_FeatureV_Class")
 
     if args.decisionTree and args.featurevectors and args.tumorStage: 
         # Extract tumor stages vector for colors
@@ -1623,7 +1672,7 @@ def main(argv):
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        classify(X, y)
+        classify(X, y, metricResults, "DT_FeatureV_TumorStage")
     
     if args.kneighbors and args.graphFeatures and args.classes:
         # Extract class vector for colors
@@ -1634,7 +1683,7 @@ def main(argv):
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        kneighbors(X, y)
+        kneighbors(X, y, metricResults, "kNN_GFeatures_Class")
             
             
     if args.kneighbors and args.graphFeatures and args.tumorStage:
@@ -1646,9 +1695,9 @@ def main(argv):
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        kneighbors(X, y)
+        kneighbors(X, y, metricResults, "kNN_GFeatures_TumorStage")
     
-    if args.kneighbors and args.featurevectors and args.tumoclassesrStage:
+    if args.kneighbors and args.featurevectors and args.classes:
         # Extract class vector for colors
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("KNN on feature vectors and classes")
@@ -1658,9 +1707,9 @@ def main(argv):
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        kneighbors(X, y)
+        kneighbors(X, y, metricResults, "kNN_FeatureV_Class")
 
-    if args.kneighbors and args.featurevectors and args.tumoclassesrStage:
+    if args.kneighbors and args.featurevectors and args.tumorStage:
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
         message("KNN on feature vectors and tumor stages")
@@ -1669,9 +1718,15 @@ def main(argv):
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        kneighbors(X, y)
+        kneighbors(X, y, metricResults, "kNN_FeatureV_TumorStage")
 
     # end of main function
+    metricsdf = pd.DataFrame(metricResults, columns=['Method', 'Mean_Accuracy', "SEM_Accuracy", 'Mean_F1_micro', "SEM_F1_micro", 'Mean_F1_macro', "SEM_F1_macro"])
+
+    if len(metricResults) > 1:
+        plotAccuracy(metricsdf)
+        plotF1micro(metricsdf)
+        plotF1macro(metricsdf)
 
 
 # test()
