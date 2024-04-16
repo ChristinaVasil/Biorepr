@@ -40,9 +40,9 @@ from sklearn.model_selection import cross_validate, LeaveOneOut
 
 
 # Prefix for intermediate files
-Prefix = "GG"
+Prefix = ""
 THREADS_TO_USE = mp.cpu_count()  # Init to all CPUs
-FEATURE_VECTOR_FILENAME = "/home/thlamp/tcga/bladder_results/raw_data_integrated_matrix.txt"
+FEATURE_VECTOR_FILENAME = "/home/thlamp/tcga/bladder_results/normalized_data_integrated_matrix.txt"
 os.chdir("/home/thlamp/scripts")
 lock = Lock()
 
@@ -318,7 +318,9 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bNormaliz
         fControl = open(FEATURE_VECTOR_FILENAME, "r")
         message("Loading labels and ids...")
         # labelfile, should have stored tumor_stage or labels?       
-        
+        #DEBUG LINES
+        message("FILENAME: "+FEATURE_VECTOR_FILENAME)
+        ############
         labelfile = np.genfromtxt(fControl, skip_header=1, usecols=(0, 100472),
                                   missing_values=['NA', "na", '-', '--', 'n/a'],
                                   dtype=np.dtype("object"), delimiter=' ').astype(str)
@@ -656,6 +658,7 @@ def loadTumorStage():
                                   dtype=np.dtype("object"), delimiter=' ').astype(str)
     
     clinicalfile[:, 0] = np.char.replace(clinicalfile[:, 0], '"', '')
+    clinicalfile[:, 1] = np.char.replace(clinicalfile[:, 1], 'NA', '0')
     fControl.close()
     message("Loading tumor stage... Done.")
     message("This is the clinical file...")
@@ -681,7 +684,7 @@ def kneighbors(X, y, lmetricResults, sfeatClass):
     cv = LeaveOneOut() 
 
     # Calculate cross-validation scores for both accuracy and F1
-    scores = cross_validate(neigh, X, y, cv=10, scoring=scoring)
+    scores = cross_validate(neigh, X, y, cv=cv, scoring=scoring)
     
     # Calculate SEM 
     sem_accuracy = np.std(scores['test_accuracy']) / np.sqrt(len(scores['test_accuracy']))
@@ -792,7 +795,7 @@ def getControlFeatureMatrix(mAllData, vLabels):
     choicelist = mAllData
     
     # 0 is the label for controls
-    condlist = vLabels == "0"
+    condlist = vLabels == "2"
     message("This is the control feature matrix:")
     print(choicelist[condlist])
     message("Data shape: %s" % (str(np.shape(choicelist[condlist]))))
@@ -845,12 +848,12 @@ def normalizeData(mFeaturesToNormalize, logScale=True):
     #############
     message("Normalizing data...")
     levels = getLevelIndices()
+    if logScale:
+        mFeaturesToNormalize[:, levels[0][0]:levels[1][1]] = np.log2(2.0 + mFeaturesToNormalize[:, levels[0][0]:levels[1][1]])  # Ascertain positive numbers
+
     scaler = MinMaxScaler()
     scaler.fit(mFeaturesToNormalize[:, levels[0][0]:levels[1][1]])
     mFeaturesToNormalize[:, levels[0][0]:levels[1][1]] = scaler.transform(mFeaturesToNormalize[:, levels[0][0]:levels[1][1]])
-    
-    if logScale:
-        mFeaturesToNormalize = np.log2(2.0 + mFeaturesToNormalize)  # Ascertain positive numbers
     # DEBUG LINES
     message("Data shape after normalization: %s" % (str(np.shape(mFeaturesToNormalize))))
     #############
@@ -1456,7 +1459,7 @@ def classify(X, y, lmetricResults, sfeatClass):
     cv = LeaveOneOut() 
 
     # Calculate cross-validation scores for both accuracy and F1
-    scores = cross_validate(classifier, X, y, cv=10, scoring=scoring)
+    scores = cross_validate(classifier, X, y, cv=cv, scoring=scoring)
     
     # Calculate SEM 
     sem_accuracy = np.std(scores['test_accuracy']) / np.sqrt(len(scores['test_accuracy']))
@@ -1599,9 +1602,10 @@ def main(argv):
                                                                                     bPostProcessing=args.postProcessing,
                                                                                     bNormalize=args.normalization,
                                                                                     bNormalizeLog2Scale=args.logScale)
+    
     # vGraphFeatures = getGraphVector(gMainGraph)
     # print ("Graph feature vector: %s"%(str(vGraphFeatures)))
-
+    
     # Select a sample
     # mSample = mFeatures_noNaNs[1]
     # vGraphFeatures = getSampleGraphFeatureVector(gMainGraph, mSample, saRemainingFeatureNames)
@@ -1613,6 +1617,7 @@ def main(argv):
                                             bResetFeatures=args.resetFeatures,
                                             numOfSelectedSamples=args.numberOfInstances, bShowGraphs=args.showGraphs, bSaveGraphs=args.saveGraphs)
         # Get selected instance classes
+ 
     if args.numberOfInstances < 0:
         if args.classes:
             vSelectedSamplesClasses = vClass
@@ -1646,6 +1651,8 @@ def main(argv):
         aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
         message("Decision tree on graph feature vectors and tumor stages")
         X, pca3D = getPCA(mGraphFeatures, 3)
+        
+        message("X: "+str(np.shape(X)))
         fig = draw3DPCA(X, pca3D, c=y)
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
