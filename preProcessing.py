@@ -706,12 +706,13 @@ def plotAccuracy(df):
     # Plot
     plt.clf()
     sns.barplot(x='Method', y='Mean_Accuracy', data=df, hue='Method', errorbar='se')  
-    plt.errorbar(x=df['Method'], y=df['Mean_Accuracy'], yerr=df['SEM_Accuracy'], fmt='o', color='red')
+    plt.errorbar(x=df['Method'], y=df['Mean_Accuracy'], yerr=df['SEM_Accuracy'], fmt='o', color='red', capsize=6, elinewidth=3)
     addlabels(df['Mean_Accuracy'], df['SEM_Accuracy'])
-    plt.xlabel('Method')
-    plt.ylabel('Mean Accuracy')
-    plt.title('Mean Accuracy with Standard Error')
-    plt.xticks(rotation=45)  # Rotate x-axis labels for better readability
+    plt.xlabel('Method', fontsize = 20)
+    plt.ylabel('Mean Accuracy', fontsize = 20)
+    plt.title('Mean Accuracy with Standard Error', fontsize = 25)
+    plt.xticks(rotation=45, fontsize = 15)  # Rotate x-axis labels for better readability
+    plt.yticks(fontsize = 15)
     plt.tight_layout()  # Adjust layout to prevent clipping of labels
     plt.savefig('barplotAccuracy.png')
     plt.show()
@@ -719,12 +720,13 @@ def plotAccuracy(df):
 def plotF1micro(df):
     plt.clf()
     sns.barplot(x='Method', y='Mean_F1_micro', data=df, hue='Method', errorbar='se')  
-    plt.errorbar(x=df['Method'], y=df['Mean_F1_micro'], yerr=df['SEM_F1_micro'], fmt='o', color='red')
+    plt.errorbar(x=df['Method'], y=df['Mean_F1_micro'], yerr=df['SEM_F1_micro'], fmt='o', color='red', capsize=6, elinewidth=3)
     addlabels(df['Mean_F1_micro'], df['SEM_F1_micro'])
-    plt.xlabel('Method')
-    plt.ylabel('Mean F1_micro')
-    plt.title('Mean F1_micro with Standard Error')
-    plt.xticks(rotation=45)  # Rotate x-axis labels for better readability
+    plt.xlabel('Method', fontsize = 20)
+    plt.ylabel('Mean F1_micro', fontsize = 20)
+    plt.title('Mean F1_micro with Standard Error', fontsize = 25)
+    plt.xticks(rotation=45, fontsize = 15)  # Rotate x-axis labels for better readability
+    plt.yticks(fontsize = 15)
     plt.tight_layout()  # Adjust layout to prevent clipping of labels
     plt.savefig('barplotF1micro.png')
     plt.show()
@@ -732,12 +734,13 @@ def plotF1micro(df):
 def plotF1macro(df):
     plt.clf()
     sns.barplot(x='Method', y='Mean_F1_macro', data=df, hue='Method', errorbar='se')  
-    plt.errorbar(x=df['Method'], y=df['Mean_F1_macro'], yerr=df['SEM_F1_macro'], fmt='o', color='red')
+    plt.errorbar(x=df['Method'], y=df['Mean_F1_macro'], yerr=df['SEM_F1_macro'], fmt='o', color='red', capsize=6, elinewidth=3)
     addlabels(df['Mean_F1_macro'], df['SEM_F1_macro'])
-    plt.xlabel('Method')
-    plt.ylabel('Mean F1_macro')
-    plt.title('Mean F1_macro with Standard Error')
-    plt.xticks(rotation=45)  # Rotate x-axis labels for better readability
+    plt.xlabel('Method', fontsize = 20)
+    plt.ylabel('Mean F1_macro', fontsize = 20)
+    plt.title('Mean F1_macro with Standard Error', fontsize = 25)
+    plt.xticks(rotation=45, fontsize = 15)  # Rotate x-axis labels for better readability
+    plt.yticks(fontsize = 15)
     plt.tight_layout()  # Adjust layout to prevent clipping of labels
     plt.savefig('barplotF1macro.png')
     plt.show()
@@ -745,7 +748,7 @@ def plotF1macro(df):
 def addlabels(values,stdErr):
     for i in range(len(values)):
         label=str(round(values[i], 2))+"("+ str(round(stdErr[i],2))+")"
-        plt.text(i, values[i]/2, label, ha = 'center')
+        plt.text(i, values[i]/2, label, ha = 'center', fontsize=15)
 
 def ClusterAllData():
     """
