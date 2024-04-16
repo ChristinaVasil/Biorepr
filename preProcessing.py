@@ -36,6 +36,7 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.preprocessing import QuantileTransformer, MinMaxScaler
 from sklearn.metrics import make_scorer, accuracy_score, f1_score 
 from sklearn.model_selection import cross_validate, LeaveOneOut
+import xgboost as xgb
 
 
 
@@ -669,17 +670,18 @@ def loadTumorStage():
 
 def kneighbors(X, y, lmetricResults, sfeatClass):
     """
-    Calculates and outputs the performance of classification, through 10-fold cross-valuation, given a set of feature vectors and a set of labels.
+    Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
     :param X: The feature vector matrix.
     :param y: The labels.
+    :param lmetricResults: list for the results of performance metrics.
+    :param sfeatClass: string/information about the ML model, the features and data labels 
     """
     neigh = KNeighborsClassifier(n_neighbors=3)
     
     scoring = {
     'accuracy': make_scorer(accuracy_score),
     'f1_micro': make_scorer(f1_score, average="micro"),
-    'f1_macro': make_scorer(f1_score, average="macro"),
-    }
+    'f1_macro': make_scorer(f1_score, average="macro")}
     
     cv = LeaveOneOut() 
 
@@ -1444,15 +1446,16 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
 
 def classify(X, y, lmetricResults, sfeatClass):
     """
-    Calculates and outputs the performance of classification, through 10-fold cross-valuation, given a set of feature vectors and a set of labels.
+    Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
     :param X: The feature vector matrix.
     :param y: The labels.
+    :param lmetricResults: list for the results of performance metrics.
+    :param sfeatClass: string/information about the ML model, the features and data labels 
     """
     scoring = {
     'accuracy': make_scorer(accuracy_score),
     'f1_micro': make_scorer(f1_score, average="micro"),
-    'f1_macro': make_scorer(f1_score, average="macro"),
-    }
+    'f1_macro': make_scorer(f1_score, average="macro")}
 
     classifier = DecisionTreeClassifier()
     
@@ -1477,6 +1480,39 @@ def classify(X, y, lmetricResults, sfeatClass):
     dot_data = tree.export_graphviz(classifier, out_file=None)
     graph = graphviz.Source(dot_data)
     graph.render("Rules")
+
+
+def xgboost(X, y, lmetricResults, sfeatClass):
+    """
+    Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
+    :param X: The feature vector matrix.
+    :param y: The labels.
+    :param lmetricResults: list for the results of performance metrics.
+    :param sfeatClass: string/information about the ML model, the features and data labels 
+    """
+    model = xgb.XGBClassifier()
+    
+    scoring = {
+    'accuracy': make_scorer(accuracy_score),
+    'f1_micro': make_scorer(f1_score, average="micro"),
+    'f1_macro': make_scorer(f1_score, average="macro")}
+    
+    cv = LeaveOneOut() 
+
+    # Calculate cross-validation scores for both accuracy and F1
+    scores = cross_validate(model, X, y, cv=cv, scoring=scoring)
+    
+    # Calculate SEM 
+    sem_accuracy = np.std(scores['test_accuracy']) / np.sqrt(len(scores['test_accuracy']))
+    sem_f1_micro = np.std(scores['test_f1_micro']) / np.sqrt(len(scores['test_f1_micro']))
+    sem_f1_macro = np.std(scores['test_f1_macro']) / np.sqrt(len(scores['test_f1_macro']))
+
+    print("Avg. Performanace: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_accuracy']), np.std(scores['test_accuracy']), sem_accuracy, str(scores['test_accuracy'])))
+    print("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_micro']), np.std(scores['test_f1_micro']), sem_f1_micro, str(scores['test_f1_micro'])))
+    print("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_macro']), np.std(scores['test_f1_macro']), sem_f1_macro, str(scores['test_f1_macro'])))
+    
+    lmetricResults.append([sfeatClass, np.mean(scores['test_accuracy']), sem_accuracy, np.mean(scores['test_f1_micro']), sem_f1_micro, 
+                      np.mean(scores['test_f1_macro']), sem_f1_macro])
 
 
 def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names, bResetFeatures=True,
@@ -1564,6 +1600,7 @@ def main(argv):
     # Classification model 
     parser.add_argument("-dect", "--decisionTree", action="store_true", default=False)
     parser.add_argument("-knn", "--kneighbors", action="store_true", default=False)
+    parser.add_argument("-xgb", "--xgboost", action="store_true", default=False)
 
     # Features
     parser.add_argument("-gfeat", "--graphFeatures", action="store_true", default=False)
@@ -1727,6 +1764,51 @@ def main(argv):
 
         kneighbors(X, y, metricResults, "kNN_FeatureV_TumorStage")
 
+    if args.xgboost and args.graphFeatures and args.classes:
+        # Extract class vector for colors
+        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+        message("XGBoost on graph feature vectors and classes")
+        X, pca3D = getPCA(mGraphFeatures, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        xgboost(X, y, metricResults, "XGB_GFeatures_Class")
+            
+    if args.xgboost and args.graphFeatures and args.tumorStage:
+        # Extract tumor stages vector for colors
+        aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
+        message("XGBoost on graph feature vectors and tumor stages")
+        X, pca3D = getPCA(mGraphFeatures, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        xgboost(X, y, metricResults, "XGB_GFeatures_TumorStage")
+    
+    if args.xgboost and args.featurevectors and args.classes:
+        # Extract class vector for colors
+        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+        message("XGBoost on feature vectors and classes")
+           
+        X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        xgboost(X, y, metricResults, "XGB_FeatureV_Class")
+
+    if args.xgboost and args.featurevectors and args.tumorStage:
+        # Extract tumor stages vector for colors
+        aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
+        message("XGBoost on feature vectors and tumor stages")
+        X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        xgboost(X, y, metricResults, "XGB_FeatureV_TumorStage")
+    
     # end of main function
     metricsdf = pd.DataFrame(metricResults, columns=['Method', 'Mean_Accuracy', "SEM_Accuracy", 'Mean_F1_micro', "SEM_F1_micro", 'Mean_F1_macro', "SEM_F1_macro"])
 
