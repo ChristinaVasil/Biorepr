@@ -867,6 +867,42 @@ def normalizeData(mFeaturesToNormalize, logScale=True):
     message("Normalizing based on control set... Done.")
     return mFeaturesToNormalize
 
+def plotDistributions(mFeatures):
+    levels_indices = getLevelIndices()
+    
+    omic_levels = ["mRNA", "miRNA", "DNA methylation"]
+    
+    for i in range(len(levels_indices)):
+
+        values_to_plot = mFeatures[:, levels_indices[i][0]:levels_indices[i][1]].flatten()
+        # Create a mask to identify non-NaN values
+        mask = ~np.isnan(values_to_plot)
+        # DEBUG LINE
+        print("length before nan removing: "+str(len(values_to_plot)))
+        ##########################
+        # Retrieve only the numbers
+        values_to_plot = values_to_plot[mask]
+        
+        # DEBUG LINE
+        print("length after nan removing: "+str(len(values_to_plot)))
+        ##########################
+        plt.clf()
+        fig = plt.figure(figsize=(12, 6))
+        plt.hist(values_to_plot,histtype = 'bar', bins = 70)
+            
+        # x-axis label
+        plt.xlabel('Values')
+        # frequency label
+        plt.ylabel('Counts')
+        # plot title
+        plt.title("Data distribution of " + omic_levels[i])
+
+        # use savefig() before show().
+        plt.savefig(omic_levels[i] + "_distribution.png") 
+
+        # function to show the plot
+        plt.show()
+
 
 def testSpreadingActivation():
     """
@@ -1649,6 +1685,7 @@ def getDegs():
     fUsefulFeatureNames.close()
     return saUsefulFeatureNames
 
+
 def main(argv):
     # Init arguments
     parser = argparse.ArgumentParser(description='Perform bladder tumor analysis experiments.')
@@ -1666,6 +1703,9 @@ def main(argv):
     parser.add_argument("-p", "--postProcessing", action="store_true", default=True)  # If False NO postprocessing occurs
     parser.add_argument("-norm", "--normalization", action="store_true", default=True)
     parser.add_argument("-ls", "--logScale", action="store_true", default=True)
+
+    # Plot data distributions
+    parser.add_argument("-pltd", "--plotDistribution", action="store_true", default=False)
 
     # Classification model 
     parser.add_argument("-dect", "--decisionTree", action="store_true", default=False)
@@ -1711,7 +1751,9 @@ def main(argv):
                                                                                     bPostProcessing=args.postProcessing,
                                                                                     bNormalize=args.normalization,
                                                                                     bNormalizeLog2Scale=args.logScale)
-    
+    if args.plotDistribution:
+        plotDistributions(mFeatures_noNaNs)
+
     # vGraphFeatures = getGraphVector(gMainGraph)
     # print ("Graph feature vector: %s"%(str(vGraphFeatures)))
     
