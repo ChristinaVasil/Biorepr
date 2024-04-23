@@ -1700,9 +1700,9 @@ def main(argv):
     parser.add_argument("-shg", "--showGraphs", action="store_true", default=False)
 
     # Post-processing control
-    parser.add_argument("-p", "--postProcessing", action="store_true", default=True)  # If False NO postprocessing occurs
-    parser.add_argument("-norm", "--normalization", action="store_true", default=True)
-    parser.add_argument("-ls", "--logScale", action="store_true", default=True)
+    parser.add_argument("-p", "--postProcessing", action="store_true", default=False)  # If False NO postprocessing occurs
+    parser.add_argument("-norm", "--normalization", action="store_true", default=False)
+    parser.add_argument("-ls", "--logScale", action="store_true", default=False)
 
     # Plot data distributions
     parser.add_argument("-pltd", "--plotDistribution", action="store_true", default=False)
