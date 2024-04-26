@@ -39,6 +39,9 @@ from sklearn.preprocessing import QuantileTransformer, MinMaxScaler
 from sklearn.metrics import make_scorer, accuracy_score, f1_score 
 from sklearn.model_selection import cross_validate, LeaveOneOut
 import xgboost as xgb
+import tensorflow as tf  
+from tensorflow import keras
+from keras.models import load_model
 
 
 
@@ -276,6 +279,36 @@ def PCAOnAllData(bResetFiles = False):
     message("Returning categorical vector: \n %s" % (str(y)))
     ####################
     message("Plotting PCA graph... Done.")
+
+def aencoder(x_train, epochs=3, gfeat=False):
+    
+    encoder_input = keras.Input(shape=(np.shape(x_train)[1], ))
+    encoder_output = keras.layers.Dense(3, activation="relu")(encoder_input)
+    encoder = keras.Model(encoder_input, encoder_output)
+
+    decoder_input = keras.layers.Dense(3, activation="relu")(encoder_output)
+    decoder_output = keras.layers.Dense(np.shape(x_train)[1], activation="relu")(decoder_input)
+
+    autoencoder = keras.Model(encoder_input, decoder_output)
+
+    autoencoder.summary()
+
+    opt = tf.keras.optimizers.Adam()
+
+    autoencoder.compile(opt, loss='mse')
+
+    for epoch in range(epochs):
+
+        history = autoencoder.fit(
+        x_train,
+        x_train,
+        epochs=1, 
+        batch_size=32, validation_split=0.10)
+
+        if gfeat:
+            autoencoder.save(f"models/gfeat/AE-{epoch+1}.keras")
+        else:
+            autoencoder.save(f"models/featv/AE-{epoch+1}.keras")
 
 
 
@@ -750,45 +783,6 @@ def addlabels(values,stdErr):
         label=str(round(values[i], 2))+"("+ str(round(stdErr[i],2))+")"
         plt.text(i, values[i]/2, label, ha = 'center', fontsize=15)
 
-def ClusterAllData():
-    """
-    Creates k-means-based clustering of the control and tumor data, visualizing the results in a PCA-based 3D space.
-    """
-    # Initialize feature matrices
-    mFeatures_noNaNs, vClass, sampleIDs, feat_names, tumor_stage = initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True)
-
-    message("Separating instances per class...")
-    # Perform clustering, initializing the clusters with a control and a patient
-    # Set starting points
-    npaControlFeatures = getControlFeatureMatrix(mFeatures_noNaNs, vClass)
-    npaNonControlFeatures = getNonControlFeatureMatrix(mFeatures_noNaNs, vClass)
-
-    npInitialCentroids = np.array([np.nanmedian(npaControlFeatures[:, :], 0),
-                                   np.nanmedian(npaNonControlFeatures[:, :], 0)])
-    
-    message("Separating instances per class... Done.")
-
-    message("Applying k-means...")
-    # Perform clustering
-    clusterer = KMeans(2, init=npInitialCentroids, n_init=1)
-    
-    y_pred = clusterer.fit_predict(mFeatures_noNaNs)
-    
-    message("Applying k-means... Done.")
-
-    message("Applying PCA for visualization...")
-    X, pca3D = getPCA(mFeatures_noNaNs, 3)
-
-    message("Applying PCA for visualization... Done.")
-
-    draw3DPCA(X, pca3D, c=y_pred)
-    aCategories, y = np.unique(vClass, return_inverse=True)
-    draw3DPCA(X, pca3D, c=y)
-    
-    message("Plotting... Done.")
-
-    # Calculate performance (number/precent of misplaced controls, number/precent of misplaced tumor samples)
-
 
 # Find only the control samples
 def getControlFeatureMatrix(mAllData, vLabels):
@@ -1137,7 +1131,8 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True)
         toRemove = [curNode for curNode in g.nodes().keys() if len(g[curNode]) == 0] ## After removal, it updates the toRemove list with the names of nodes that are still isolated.
         message("Nodes after removal step: %d" % (g.number_of_nodes()))
     message("Removing single nodes... Done. Nodes after removal: %d" % (g.number_of_nodes()))
-
+    
+    message("Main graph edges: " + str(len(g.edges())) +", main graph nodes: " + str(len(g.nodes())))
     message("Saving graph...")
     write_multiline_adjlist(g, Prefix + "graphAdjacencyList.txt") ## save a file using write_multiline_adjlist
     with open(Prefix + "usefulFeatureNames.pickle", "wb") as fOut: ## This line opens a file named "usefulFeatureNames.pickle" in binary write mode ("wb"). The with statement is used to ensure that the file is properly closed after writing.
@@ -1150,7 +1145,8 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True)
     return g, saUsefulFeatureNames
 
 
-def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bPostProcessing=True, bNormalize=True, bNormalizeLog2Scale=True): # TODO: dMinDivergenceToKeep: Add as parameter
+def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bPostProcessing=True, bNormalize=True, bNormalizeLog2Scale=True, bShow = False, bSave = False): 
+    # TODO: dMinDivergenceToKeep: Add as parameter
     """
     Loads the feature correlation graph and all feature data.
     :param bResetGraph: If True, recalculate graph, else load from disc. Default: False.
@@ -1170,6 +1166,9 @@ def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bP
     mFeatures_noNaNs, vClass, sampleIDs, feat_names, tumor_stage = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=bPostProcessing,
                                                          bNormalize=bNormalize, bNormalizeLog2Scale=bNormalizeLog2Scale)
     gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=dEdgeThreshold, bResetGraph=bResetGraph)
+    
+    if bShow or bSave:
+        drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = bShow, bSave = bSave)
 
     return gToDraw, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names, tumor_stage
 
@@ -1189,7 +1188,7 @@ def drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = True, bSave =
     # plt.figure(figsize=(len(gToDraw.edges()) , len(gToDraw.edges())))## ru8mizei mege8os figure me bash ton ari8mo ton edges
     plt.clf()
 
-    pos = graphviz_layout(gToDraw, prog='circo')
+    pos = nx.nx_agraph.graphviz_layout(gToDraw, prog='circo')
     
     try:
         dNodeLabels = {}
@@ -1224,6 +1223,30 @@ def drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = True, bSave =
     if bShow:
         plt.show()
 
+def mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=False):
+    thresholds = []
+    edgesNum = []
+    for threshold in np.arange(startThreshold, endThreshold+0.1, 0.1):
+        threshold = round(threshold, 1)
+        gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=threshold, bResetGraph=bResetGraph)
+        thresholds.append(threshold)
+        edgesNum.append(gToDraw.number_of_edges())
+
+    #DEBUG LINES
+    message(thresholds)
+    message(edgesNum)
+    #################
+    graphData = pd.DataFrame({'thresholds' : thresholds, 'edgesNum': edgesNum})
+    sns.barplot(graphData, x="thresholds", y="edgesNum")
+    
+    for i in range(len(thresholds)):
+        plt.text(i, edgesNum[i], edgesNum[i], ha = 'center')
+    
+    plt.xlabel('Thresholds')
+    plt.ylabel('Number of edges')
+    plt.title('Number of edges in the main graph per threshold')
+    plt.show()
+    plt.savefig("edgesDistribution.png")
 
 def getMeanDegreeCentrality(gGraph):
     """
@@ -1714,6 +1737,9 @@ def main(argv):
     parser.add_argument("-randf", "--randomforest", action="store_true", default=False)
     parser.add_argument("-nv", "--naivebayes", action="store_true", default=False)
 
+    # Autoencoder
+    parser.add_argument("-ae", "--autoencoder", action="store_true", default=False)
+    
     # Features
     parser.add_argument("-gfeat", "--graphFeatures", action="store_true", default=False)
     parser.add_argument("-featv", "--featurevectors", action="store_true", default=False)
@@ -1750,9 +1776,13 @@ def main(argv):
                                                                                     bResetFiles=args.resetCSVCacheFiles,
                                                                                     bPostProcessing=args.postProcessing,
                                                                                     bNormalize=args.normalization,
-                                                                                    bNormalizeLog2Scale=args.logScale)
+                                                                                    bNormalizeLog2Scale=args.logScale,
+                                                                                    bShow = args.showGraphs, bSave = args.saveGraphs)
     if args.plotDistribution:
         plotDistributions(mFeatures_noNaNs)
+
+
+    #mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=True)
 
     # vGraphFeatures = getGraphVector(gMainGraph)
     # print ("Graph feature vector: %s"%(str(vGraphFeatures)))
@@ -1768,7 +1798,9 @@ def main(argv):
                                             bResetFeatures=args.resetFeatures,
                                             numOfSelectedSamples=args.numberOfInstances, bShowGraphs=args.showGraphs, bSaveGraphs=args.saveGraphs)
         # Get selected instance classes
- 
+    if args.autoencoder:
+        aencoder(mGraphFeatures, epochs=50, gfeat=args.graphFeatures)
+
     if args.numberOfInstances < 0:
         if args.classes:
             vSelectedSamplesClasses = vClass
@@ -2016,7 +2048,7 @@ def main(argv):
 
     # end of main function
     metricsdf = pd.DataFrame(metricResults, columns=['Method', 'Mean_Accuracy', "SEM_Accuracy", 'Mean_F1_micro', "SEM_F1_micro", 'Mean_F1_macro', "SEM_F1_macro"])
-
+    
     if len(metricResults) > 1:
         plotAccuracy(metricsdf)
         plotF1micro(metricsdf)
