@@ -217,6 +217,20 @@ def getPCA(mFeatures_noNaNs, n_components=3):
     X = pca.transform(mFeatures_noNaNs)
     return X, pca
 
+def plotExplainedVariance(mFeatures_noNaNs, n_components=3):
+    X, pca = getPCA(mFeatures_noNaNs, n_components = n_components)
+    cumExplainedVariance = np.cumsum(pca.explained_variance_ratio_)
+    pcs=[]
+    for pc in range(len(cumExplainedVariance)):
+        pcs.append(pc+1)
+
+    PCAdata = { "Variance": cumExplainedVariance, "PCs": pcs}
+    sns.lineplot(x = 'PCs', y = 'Variance', data = PCAdata, marker="o")
+    plt.xlabel('Number of Principal Components')
+    plt.ylabel('Cumulative Explained Variance Ratio')
+    plt.title('Cumulative Explained Variance Ratio by Principal Components')
+    plt.show()
+    plt.savefig("cumulative.png")
 
 def rand_jitter(arr):
     """
@@ -1727,8 +1741,8 @@ def main(argv):
     parser.add_argument("-norm", "--normalization", action="store_true", default=False)
     parser.add_argument("-ls", "--logScale", action="store_true", default=False)
 
-    # Plot data distributions
-    parser.add_argument("-pltd", "--plotDistribution", action="store_true", default=False)
+    # Exploratory analysis plots
+    parser.add_argument("-expan", "--exploratoryAnalysis", action="store_true", default=False)
 
     # Classification model 
     parser.add_argument("-dect", "--decisionTree", action="store_true", default=False)
@@ -1778,11 +1792,13 @@ def main(argv):
                                                                                     bNormalize=args.normalization,
                                                                                     bNormalizeLog2Scale=args.logScale,
                                                                                     bShow = args.showGraphs, bSave = args.saveGraphs)
-    if args.plotDistribution:
+
+    if args.exploratoryAnalysis:
         plotDistributions(mFeatures_noNaNs)
+        
+        mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=True)
 
-
-    #mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=True)
+        plotExplainedVariance(mFeatures_noNaNs, n_components=100)
 
     # vGraphFeatures = getGraphVector(gMainGraph)
     # print ("Graph feature vector: %s"%(str(vGraphFeatures)))
