@@ -33,6 +33,7 @@ from sklearn import decomposition
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.dummy import DummyClassifier
 from sklearn.naive_bayes import GaussianNB
 #from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import QuantileTransformer, MinMaxScaler
@@ -1575,7 +1576,33 @@ def classify(X, y, lmetricResults, sfeatClass):
 
     crossValidation(X, y, loo, classifier, lmetricResults, sfeatClass)
 
+def stratifiedDummyClf(X, y, lmetricResults, sfeatClass):
+    """
+    Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
+    :param X: The feature vector matrix.
+    :param y: The labels.
+    :param lmetricResults: list for the results of performance metrics.
+    :param sfeatClass: string/information about the ML model, the features and data labels 
+    """
+    dummy_clf = DummyClassifier(strategy="stratified")
     
+    cv = LeaveOneOut() 
+
+    crossValidation(X, y, cv, dummy_clf, lmetricResults, sfeatClass)
+
+def mostFrequentDummyClf(X, y, lmetricResults, sfeatClass):
+    """
+    Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
+    :param X: The feature vector matrix.
+    :param y: The labels.
+    :param lmetricResults: list for the results of performance metrics.
+    :param sfeatClass: string/information about the ML model, the features and data labels 
+    """
+    dummy_clf = DummyClassifier(strategy="most_frequent")
+    
+    cv = LeaveOneOut() 
+
+    crossValidation(X, y, cv, dummy_clf, lmetricResults, sfeatClass)
     
 
 def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
@@ -1585,6 +1612,10 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
     f1_micro_per_fold = []
     final_y_pred = []
 
+    #DEBUG LINES
+    test = 0
+    ##########
+
     # Perform cross-validation
     for train_index, test_index in cv.split(X):
         X_train, X_test = X[train_index], X[test_index]
@@ -1592,6 +1623,12 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
 
         # Fit the classifier on the training data
         model.fit(X_train, y_train)
+
+        if test == 0:
+            #DEBUG LINES
+            message(model.get_params(deep=True))
+            ##########
+            test=1
 
         # Predict label for the test data
         y_pred = model.predict(X_test)
@@ -1654,6 +1691,7 @@ def xgboost(X, y, lmetricResults, sfeatClass):
     cv = LeaveOneOut() 
 
     crossValidation(X, y, cv, model, lmetricResults, sfeatClass)
+
     # # Calculate cross-validation scores for both accuracy and F1
     # scores = cross_validate(model, X, y, cv=cv, scoring=scoring)
     
@@ -1829,6 +1867,9 @@ def main(argv):
     parser.add_argument("-xgb", "--xgboost", action="store_true", default=False)
     parser.add_argument("-randf", "--randomforest", action="store_true", default=False)
     parser.add_argument("-nv", "--naivebayes", action="store_true", default=False)
+    parser.add_argument("-strdum", "--stratifieddummyclf", action="store_true", default=False)
+    parser.add_argument("-mfdum", "--mostfrequentdummyclf", action="store_true", default=False)
+    
 
     # Autoencoder
     parser.add_argument("-ae", "--autoencoder", action="store_true", default=False)
@@ -2140,6 +2181,95 @@ def main(argv):
 
         NBayes(X, y, metricResults, "RNV_FeatureV_TumorStage")
 
+    if args.stratifieddummyclf and args.graphFeatures and args.classes:
+        # Extract class vector for colors
+        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+        message("Stratified Dummy Classifier on graph feature vectors and classes")
+        X, pca3D = getPCA(mGraphFeatures, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        stratifiedDummyClf(X, y, metricResults, "StratDummy_GFeatures_Class")
+            
+    if args.stratifieddummyclf and args.graphFeatures and args.tumorStage:
+        # Extract tumor stages vector for colors
+        aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
+        message("Stratified Dummy Classifier on graph feature vectors and tumor stages")
+        X, pca3D = getPCA(mGraphFeatures, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        stratifiedDummyClf(X, y, metricResults, "StratDummy_GFeatures_TumorStage")
+    
+    if args.stratifieddummyclf and args.featurevectors and args.classes:
+        # Extract class vector for colors
+        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+        message("Stratified Dummy Classifier on feature vectors and classes")
+           
+        X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_Class")
+
+    if args.stratifieddummyclf and args.featurevectors and args.tumorStage:
+        # Extract tumor stages vector for colors
+        aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
+        message("Stratified Dummy Classifier on feature vectors and tumor stages")
+        X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_TumorStage")
+
+    if args.mostfrequentdummyclf and args.graphFeatures and args.classes:
+        # Extract class vector for colors
+        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+        message("Most frequent Dummy Classifier on graph feature vectors and classes")
+        X, pca3D = getPCA(mGraphFeatures, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        mostFrequentDummyClf(X, y, metricResults, "MFDummy_GFeatures_Class")
+            
+    if args.mostfrequentdummyclf and args.graphFeatures and args.tumorStage:
+        # Extract tumor stages vector for colors
+        aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
+        message("Most frequent Dummy Classifier on graph feature vectors and tumor stages")
+        X, pca3D = getPCA(mGraphFeatures, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        mostFrequentDummyClf(X, y, metricResults, "MFDummy_GFeatures_TumorStage")
+    
+    if args.mostfrequentdummyclf and args.featurevectors and args.classes:
+        # Extract class vector for colors
+        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+        message("Most frequent Dummy Classifier on feature vectors and classes")
+           
+        X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_Class")
+
+    if args.mostfrequentdummyclf and args.featurevectors and args.tumorStage:
+        # Extract tumor stages vector for colors
+        aCategories, y = np.unique(vSelectedtumorStage, return_inverse=True)
+        message("Most frequent Dummy Classifier on feature vectors and tumor stages")
+        X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_TumorStage")
 
     # end of main function
     metricsdf = pd.DataFrame(metricResults, columns=['Method', 'Mean_Accuracy', "SEM_Accuracy", 'Mean_F1_micro', "SEM_F1_micro", 'Mean_F1_macro', "SEM_F1_macro"])
