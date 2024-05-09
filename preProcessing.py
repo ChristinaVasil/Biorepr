@@ -219,6 +219,11 @@ def getPCA(mFeatures_noNaNs, n_components=3):
     return X, pca
 
 def plotExplainedVariance(mFeatures_noNaNs, n_components=3):
+    """
+    Save the cumulative plot for the Explained Variance Ratio of PCA.
+    :param mFeatures_noNaNs: The array to analyze.
+    :param n_components: The target number of components.
+    """
     X, pca = getPCA(mFeatures_noNaNs, n_components = n_components)
     cumExplainedVariance = np.cumsum(pca.explained_variance_ratio_)
     pcs=[]
@@ -296,7 +301,12 @@ def PCAOnAllData(bResetFiles = False):
     message("Plotting PCA graph... Done.")
 
 def aencoder(x_train, epochs=3, gfeat=False):
-    
+    """
+    Create the autoencoder model.
+    :param x_train: the matrix with the training data
+    :param epochs: the number of epochs
+    :oaram gfeat: variable about the use of graph features or not
+    """
     encoder_input = keras.Input(shape=(np.shape(x_train)[1], ))
     encoder_output = keras.layers.Dense(3, activation="relu")(encoder_input)
     encoder = keras.Model(encoder_input, encoder_output)
@@ -517,7 +527,7 @@ def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage):
 
 def getLevelIndices():
     """
-    Returns the columns corresponding to each omic level
+    Returns a list with the first and the last columns corresponding to each omic level, by checking the feature ids.
     """
     feature_names = getFeatureNames()
 
@@ -552,7 +562,9 @@ def getLevelIndices():
 
 def CheckRowsNaN(input_matrix, nan_threshold=0.2):
     """
-    It returns the filtered matrix for rows and an array with the index of the rows that were kept
+    Returns an array with the index of the rows that were kept after the filtering.
+    :param input_matrix: the matrix that will be filtered
+    :param nan_threshold: threshold for the frequency of NaN
     """
     message("Rows' filtering... Done")
     
@@ -570,11 +582,15 @@ def CheckRowsNaN(input_matrix, nan_threshold=0.2):
     return rows_to_remove
 
 def count_nan_per_row(input_matrix):
+    """
+    Counts the number of NaNs per row.
+    """
     nan_count_per_column = np.sum(np.isnan(input_matrix), axis=1)
     return nan_count_per_column
 
 def incompleteSamples(mAllData, level_indices):
     """
+    Returns the indices of the samples that don't have data at all the three omic levels.
     :param mAllData: The full feature matrix of case/instance data.
     :param level_indices: The columns of the omic level to search
     :return: The indices of the rows that don't have data at least in one level
@@ -599,7 +615,9 @@ def incompleteSamples(mAllData, level_indices):
 
 def CheckColsNaN(input_matrix,nan_threshold=0.2):
     """
-    It returns the filtered matrix for columns and an array with the index of the columns that were kept
+    Returns an array with the index of the columns that were kept
+    :param input_matrix: the matrix that will be filtered
+    :param nan_threshold: threshold for the frequency of NaN
     """
     message("Columns' filtering... ")
     columns_length = input_matrix.shape[0]
@@ -616,6 +634,9 @@ def CheckColsNaN(input_matrix,nan_threshold=0.2):
     return columns_to_remove
 
 def count_nan_per_column(input_matrix):
+    """
+    Counts the number of NaNs per column.
+    """
     nan_count_per_column = np.sum(np.isnan(input_matrix), axis=0)
     return nan_count_per_column
 
@@ -719,6 +740,13 @@ def loadTumorStage():
     return clinicalfile
 
 def filterTumorStage(mFeatures, mgraphsFeatures, vTumorStage):    
+    """
+    Filters out the samples that don't have data at tumor stage (tumor stage == 0) from the feature matrix, graph 
+    feature matrix and tumor stage array and returns these objects.
+    :param mFeatures: the feature matrix
+    :param mgraphsFeatures: the graph feature matrix
+    :param vTumorStage: array with tumor stage data
+    """
     # DEBUG LINES
     message(np.shape(mFeatures))
     message(np.shape(vTumorStage))
@@ -775,6 +803,10 @@ def kneighbors(X, y, lmetricResults, sfeatClass):
     #                   np.mean(scores['test_f1_macro']), sem_f1_macro])
 
 def plotAccuracy(df):
+    """
+    Save the plot with the accuracies from machine learning algorithms with the standard error.
+    :param df: the dataframe with the results of the metrics 
+    """
     # Plot
     plt.clf()
     sns.barplot(x='Method', y='Mean_Accuracy', data=df, hue='Method', errorbar='se')  
@@ -790,6 +822,10 @@ def plotAccuracy(df):
     plt.show()
 
 def plotF1micro(df):
+    """
+    Save the plot with the F1 micro from machine learning algorithms with the standard error.
+    :param df: the dataframe with the results of the metrics 
+    """
     plt.clf()
     sns.barplot(x='Method', y='Mean_F1_micro', data=df, hue='Method', errorbar='se')  
     plt.errorbar(x=df['Method'], y=df['Mean_F1_micro'], yerr=df['SEM_F1_micro'], fmt='o', color='red', capsize=6, elinewidth=3)
@@ -804,6 +840,10 @@ def plotF1micro(df):
     plt.show()
 
 def plotF1macro(df):
+    """
+    Save the plot with the F1 macro from machine learning algorithms with the standard error.
+    :param df: the dataframe with the results of the metrics 
+    """
     plt.clf()
     sns.barplot(x='Method', y='Mean_F1_macro', data=df, hue='Method', errorbar='se')  
     plt.errorbar(x=df['Method'], y=df['Mean_F1_macro'], yerr=df['SEM_F1_macro'], fmt='o', color='red', capsize=6, elinewidth=3)
@@ -818,6 +858,11 @@ def plotF1macro(df):
     plt.show()
 
 def addlabels(values,stdErr):
+    """
+    Adds the values of the metrics in the middle of each bar.
+    :param values: the values of the metrics
+    :param stdErr: the standard error of the values
+    """
     for i in range(len(values)):
         label=str(round(values[i], 2))+"("+ str(round(stdErr[i],2))+")"
         plt.text(i, values[i]/2, label, ha = 'center', fontsize=15)
@@ -901,6 +946,10 @@ def normalizeData(mFeaturesToNormalize, logScale=True):
     return mFeaturesToNormalize
 
 def plotDistributions(mFeatures):
+    """
+    Plots the distributions of the values for the three omic levels.
+    :param mFeatures: the feature matrix
+    """
     levels_indices = getLevelIndices()
     
     omic_levels = ["mRNA", "miRNA", "DNA methylation"]
@@ -962,7 +1011,7 @@ def testSpreadingActivation():
 
 def getFeatureNames():
     """
-    :return: The list of feature names.
+    :return: The list of feature names
     """
     message("Loading feature names...")
     # Read the first line from the file
@@ -1214,9 +1263,9 @@ def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bP
 
 def drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = True, bSave = True):
     
-    """Draws and displays a given graph, by using graphviz.
-
-    :param gToDraw: The graph to draw.
+    """
+    Draws and displays a given graph, by using graphviz.
+    :param gToDraw: The graph to draw
     """
     if len(gToDraw.edges())<3:
         figure_size = (len(gToDraw.edges()) * 4, len(gToDraw.edges()) * 4)
@@ -1263,6 +1312,14 @@ def drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = True, bSave =
         plt.show()
 
 def mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=False):
+    """
+    Plots the distribution of the general graph's edges between start and end thresholds adding by 0.1.
+    :param mFeatures_noNaNs: the feature matrix
+    :param feat_names: array with the name of the features
+    :param startThreshold: the minimum threshold
+    :param endThreshold: the maximum threshold
+    :param bResetGraph: if True, creates again the graph 
+    """
     thresholds = []
     edgesNum = []
     for threshold in np.arange(startThreshold, endThreshold+0.1, 0.1):
@@ -1629,6 +1686,14 @@ def mostFrequentDummyClf(X, y, lmetricResults, sfeatClass):
     
 
 def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
+    """
+    Performs the cross validation and save the metrics per iteration, computes the overall matrics and plot the confusion matrix
+    :param X: The feature vector matrix.
+    :param y: The labels.
+    :param cv: the fold that were created from cross validation
+    :param lmetricResults: list for the results of performance metrics.
+    :param sfeatClass: string/information about the ML model, the features and data labels 
+    """
     # Initialize lists to store metrics per fold
     accuracy_per_fold = []
     f1_macro_per_fold = []
@@ -1846,6 +1911,10 @@ def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames,
     return mGraphFeatures
 
 def getDegs():
+    """
+    Reads the csv file with the DEGs from R script.
+    :return: an array with the name of the DEGs 
+    """
     fUsefulFeatureNames = open("/home/thlamp/tcga/bladder_results/DEGs.csv", "r")
 
     # labelfile, should have stored tumor_stage or labels?       
