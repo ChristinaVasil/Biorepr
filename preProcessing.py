@@ -39,6 +39,7 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.preprocessing import QuantileTransformer, MinMaxScaler
 from sklearn.metrics import make_scorer, accuracy_score, f1_score, confusion_matrix, ConfusionMatrixDisplay 
 from sklearn.model_selection import cross_validate, LeaveOneOut
+from sklearn.neural_network import MLPClassifier
 import xgboost as xgb
 import tensorflow as tf  
 from tensorflow import keras
@@ -1683,6 +1684,20 @@ def mostFrequentDummyClf(X, y, lmetricResults, sfeatClass):
     cv = LeaveOneOut() 
 
     crossValidation(X, y, cv, dummy_clf, lmetricResults, sfeatClass)
+
+def mlpClassifier(X, y, lmetricResults, sfeatClass):
+    """
+    Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
+    :param X: The feature vector matrix.
+    :param y: The labels.
+    :param lmetricResults: list for the results of performance metrics.
+    :param sfeatClass: string/information about the ML model, the features and data labels 
+    """
+    clf = MLPClassifier(max_iter=300)
+
+    cv = LeaveOneOut() 
+
+    crossValidation(X, y, cv, clf, lmetricResults, sfeatClass)
     
 
 def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
@@ -1711,12 +1726,6 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
 
         # Fit the classifier on the training data
         model.fit(X_train, y_train)
-
-        if test == 0:
-            #DEBUG LINES
-            message(model.get_params(deep=True))
-            ##########
-            test=1
 
         # Predict label for the test data
         y_pred = model.predict(X_test)
@@ -1961,7 +1970,7 @@ def main(argv):
     parser.add_argument("-nv", "--naivebayes", action="store_true", default=False)
     parser.add_argument("-strdum", "--stratifieddummyclf", action="store_true", default=False)
     parser.add_argument("-mfdum", "--mostfrequentdummyclf", action="store_true", default=False)
-    
+    parser.add_argument("-mlp", "--mlpClassifier", action="store_true", default=False)
 
     # Autoencoder
     parser.add_argument("-ae", "--autoencoder", action="store_true", default=False)
@@ -2435,6 +2444,61 @@ def main(argv):
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
         mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_TumorStage")
+
+        #DEBUG LINES
+        message("y shape: " + str(np.shape(y)))
+        message("X shape: " +str(np.shape(X)))
+        ###########
+
+    if args.mlpClassifier and args.graphFeatures and args.classes:
+        # Extract class vector for colors
+        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+        message("MLP Classifier on graph feature vectors and classes")
+        X, pca3D = getPCA(mGraphFeatures, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        mlpClassifier(X, y, metricResults, "MLP_GFeatures_Class")
+            
+    if args.mlpClassifier and args.graphFeatures and args.tumorStage:
+        # Extract tumor stages vector for colors
+        aCategories, y = np.unique(filteredGraphTumorStage, return_inverse=True)
+        message("MLP Classifier on graph feature vectors and tumor stages")
+        X, pca3D = getPCA(filteredGraphFeatures, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        mlpClassifier(X, y, metricResults, "MLP_GFeatures_TumorStage")
+
+        #DEBUG LINES
+        message("y shape: " + str(np.shape(y)))
+        message("X shape: " +str(np.shape(X)))
+        ###########
+    
+    if args.mlpClassifier and args.featurevectors and args.classes:
+        # Extract class vector for colors
+        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+        message("MLP Classifier on feature vectors and classes")
+           
+        X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        mlpClassifier(X, y, metricResults, "MLP_FeatureV_Class")
+
+    if args.mlpClassifier and args.featurevectors and args.tumorStage:
+        # Extract tumor stages vector for colors
+        aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
+        message("MLP Classifier on feature vectors and tumor stages")
+        X, pca3D = getPCA(filteredFeatures, 3)
+        fig = draw3DPCA(X, pca3D, c=y)
+
+        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        mlpClassifier(X, y, metricResults, "MLP_FeatureV_TumorStage")
 
         #DEBUG LINES
         message("y shape: " + str(np.shape(y)))
