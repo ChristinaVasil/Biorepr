@@ -618,13 +618,16 @@ def filteringBySD(sfeatureNames, mFeatures):
           
             # get indices of the top 2000 numbers
             topStandardDev = np.argsort(standardDev)[-2000:]
+
+            # add in every element of the array the first index of the omic level, in order to keep the full matrix indices
+            topStandardDev = topStandardDev + indices[0]
+
             # add indices to the list
             filteredIndices.extend(topStandardDev.tolist())
         else:
             # add indices to the list
             filteredIndices.extend(range(indices[0],indices[1]))
         
-    message(filteredIndices)
     # filter the matrix by the indices
     filteredFeatMatrix = np.take(mFeatures, filteredIndices, axis = 1)
     # filter the features by the indices
@@ -2087,7 +2090,8 @@ def main(argv):
                                                                                     bNormalizeLog2Scale=args.logScale,
                                                                                     bShow = args.showGraphs, bSave = args.saveGraphs)
     
-
+    message(mFeatures_noNaNs[:, -5:-1].max(axis=0))
+    message(mFeatures_noNaNs[:, -5:-1].min(axis=0))
     if args.exploratoryAnalysis:
         plotDistributions(mFeatures_noNaNs)
         
