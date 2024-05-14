@@ -45,6 +45,8 @@ import xgboost as xgb
 import tensorflow as tf  
 from tensorflow import keras
 from keras.models import load_model
+from keras.callbacks import ModelCheckpoint
+
 
 
 
@@ -302,20 +304,26 @@ def PCAOnAllData(bResetFiles = False):
     ####################
     message("Plotting PCA graph... Done.")
 
-def aencoder(x_train, epochs=3, gfeat=False):
+def aencoder(x_train, epochs=200):
     """
     Create the autoencoder model.
     :param x_train: the matrix with the training data
     :param epochs: the number of epochs
     :oaram gfeat: variable about the use of graph features or not
     """
+    # Define input layer
     encoder_input = keras.Input(shape=(np.shape(x_train)[1], ))
-    encoder_output = keras.layers.Dense(3, activation="relu")(encoder_input)
-    encoder = keras.Model(encoder_input, encoder_output)
+    # Define encoder layers
+    encoded  = keras.layers.Dense(2500, activation="relu")(encoder_input)
+    encoded  = keras.layers.Dense(500, activation="relu")(encoded)
+    encoded  = keras.layers.Dense(100, activation="relu")(encoded)
 
-    decoder_input = keras.layers.Dense(3, activation="relu")(encoder_output)
-    decoder_output = keras.layers.Dense(np.shape(x_train)[1], activation="relu")(decoder_input)
+    # Define encoder layers
+    decoded  = keras.layers.Dense(500, activation="relu")(encoded)
+    decoded  = keras.layers.Dense(2500, activation="relu")(decoded)
+    decoder_output  = keras.layers.Dense(np.shape(x_train)[1], activation="sigmoid")(decoded)
 
+    # Define autoencoder model
     autoencoder = keras.Model(encoder_input, decoder_output)
 
     autoencoder.summary()
@@ -324,20 +332,56 @@ def aencoder(x_train, epochs=3, gfeat=False):
 
     autoencoder.compile(opt, loss='mse')
 
-    for epoch in range(epochs):
+    # Define ModelCheckpoint callback to save the best model with .keras extension
+    checkpoint = ModelCheckpoint('best_model.keras', monitor='val_loss', verbose=1, save_best_only=True, mode='min')
 
-        history = autoencoder.fit(
-        x_train,
-        x_train,
-        epochs=1, 
-        batch_size=32, validation_split=0.10)
+    # Train the autoencoder with ModelCheckpoint callback
+    history = autoencoder.fit(x_train, x_train, epochs=epochs, batch_size=24, validation_split=0.10, callbacks=[checkpoint])
 
-        if gfeat:
-            autoencoder.save(f"models/gfeat/AE-{epoch+1}.keras")
-        else:
-            autoencoder.save(f"models/featv/AE-{epoch+1}.keras")
+# def fullVectorAEencoder(x_train, epochs=200):
+#     """
+#     Create the autoencoder model.
+#     :param x_train: the matrix with the training data
+#     :param epochs: the number of epochs
+#     :oaram gfeat: variable about the use of graph features or not
+#     """
+#     # Define input layer
+#     encoder_input = keras.Input(shape=(np.shape(x_train)[1], ))
+#     # Define encoder layers
+#     encoded  = keras.layers.Dense(10000, activation="relu")(encoder_input)
+#     encoded  = keras.layers.Dense(1000, activation="relu")(encoded)
+#     encoded  = keras.layers.Dense(100, activation="relu")(encoded)
 
+#     # Define encoder layers
+#     decoded  = keras.layers.Dense(1000, activation="relu")(encoded)
+#     decoded  = keras.layers.Dense(10000, activation="relu")(decoded)
+#     decoder_output  = keras.layers.Dense(np.shape(x_train)[1], activation="sigmoid")(decoded)
 
+#     # Define autoencoder model
+#     autoencoder = keras.Model(encoder_input, decoder_output)
+
+#     autoencoder.summary()
+
+#     opt = tf.keras.optimizers.Adam()
+
+#     autoencoder.compile(opt, loss='mse')
+
+#     # Define ModelCheckpoint callback to save the best model with .keras extension
+#     checkpoint = ModelCheckpoint('best_model_full_vector.keras', monitor='val_loss', verbose=1, save_best_only=True, mode='min')
+
+#     # Train the autoencoder with ModelCheckpoint callback
+#     history = autoencoder.fit(x_train, x_train, epochs=epochs, batch_size=24, validation_split=0.10, callbacks=[checkpoint])
+
+def useAencoder(mFeatures):
+      # Load the saved model
+    loaded_model = load_model('best_model.keras')
+
+    # Create a new model that outputs the encoder part of the loaded model
+    encoder_model = keras.Model(inputs=loaded_model.input, outputs=loaded_model.layers[3].output)  # assuming the 4th layer is the encoder
+
+    # Use the encoder model to obtain the compressed representation (100 features) of the input data
+    X_encoded = encoder_model.predict(mFeatures)
+    return X_encoded
 
 def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bstdevFiltering=False, bNormalize=True, bNormalizeLog2Scale=True):
     """
@@ -2048,7 +2092,9 @@ def main(argv):
 
     # Autoencoder
     parser.add_argument("-ae", "--autoencoder", action="store_true", default=False)
-    
+    #parser.add_argument("-fvae", "--fullVectorAutoencoder", action="store_true", default=False)
+    parser.add_argument("-useae", "--useAutoencoder", action="store_true", default=False)
+
     # Features
     parser.add_argument("-gfeat", "--graphFeatures", action="store_true", default=False)
     parser.add_argument("-featv", "--featurevectors", action="store_true", default=False)
@@ -2112,7 +2158,15 @@ def main(argv):
                                             numOfSelectedSamples=args.numberOfInstances, bShowGraphs=args.showGraphs, bSaveGraphs=args.saveGraphs)
         # Get selected instance classes
     if args.autoencoder:
-        aencoder(mGraphFeatures, epochs=50, gfeat=args.graphFeatures)
+        aencoder(mFeatures_noNaNs)
+    # if args.fullVectorAutoencoder:
+    #     fullVectorAEencoder(mFeatures_noNaNs)
+    
+    if args.useAutoencoder:
+        mFeatures_noNaNs = useAencoder(mFeatures_noNaNs)
+        #DEBUG LINES
+        message("Matrix shape after autoencoder: " + str(np.shape(mFeatures_noNaNs)))
+        #########
 
     if args.numberOfInstances < 0:
         if args.classes:
