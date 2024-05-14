@@ -338,8 +338,7 @@ def aencoder(x_train, epochs=3, gfeat=False):
 
 
 
-def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bNormalize=True,
-                              bNormalizeLog2Scale=True):
+def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bstdevFiltering=False, bNormalize=True, bNormalizeLog2Scale=True):
     """
     Initializes the case/instance feature matrices, also creating intermediate files for faster startup.
 
@@ -421,7 +420,7 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bNormaliz
 
     # the new bPostProcessing removes columns from mFeatures and mControlFeatureMatrix
     if bPostProcessing:
-        mFeatures, sampleIDs, vClass, feat_names, tumor_stage = postProcessFeatures(mFeatures, vClass, sampleIDs, tumor_stage)
+        mFeatures, sampleIDs, vClass, feat_names, tumor_stage = postProcessFeatures(mFeatures, vClass, sampleIDs, tumor_stage, bstdevFiltering=bstdevFiltering)
         
     # Update control matrix, taking into account postprocessed data
     mControlFeatureMatrix = getControlFeatureMatrix(mFeatures, vClass)
@@ -436,7 +435,7 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bNormaliz
     return mFeatures, vClass, sampleIDs, feat_names, tumor_stage
 
 
-def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage):
+def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage, bstdevFiltering = False):
     """
     Post-processes feature matrix to replace NaNs with control instance feature mean values, and also to remove
     all-NaN columns.
@@ -524,6 +523,12 @@ def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage):
 
     message("This is mFeatures in postProcessing...")
     message(mFeatures)
+
+    if bstdevFiltering:
+        mFeatures, filtered_features = filteringBySD(filtered_features, mFeatures)
+        message("mFeatures shape after stdev filtering: " + str(np.shape(mFeatures)))
+        message("filtered_features shape after stdev filtering: " + str(np.shape(filtered_features)))
+
     return mFeatures, filtered_sample_ids, filtered_vClass, filtered_features, filtered_tumor_stage
 
 def getLevelIndices():
@@ -560,6 +565,72 @@ def getLevelIndices():
     all_levels.append(mirna)
     all_levels.append(methylation)
     return all_levels
+
+def getOmicLevels(sfeatureNames):
+    """
+    :param sfeatureNames: list with the feature names
+    :return a list with the first and the last columns corresponding to each omic level, by checking the feature ids.
+    """
+    # Search for elements that start with "ENSG" and contain "."
+    indices_of_mrna = np.where(np.core.defchararray.startswith(sfeatureNames, "ENSG") & (np.core.defchararray.find(sfeatureNames, ".") != -1))[0]
+
+    # Search for elements that start with "hsa"
+    indices_of_mirna = np.where(np.core.defchararray.startswith(sfeatureNames, "hsa"))[0]
+
+    # Search for elements that start with "ENSG" and do not contain "."
+    indices_of_methylation = np.where(np.core.defchararray.startswith(sfeatureNames, "ENSG") & (np.core.defchararray.find(sfeatureNames, ".") == -1))[0]
+
+    mrna = []
+    mirna = []
+    methylation = []
+
+    mrna.append(indices_of_mrna[0])
+    mrna.append(indices_of_mrna[0] + indices_of_mrna.shape[0])
+    mirna.append(indices_of_mirna[0])
+    mirna.append(indices_of_mirna[0] + indices_of_mirna.shape[0])
+    methylation.append(indices_of_methylation[0])
+    methylation.append(indices_of_methylation[0] + indices_of_methylation.shape[0])
+    
+    omicLevels = {}
+    omicLevels["mRNA"] = mrna
+    omicLevels["miRNA"] = mirna
+    omicLevels["methylation"] = methylation
+    #DEBUG LINES
+    message("Omic Levels: " + str(omicLevels))
+    #########
+    return(omicLevels)
+
+def filteringBySD(sfeatureNames, mFeatures):
+    """
+    Filters the features by the standard deviation
+    :param sfeatureNames: list with the feature names
+    :param mFeatures: the feature matrix
+    :returns the filtered feature names and the filtered feature matrix 
+    """
+    omicLevels = getOmicLevels(sfeatureNames)
+
+    filteredIndices = []
+
+    for omicLevel, indices in omicLevels.items():
+        if omicLevel != "miRNA":
+            # calculate standard deviation for each column
+            standardDev = np.std(mFeatures[:, indices[0]:indices[1]], axis=0)
+          
+            # get indices of the top 2000 numbers
+            topStandardDev = np.argsort(standardDev)[-2000:]
+            # add indices to the list
+            filteredIndices.extend(topStandardDev.tolist())
+        else:
+            # add indices to the list
+            filteredIndices.extend(range(indices[0],indices[1]))
+        
+    message(filteredIndices)
+    # filter the matrix by the indices
+    filteredFeatMatrix = np.take(mFeatures, filteredIndices, axis = 1)
+    # filter the features by the indices
+    filteredFeats = [sfeatureNames[i] for i in filteredIndices]
+    
+    return filteredFeatMatrix, filteredFeats
 
 def CheckRowsNaN(input_matrix, nan_threshold=0.2):
     """
@@ -1234,7 +1305,7 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True)
     return g, saUsefulFeatureNames
 
 
-def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bPostProcessing=True, bNormalize=True, bNormalizeLog2Scale=True, bShow = False, bSave = False): 
+def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bPostProcessing=True, bstdevFiltering=False, bNormalize=True, bNormalizeLog2Scale=True, bShow = False, bSave = False): 
     # TODO: dMinDivergenceToKeep: Add as parameter
     """
     Loads the feature correlation graph and all feature data.
@@ -1252,7 +1323,7 @@ def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bP
         important feature names list, sample ids)
     """
     # Do mFeatures_noNaNs has all features? Have we applied a threshold to get here?
-    mFeatures_noNaNs, vClass, sampleIDs, feat_names, tumor_stage = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=bPostProcessing,
+    mFeatures_noNaNs, vClass, sampleIDs, feat_names, tumor_stage = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=bPostProcessing, bstdevFiltering=bstdevFiltering,
                                                          bNormalize=bNormalize, bNormalizeLog2Scale=bNormalizeLog2Scale)
     gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=dEdgeThreshold, bResetGraph=bResetGraph)
     
@@ -1958,6 +2029,7 @@ def main(argv):
     parser.add_argument("-p", "--postProcessing", action="store_true", default=False)  # If False NO postprocessing occurs
     parser.add_argument("-norm", "--normalization", action="store_true", default=False)
     parser.add_argument("-ls", "--logScale", action="store_true", default=False)
+    parser.add_argument("-stdf", "--stdevFiltering", action="store_true", default=False)
 
     # Exploratory analysis plots
     parser.add_argument("-expan", "--exploratoryAnalysis", action="store_true", default=False)
@@ -2010,6 +2082,7 @@ def main(argv):
                                                                                     dEdgeThreshold=args.edgeThreshold,
                                                                                     bResetFiles=args.resetCSVCacheFiles,
                                                                                     bPostProcessing=args.postProcessing,
+                                                                                    bstdevFiltering=args.stdevFiltering,
                                                                                     bNormalize=args.normalization,
                                                                                     bNormalizeLog2Scale=args.logScale,
                                                                                     bShow = args.showGraphs, bSave = args.saveGraphs)
