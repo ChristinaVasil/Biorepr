@@ -30,6 +30,7 @@ from mpl_toolkits.mplot3d import Axes3D
 
 from sklearn import tree
 from sklearn import decomposition
+from sklearn.impute import KNNImputer
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
@@ -496,27 +497,25 @@ def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage, bstdevFilter
     filtered_features = [element for index, element in enumerate(features) if index not in features_to_remove]
 
     message(mFeatures)
-    mControlFeatures = getControlFeatureMatrix(mFeatures, filtered_vClass)
-    
-    # Extract means per control col
 
-    mMeans = np.nanmean(mControlFeatures[:, :], axis=0)
-    # Find nans
+    #DEBUG LINES 
     inds = np.where(np.isnan(mFeatures[:, :]))
-    # Do replacement
-    mFeatures[inds] = np.take(mMeans, inds[1])
+    print(mFeatures[inds][0:5])
+    ############
+    
+    # imputation for completing missing values using k-Nearest Neighbors
+    imputer = KNNImputer()
+    mFeatures = imputer.fit_transform(mFeatures)
 
+    #DEBUG LINES 
+    print(mFeatures[inds][0:5])
+    ############
     # TODO: Check below
     # WARNING: If a control data feature was fully NaN, but the corresponding case data had only SOME NaN,
     # we would NOT successfully deal with the case data NaN, because there would be no mean to replace them by.
 
     #############
     message("Replacing NaNs from feature set... Done.")
-
-    # DEBUG LINES
-    # Convert np array to panda dataframe
-    # arr = np.array(mFeatures)
-    #############
 
     message("Are there any NaNs after postProcessing?")
     message(np.any(np.isnan(mFeatures[:, :])))
@@ -2090,8 +2089,7 @@ def main(argv):
                                                                                     bNormalizeLog2Scale=args.logScale,
                                                                                     bShow = args.showGraphs, bSave = args.saveGraphs)
     
-    message(mFeatures_noNaNs[:, -5:-1].max(axis=0))
-    message(mFeatures_noNaNs[:, -5:-1].min(axis=0))
+   
     if args.exploratoryAnalysis:
         plotDistributions(mFeatures_noNaNs)
         
