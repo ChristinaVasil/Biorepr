@@ -2124,12 +2124,6 @@ def main(argv):
             vSelectedSamplesClasses = np.concatenate((vClass[0:int(args.numberOfInstances / 2)][:], vClass[-int(args.numberOfInstances / 2):][:]), axis=0)
         if args.tumorStage:
             vSelectedtumorStage = np.concatenate((vtumorStage[0:int(args.numberOfInstances / 2)][:], vtumorStage[-int(args.numberOfInstances / 2):][:]), axis=0)
-
-
-    if args.featurevectors:
-            saUsefulFeatureNames = getDegs()
-            saUsefulIndices = np.concatenate([np.where(saRemainingFeatureNames == sFieldNum)[0] for sFieldNum in saUsefulFeatureNames if sFieldNum in saRemainingFeatureNames])
-            mSelectedFeatures_noNaNs = mFeatures_noNaNs[ :, saUsefulIndices]
     
     if args.tumorStage and args.graphFeatures:
         _, filteredGraphFeatures, filteredGraphTumorStage = filterTumorStage(mFeatures_noNaNs, mGraphFeatures, vSelectedtumorStage)
@@ -2170,7 +2164,7 @@ def main(argv):
         # Extract class vector for colors
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("Decision tree on feature vectors and classes")
-        X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+        X, pca3D = getPCA(mFeatures_noNaNs, 100)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2182,7 +2176,7 @@ def main(argv):
         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
         message("Decision tree on feature vectors and tumor stages")
     
-        X, pca3D = getPCA(filteredFeatures, 3)
+        X, pca3D = getPCA(filteredFeatures, 100)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2227,7 +2221,7 @@ def main(argv):
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("KNN on feature vectors and classes")
            
-        X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+        X, pca3D = getPCA(mFeatures_noNaNs, 100)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2238,7 +2232,7 @@ def main(argv):
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
         message("KNN on feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredFeatures, 3)
+        X, pca3D = getPCA(filteredFeatures, 100)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2282,7 +2276,7 @@ def main(argv):
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("XGBoost on feature vectors and classes")
            
-        X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+        X, pca3D = getPCA(mFeatures_noNaNs, 100)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2293,7 +2287,7 @@ def main(argv):
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
         message("XGBoost on feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredFeatures, 3)
+        X, pca3D = getPCA(filteredFeatures, 100)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2337,7 +2331,7 @@ def main(argv):
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("Random Forest on feature vectors and classes")
            
-        X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+        X, pca3D = getPCA(mFeatures_noNaNs, 100)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2348,7 +2342,7 @@ def main(argv):
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
         message("Random Forest on feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredFeatures, 3)
+        X, pca3D = getPCA(filteredFeatures, 100)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2392,7 +2386,7 @@ def main(argv):
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("Naive Bayes on feature vectors and classes")
            
-        X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+        X, pca3D = getPCA(mFeatures_noNaNs, 100)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2403,7 +2397,7 @@ def main(argv):
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
         message("Naive Bayes on feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredFeatures, 3)
+        X, pca3D = getPCA(filteredFeatures, 100)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2447,7 +2441,7 @@ def main(argv):
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("Stratified Dummy Classifier on feature vectors and classes")
            
-        X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+        X, pca3D = getPCA(mFeatures_noNaNs, 100)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2458,7 +2452,7 @@ def main(argv):
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
         message("Stratified Dummy Classifier on feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredFeatures, 3)
+        X, pca3D = getPCA(filteredFeatures, 100)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2502,7 +2496,7 @@ def main(argv):
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("Most frequent Dummy Classifier on feature vectors and classes")
            
-        X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+        X, pca3D = getPCA(mFeatures_noNaNs, 100)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2513,7 +2507,7 @@ def main(argv):
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
         message("Most frequent Dummy Classifier on feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredFeatures, 3)
+        X, pca3D = getPCA(filteredFeatures, 100)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2557,7 +2551,7 @@ def main(argv):
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("MLP Classifier on feature vectors and classes")
            
-        X, pca3D = getPCA(mSelectedFeatures_noNaNs, 3)
+        X, pca3D = getPCA(mFeatures_noNaNs, 100)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2568,7 +2562,7 @@ def main(argv):
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
         message("MLP Classifier on feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredFeatures, 3)
+        X, pca3D = getPCA(filteredFeatures, 100)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
