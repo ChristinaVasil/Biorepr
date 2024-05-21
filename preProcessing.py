@@ -1043,6 +1043,7 @@ def plotDistributions(mFeatures, sfeatureNames):
     """
     Plots the distributions of the values for the three omic levels.
     :param mFeatures: the feature matrix
+    :param sfeatureNames: selected feature names
     """
     #levels_indices = getLevelIndices()
     levels_indices = getOmicLevels(sfeatureNames)
@@ -1078,6 +1079,44 @@ def plotDistributions(mFeatures, sfeatureNames):
         # function to show the plot
         plt.show()
 
+def plotSDdistributions(mFeatures, sfeatureNames):
+    """
+    Plots the distributions of the values for the three omic levels.
+    :param mFeatures: the feature matrix
+    :param sfeatureNames: selected feature names
+    """
+    #levels_indices = getLevelIndices()
+    levels_indices = getOmicLevels(sfeatureNames)
+    
+    faStdev = np.std(mFeatures, axis=0)
+    faStdev = np.log2(1+faStdev)
+    for omicLevel, _ in levels_indices.items():
+        #DEBUG LINES
+        message("Omic Level: " + omicLevel)
+        ###########
+        values_to_plot = faStdev[levels_indices[omicLevel][0]:levels_indices[omicLevel][1]]
+        
+        # DEBUG LINE
+        message("Length of values for plot: " + str(len(values_to_plot)))
+        message("Is there any NaN?")
+        message(np.unique(np.isnan(values_to_plot)))
+        ##########################
+        plt.clf()
+        fig = plt.figure(figsize=(12, 6))
+        plt.hist(values_to_plot,histtype = 'bar', bins=50)
+            
+        # x-axis label
+        plt.xlabel('log2(Values+1)')
+        # frequency label
+        plt.ylabel('Counts')
+        # plot title
+        plt.title("Data distribution of standard deviation from " + omicLevel)
+
+        # use savefig() before show().
+        plt.savefig(omicLevel + "_SDdistribution.png") 
+
+        # function to show the plot
+        plt.show()
 
 def testSpreadingActivation():
     """
@@ -2102,7 +2141,7 @@ def main(argv):
     # Update global threads to use
     THREADS_TO_USE = args.numberOfThreads
 
-    # # main function
+    # main function
     gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names, vtumorStage = getGraphAndData(bResetGraph=args.resetGraph,
                                                                                     dEdgeThreshold=args.edgeThreshold,
                                                                                     bResetFiles=args.resetCSVCacheFiles,
@@ -2112,13 +2151,20 @@ def main(argv):
                                                                                     bNormalizeLog2Scale=args.logScale,
                                                                                     bShow = args.showGraphs, bSave = args.saveGraphs)
     
-
+    #DEBUG LINES
+    message("mrna")
+    message(str(mFeatures_noNaNs[0:10, 0:10]))
+    message("mirna")
+    message(str(mFeatures_noNaNs[0:10, 61000:61010]))
+    ########
     if args.exploratoryAnalysis:
-        plotDistributions(mFeatures_noNaNs, feat_names)
-        
-        # mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=True)
+        #plotDistributions(mFeatures_noNaNs, feat_names)
 
-        # plotExplainedVariance(mFeatures_noNaNs, n_components=100)
+        plotSDdistributions(mFeatures_noNaNs, feat_names)
+        
+        #mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=True)
+
+        #plotExplainedVariance(mFeatures_noNaNs, n_components=100)
 
     # vGraphFeatures = getGraphVector(gMainGraph)
     # print ("Graph feature vector: %s"%(str(vGraphFeatures)))
