@@ -36,8 +36,9 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.dummy import DummyClassifier
 from sklearn.naive_bayes import GaussianNB
+
 #from sklearn.model_selection import cross_val_score
-from sklearn.preprocessing import QuantileTransformer, MinMaxScaler
+from sklearn.preprocessing import QuantileTransformer, MinMaxScaler, StandardScaler
 from sklearn.metrics import make_scorer, accuracy_score, f1_score, confusion_matrix, ConfusionMatrixDisplay 
 from sklearn.model_selection import cross_validate, LeaveOneOut
 from sklearn.neural_network import MLPClassifier
@@ -235,6 +236,7 @@ def plotExplainedVariance(mFeatures_noNaNs, n_components=3):
         pcs.append(pc+1)
 
     PCAdata = { "Variance": cumExplainedVariance, "PCs": pcs}
+    plt.clf()
     sns.lineplot(x = 'PCs', y = 'Variance', data = PCAdata, marker="o")
     plt.xlabel('Number of Principal Components')
     plt.ylabel('Cumulative Explained Variance Ratio')
@@ -338,46 +340,12 @@ def aencoder(x_train, epochs=200):
     # Train the autoencoder with ModelCheckpoint callback
     history = autoencoder.fit(x_train, x_train, epochs=epochs, batch_size=24, validation_split=0.10, callbacks=[checkpoint])
 
-# def fullVectorAEencoder(x_train, epochs=200):
-#     """
-#     Create the autoencoder model.
-#     :param x_train: the matrix with the training data
-#     :param epochs: the number of epochs
-#     :oaram gfeat: variable about the use of graph features or not
-#     """
-#     # Define input layer
-#     encoder_input = keras.Input(shape=(np.shape(x_train)[1], ))
-#     # Define encoder layers
-#     encoded  = keras.layers.Dense(10000, activation="relu")(encoder_input)
-#     encoded  = keras.layers.Dense(1000, activation="relu")(encoded)
-#     encoded  = keras.layers.Dense(100, activation="relu")(encoded)
-
-#     # Define encoder layers
-#     decoded  = keras.layers.Dense(1000, activation="relu")(encoded)
-#     decoded  = keras.layers.Dense(10000, activation="relu")(decoded)
-#     decoder_output  = keras.layers.Dense(np.shape(x_train)[1], activation="sigmoid")(decoded)
-
-#     # Define autoencoder model
-#     autoencoder = keras.Model(encoder_input, decoder_output)
-
-#     autoencoder.summary()
-
-#     opt = tf.keras.optimizers.Adam()
-
-#     autoencoder.compile(opt, loss='mse')
-
-#     # Define ModelCheckpoint callback to save the best model with .keras extension
-#     checkpoint = ModelCheckpoint('best_model_full_vector.keras', monitor='val_loss', verbose=1, save_best_only=True, mode='min')
-
-#     # Train the autoencoder with ModelCheckpoint callback
-#     history = autoencoder.fit(x_train, x_train, epochs=epochs, batch_size=24, validation_split=0.10, callbacks=[checkpoint])
-
 def useAencoder(mFeatures):
       # Load the saved model
     loaded_model = load_model('best_model.keras')
 
-    # Create a new model that outputs the encoder part of the loaded model
-    encoder_model = keras.Model(inputs=loaded_model.input, outputs=loaded_model.layers[3].output)  # assuming the 4th layer is the encoder
+    # Create a new model that outputs the encoder part of the loaded model, the 4th layer is the encoder
+    encoder_model = keras.Model(inputs=loaded_model.input, outputs=loaded_model.layers[3].output) 
 
     # Use the encoder model to obtain the compressed representation (100 features) of the input data
     X_encoded = encoder_model.predict(mFeatures)
@@ -1451,6 +1419,7 @@ def mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, 
     message(edgesNum)
     #################
     graphData = pd.DataFrame({'thresholds' : thresholds, 'edgesNum': edgesNum})
+    plt.clf()
     sns.barplot(graphData, x="thresholds", y="edgesNum")
     
     for i in range(len(thresholds)):
@@ -2092,7 +2061,7 @@ def main(argv):
 
     # Autoencoder
     parser.add_argument("-ae", "--autoencoder", action="store_true", default=False)
-    #parser.add_argument("-fvae", "--fullVectorAutoencoder", action="store_true", default=False)
+    parser.add_argument("-fvae", "--fullVectorAutoencoder", action="store_true", default=False)
     parser.add_argument("-useae", "--useAutoencoder", action="store_true", default=False)
 
     # Features
@@ -2156,11 +2125,24 @@ def main(argv):
         mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
                                             bResetFeatures=args.resetFeatures,
                                             numOfSelectedSamples=args.numberOfInstances, bShowGraphs=args.showGraphs, bSaveGraphs=args.saveGraphs)
+        #DEBUG LINES
+        message(mGraphFeatures)
+        ##############
+        scaler = StandardScaler()
+        scaler.fit(mGraphFeatures)
+        mGraphFeatures = scaler.transform(mGraphFeatures)
+
+        #DEBUG LINES
+        message("Max per column: " + str(mGraphFeatures.max(axis=0)))
+        message("Min per column: " + str(mGraphFeatures.min(axis=0)))
+        message(mGraphFeatures)
+        ##################
+
         # Get selected instance classes
     if args.autoencoder:
         aencoder(mFeatures_noNaNs)
-    # if args.fullVectorAutoencoder:
-    #     fullVectorAEencoder(mFeatures_noNaNs)
+    if args.fullVectorAutoencoder:
+        fullVectorAEencoder(mFeatures_noNaNs)
     
     if args.useAutoencoder:
         mFeatures_noNaNs = useAencoder(mFeatures_noNaNs)
@@ -2191,28 +2173,24 @@ def main(argv):
         # Extract class vector for colors
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("Decision tree on graph feature vectors and classes")
-        X, pca3D = getPCA(mGraphFeatures, 3)
-        fig = draw3DPCA(X, pca3D, c=y)
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        classify(X, y, metricResults, "DT_GFeatures_Class")
+        # X, pca3D = getPCA(mGraphFeatures, 3)
+        # fig = draw3DPCA(X, pca3D, c=y)
+        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        #classify(X, y, metricResults, "DT_GFeatures_Class")
+        classify(mGraphFeatures, y, metricResults, "DT_GFeatures_Class")
     
     if args.decisionTree and args.graphFeatures and args.tumorStage:
         
-        # Extract tumor stages vector for colors
+        # # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredGraphTumorStage, return_inverse=True)
         message("Decision tree on graph feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredGraphFeatures, 3)
+        # X, pca3D = getPCA(filteredGraphFeatures, 3)
         
-        fig = draw3DPCA(X, pca3D, c=y)
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        # fig = draw3DPCA(X, pca3D, c=y)
+        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        classify(X, y, metricResults, "DT_GFeatures_TumorStage")
+        classify(filteredGraphFeatures, y, metricResults, "DT_GFeatures_TumorStage")
         
-        #DEBUG LINES
-        message("y shape: " + str(np.shape(y)))
-        message("X shape: " +str(np.shape(X)))
-        ###########
 
     if args.decisionTree and args.featurevectors and args.classes:  
         # Extract class vector for colors
@@ -2246,29 +2224,30 @@ def main(argv):
         # Extract class vector for colors
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("KNN on graph feature vectors and classes")
-        X, pca3D = getPCA(mGraphFeatures, 3)
-        fig = draw3DPCA(X, pca3D, c=y)
+        # X, pca3D = getPCA(mGraphFeatures, 3)
+        # fig = draw3DPCA(X, pca3D, c=y)
 
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        kneighbors(X, y, metricResults, "kNN_GFeatures_Class")
-            
+        # kneighbors(X, y, metricResults, "kNN_GFeatures_Class")
+        kneighbors(mGraphFeatures, y, metricResults, "kNN_GFeatures_Class")
+        
             
     if args.kneighbors and args.graphFeatures and args.tumorStage:
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredGraphTumorStage, return_inverse=True)
         message("KNN on graph feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredGraphFeatures, 3)
-        fig = draw3DPCA(X, pca3D, c=y)
+        # X, pca3D = getPCA(filteredGraphFeatures, 3)
+        # fig = draw3DPCA(X, pca3D, c=y)
 
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        kneighbors(X, y, metricResults, "kNN_GFeatures_TumorStage")
+        kneighbors(filteredGraphFeatures, y, metricResults, "kNN_GFeatures_TumorStage")
 
-        #DEBUG LINES
-        message("y shape: " + str(np.shape(y)))
-        message("X shape: " +str(np.shape(X)))
-        ###########
+        # #DEBUG LINES
+        # message("y shape: " + str(np.shape(y)))
+        # message("X shape: " +str(np.shape(X)))
+        # ###########
     
     if args.kneighbors and args.featurevectors and args.classes:
         # Extract class vector for colors
@@ -2302,28 +2281,28 @@ def main(argv):
         # Extract class vector for colors
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("XGBoost on graph feature vectors and classes")
-        X, pca3D = getPCA(mGraphFeatures, 3)
-        fig = draw3DPCA(X, pca3D, c=y)
+        # X, pca3D = getPCA(mGraphFeatures, 3)
+        # fig = draw3DPCA(X, pca3D, c=y)
 
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        xgboost(X, y, metricResults, "XGB_GFeatures_Class")
+        xgboost(mGraphFeatures, y, metricResults, "XGB_GFeatures_Class")
             
     if args.xgboost and args.graphFeatures and args.tumorStage:
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredGraphTumorStage, return_inverse=True)
         message("XGBoost on graph feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredGraphFeatures, 3)
-        fig = draw3DPCA(X, pca3D, c=y)
+        # X, pca3D = getPCA(filteredGraphFeatures, 3)
+        # fig = draw3DPCA(X, pca3D, c=y)
 
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        xgboost(X, y, metricResults, "XGB_GFeatures_TumorStage")
+        xgboost(filteredGraphFeatures, y, metricResults, "XGB_GFeatures_TumorStage")
 
-        #DEBUG LINES
-        message("y shape: " + str(np.shape(y)))
-        message("X shape: " +str(np.shape(X)))
-        ###########
+        # #DEBUG LINES
+        # message("y shape: " + str(np.shape(y)))
+        # message("X shape: " +str(np.shape(X)))
+        # ###########
     
     if args.xgboost and args.featurevectors and args.classes:
         # Extract class vector for colors
@@ -2357,28 +2336,28 @@ def main(argv):
         # Extract class vector for colors
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("Random Forest on graph feature vectors and classes")
-        X, pca3D = getPCA(mGraphFeatures, 3)
-        fig = draw3DPCA(X, pca3D, c=y)
+        # X, pca3D = getPCA(mGraphFeatures, 3)
+        # fig = draw3DPCA(X, pca3D, c=y)
 
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        RandomForest(X, y, metricResults, "RF_GFeatures_Class")
+        RandomForest(mGraphFeatures, y, metricResults, "RF_GFeatures_Class")
             
     if args.randomforest and args.graphFeatures and args.tumorStage:
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredGraphTumorStage, return_inverse=True)
         message("Random Forest on graph feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredGraphFeatures, 3)
-        fig = draw3DPCA(X, pca3D, c=y)
+        # X, pca3D = getPCA(filteredGraphFeatures, 3)
+        # fig = draw3DPCA(X, pca3D, c=y)
 
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        RandomForest(X, y, metricResults, "RF_GFeatures_TumorStage")
+        RandomForest(filteredGraphFeatures, y, metricResults, "RF_GFeatures_TumorStage")
 
-        #DEBUG LINES
-        message("y shape: " + str(np.shape(y)))
-        message("X shape: " +str(np.shape(X)))
-        ###########
+        # #DEBUG LINES
+        # message("y shape: " + str(np.shape(y)))
+        # message("X shape: " +str(np.shape(X)))
+        # ###########
     
     if args.randomforest and args.featurevectors and args.classes:
         # Extract class vector for colors
@@ -2412,23 +2391,23 @@ def main(argv):
         # Extract class vector for colors
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("Naive Bayes on graph feature vectors and classes")
-        X, pca3D = getPCA(mGraphFeatures, 3)
-        fig = draw3DPCA(X, pca3D, c=y)
+        # X, pca3D = getPCA(mGraphFeatures, 3)
+        # fig = draw3DPCA(X, pca3D, c=y)
 
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        NBayes(X, y, metricResults, "NV_GFeatures_Class")
+        NBayes(mGraphFeatures, y, metricResults, "NV_GFeatures_Class")
             
     if args.naivebayes and args.graphFeatures and args.tumorStage:
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredGraphTumorStage, return_inverse=True)
         message("Naive Bayes on graph feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredGraphFeatures, 3)
-        fig = draw3DPCA(X, pca3D, c=y)
+        # X, pca3D = getPCA(filteredGraphFeatures, 3)
+        # fig = draw3DPCA(X, pca3D, c=y)
 
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        NBayes(X, y, metricResults, "NV_GFeatures_TumorStage")
+        NBayes(filteredGraphFeatures, y, metricResults, "NV_GFeatures_TumorStage")
 
         #DEBUG LINES
         message("y shape: " + str(np.shape(y)))
@@ -2467,23 +2446,23 @@ def main(argv):
         # Extract class vector for colors
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("Stratified Dummy Classifier on graph feature vectors and classes")
-        X, pca3D = getPCA(mGraphFeatures, 3)
-        fig = draw3DPCA(X, pca3D, c=y)
+        # X, pca3D = getPCA(mGraphFeatures, 3)
+        # fig = draw3DPCA(X, pca3D, c=y)
 
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        stratifiedDummyClf(X, y, metricResults, "StratDummy_GFeatures_Class")
+        stratifiedDummyClf(mGraphFeatures, y, metricResults, "StratDummy_GFeatures_Class")
             
     if args.stratifieddummyclf and args.graphFeatures and args.tumorStage:
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredGraphTumorStage, return_inverse=True)
         message("Stratified Dummy Classifier on graph feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredGraphFeatures, 3)
-        fig = draw3DPCA(X, pca3D, c=y)
+        # X, pca3D = getPCA(filteredGraphFeatures, 3)
+        # fig = draw3DPCA(X, pca3D, c=y)
 
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        stratifiedDummyClf(X, y, metricResults, "StratDummy_GFeatures_TumorStage")
+        stratifiedDummyClf(filteredGraphFeatures, y, metricResults, "StratDummy_GFeatures_TumorStage")
 
         #DEBUG LINES
         message("y shape: " + str(np.shape(y)))
@@ -2522,23 +2501,23 @@ def main(argv):
         # Extract class vector for colors
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("Most frequent Dummy Classifier on graph feature vectors and classes")
-        X, pca3D = getPCA(mGraphFeatures, 3)
-        fig = draw3DPCA(X, pca3D, c=y)
+        # X, pca3D = getPCA(mGraphFeatures, 3)
+        # fig = draw3DPCA(X, pca3D, c=y)
 
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        mostFrequentDummyClf(X, y, metricResults, "MFDummy_GFeatures_Class")
+        mostFrequentDummyClf(mGraphFeatures, y, metricResults, "MFDummy_GFeatures_Class")
             
     if args.mostfrequentdummyclf and args.graphFeatures and args.tumorStage:
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredGraphTumorStage, return_inverse=True)
         message("Most frequent Dummy Classifier on graph feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredGraphFeatures, 3)
-        fig = draw3DPCA(X, pca3D, c=y)
+        # X, pca3D = getPCA(filteredGraphFeatures, 3)
+        # fig = draw3DPCA(X, pca3D, c=y)
 
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        mostFrequentDummyClf(X, y, metricResults, "MFDummy_GFeatures_TumorStage")
+        mostFrequentDummyClf(filteredGraphFeatures, y, metricResults, "MFDummy_GFeatures_TumorStage")
 
         #DEBUG LINES
         message("y shape: " + str(np.shape(y)))
@@ -2577,23 +2556,23 @@ def main(argv):
         # Extract class vector for colors
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("MLP Classifier on graph feature vectors and classes")
-        X, pca3D = getPCA(mGraphFeatures, 3)
-        fig = draw3DPCA(X, pca3D, c=y)
+        # X, pca3D = getPCA(mGraphFeatures, 3)
+        # fig = draw3DPCA(X, pca3D, c=y)
 
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        mlpClassifier(X, y, metricResults, "MLP_GFeatures_Class")
+        mlpClassifier(mGraphFeatures, y, metricResults, "MLP_GFeatures_Class")
             
     if args.mlpClassifier and args.graphFeatures and args.tumorStage:
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredGraphTumorStage, return_inverse=True)
         message("MLP Classifier on graph feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredGraphFeatures, 3)
-        fig = draw3DPCA(X, pca3D, c=y)
+        # X, pca3D = getPCA(filteredGraphFeatures, 3)
+        # fig = draw3DPCA(X, pca3D, c=y)
 
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        mlpClassifier(X, y, metricResults, "MLP_GFeatures_TumorStage")
+        mlpClassifier(filteredGraphFeatures, y, metricResults, "MLP_GFeatures_TumorStage")
 
         #DEBUG LINES
         message("y shape: " + str(np.shape(y)))
