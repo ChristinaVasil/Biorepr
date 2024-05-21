@@ -433,7 +433,7 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bstdevFil
 
     # the new bPostProcessing removes columns from mFeatures and mControlFeatureMatrix
     if bPostProcessing:
-        mFeatures, sampleIDs, vClass, feat_names, tumor_stage = postProcessFeatures(mFeatures, vClass, sampleIDs, tumor_stage, bstdevFiltering=bstdevFiltering)
+        mFeatures, sampleIDs, vClass, feat_names, tumor_stage = postProcessFeatures(mFeatures, vClass, sampleIDs, tumor_stage, feat_names, bstdevFiltering=bstdevFiltering)
         
     # Update control matrix, taking into account postprocessed data
     mControlFeatureMatrix = getControlFeatureMatrix(mFeatures, vClass)
@@ -442,13 +442,13 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bstdevFil
     message(np.shape(mControlFeatureMatrix))
 
     if bNormalize:
-        mFeatures = normalizeData(mFeatures, bNormalizeLog2Scale)
+        mFeatures = normalizeData(mFeatures, feat_names, bNormalizeLog2Scale)
 
     # return feat_names in the function with updated postProcessFeatures
     return mFeatures, vClass, sampleIDs, feat_names, tumor_stage
 
 
-def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage, bstdevFiltering = False):
+def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage, featNames, bstdevFiltering = False):
     """
     Post-processes feature matrix to replace NaNs with control instance feature mean values, and also to remove
     all-NaN columns.
@@ -470,9 +470,14 @@ def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage, bstdevFilter
     rows_to_remove = CheckRowsNaN(mFeatures)
     # DEBUG LINES
     message("rows_to_remove"+str(rows_to_remove))
+    #    levels_indices = getLevelIndices()
     #############
-    levels_indices = getLevelIndices()
     
+    
+    levels_indices = getOmicLevels(featNames)
+    # DEBUG LINES
+    message("Omic Levels: "+str(levels_indices))
+    #############
     incomplete_samples = incompleteSamples(mFeatures, levels_indices)
     # DEBUG LINES
     message("incomplete_samples"+str(sample_ids[incomplete_samples]))
@@ -684,9 +689,9 @@ def incompleteSamples(mAllData, level_indices):
     # create empty array
     indices_of_empty_rows = np.empty(0)
     
-    for omic_level in level_indices:
+    for omic_level, index in level_indices.items():
         # Create a boolean mask indicating NaN values
-        nan_mask = np.isnan(mAllData[:, omic_level[0]:omic_level[1]])
+        nan_mask = np.isnan(mAllData[:, level_indices[omic_level][0]:level_indices[omic_level][1]])
     
         # Use np.all along axis 1 to check if all values in each row are True (indicating NaN)
         rows_with_nan = np.all(nan_mask, axis=1)
@@ -1005,7 +1010,7 @@ def getNonControlFeatureMatrix(mAllData, vLabels):
     return choicelist[condlist]
 
 
-def normalizeData(mFeaturesToNormalize, logScale=True):
+def normalizeData(mFeaturesToNormalize, sfeatureNames, logScale=True):
     """
     Calculates relative change per feature, transforming also to a log 2 norm/scale
 
@@ -1018,31 +1023,33 @@ def normalizeData(mFeaturesToNormalize, logScale=True):
     message("Data shape before normalization: %s" % (str(np.shape(mFeaturesToNormalize))))
     #############
     message("Normalizing data...")
-    levels = getLevelIndices()
+    levels = getOmicLevels(sfeatureNames)
+    #levels = getLevelIndices()
+    # if logScale:
+    #     mFeaturesToNormalize[:, levels[0][0]:levels[1][1]] = np.log2(2.0 + mFeaturesToNormalize[:, levels[0][0]:levels[1][1]])  # Ascertain positive numbers
     if logScale:
-        mFeaturesToNormalize[:, levels[0][0]:levels[1][1]] = np.log2(2.0 + mFeaturesToNormalize[:, levels[0][0]:levels[1][1]])  # Ascertain positive numbers
-
+        mFeaturesToNormalize[:, levels["mRNA"][0]:levels["miRNA"][1]] = np.log2(2.0 + mFeaturesToNormalize[:, levels["mRNA"][0]:levels["miRNA"][1]])  # Ascertain positive numbers
+    
     scaler = MinMaxScaler()
-    scaler.fit(mFeaturesToNormalize[:, levels[0][0]:levels[1][1]])
-    mFeaturesToNormalize[:, levels[0][0]:levels[1][1]] = scaler.transform(mFeaturesToNormalize[:, levels[0][0]:levels[1][1]])
+    scaler.fit(mFeaturesToNormalize[:, levels["mRNA"][0]:levels["miRNA"][1]])
+    mFeaturesToNormalize[:, levels["mRNA"][0]:levels["miRNA"][1]] = scaler.transform(mFeaturesToNormalize[:, levels["mRNA"][0]:levels["miRNA"][1]])
     # DEBUG LINES
     message("Data shape after normalization: %s" % (str(np.shape(mFeaturesToNormalize))))
     #############
     message("Normalizing based on control set... Done.")
     return mFeaturesToNormalize
 
-def plotDistributions(mFeatures):
+def plotDistributions(mFeatures, sfeatureNames):
     """
     Plots the distributions of the values for the three omic levels.
     :param mFeatures: the feature matrix
     """
-    levels_indices = getLevelIndices()
+    #levels_indices = getLevelIndices()
+    levels_indices = getOmicLevels(sfeatureNames)
     
-    omic_levels = ["mRNA", "miRNA", "DNA methylation"]
-    
-    for i in range(len(levels_indices)):
+    for omicLevel, _ in levels_indices.items():
 
-        values_to_plot = mFeatures[:, levels_indices[i][0]:levels_indices[i][1]].flatten()
+        values_to_plot = mFeatures[:, levels_indices[omicLevel][0]:levels_indices[omicLevel][1]].flatten()
         # Create a mask to identify non-NaN values
         mask = ~np.isnan(values_to_plot)
         # DEBUG LINE
@@ -1063,10 +1070,10 @@ def plotDistributions(mFeatures):
         # frequency label
         plt.ylabel('Counts')
         # plot title
-        plt.title("Data distribution of " + omic_levels[i])
+        plt.title("Data distribution of " + omicLevel)
 
         # use savefig() before show().
-        plt.savefig(omic_levels[i] + "_distribution.png") 
+        plt.savefig(omicLevel + "_distribution.png") 
 
         # function to show the plot
         plt.show()
@@ -1204,6 +1211,7 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True)
     #!dMeanDescribe = pd.DataFrame(mMeans)
     #!print(str(dMeanDescribe.describe()))
     #############
+
     fUsefulFeatureNames = open("/home/thlamp/tcga/bladder_results/DEGs.csv", "r")
 
     # labelfile, should have stored tumor_stage or labels?       
@@ -2104,13 +2112,13 @@ def main(argv):
                                                                                     bNormalizeLog2Scale=args.logScale,
                                                                                     bShow = args.showGraphs, bSave = args.saveGraphs)
     
-   
-    if args.exploratoryAnalysis:
-        plotDistributions(mFeatures_noNaNs)
-        
-        mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=True)
 
-        plotExplainedVariance(mFeatures_noNaNs, n_components=100)
+    if args.exploratoryAnalysis:
+        plotDistributions(mFeatures_noNaNs, feat_names)
+        
+        # mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=True)
+
+        # plotExplainedVariance(mFeatures_noNaNs, n_components=100)
 
     # vGraphFeatures = getGraphVector(gMainGraph)
     # print ("Graph feature vector: %s"%(str(vGraphFeatures)))
@@ -2141,8 +2149,7 @@ def main(argv):
         # Get selected instance classes
     if args.autoencoder:
         aencoder(mFeatures_noNaNs)
-    if args.fullVectorAutoencoder:
-        fullVectorAEencoder(mFeatures_noNaNs)
+
     
     if args.useAutoencoder:
         mFeatures_noNaNs = useAencoder(mFeatures_noNaNs)
