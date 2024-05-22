@@ -9,6 +9,7 @@ import time
 import matplotlib.pyplot as plt
 import pandas as pd
 import graphviz
+import csv
 import copy
 import itertools
 import multiprocessing as mp
@@ -626,7 +627,7 @@ def filteringBySD(sfeatureNames, mFeatures):
     omicLevels = getOmicLevels(sfeatureNames)
 
     filteredIndices = []
-
+    graphFilteredIndices =[]
     for omicLevel, indices in omicLevels.items():
         if omicLevel != "miRNA":
             # calculate standard deviation for each column
@@ -634,21 +635,52 @@ def filteringBySD(sfeatureNames, mFeatures):
           
             # get indices of the top 2000 numbers
             topStandardDev = np.argsort(standardDev)[-2000:]
-
+            graphTopStandardDev = np.argsort(standardDev)[-50:]
             # add in every element of the array the first index of the omic level, in order to keep the full matrix indices
             topStandardDev = topStandardDev + indices[0]
-
+            graphTopStandardDev = graphTopStandardDev + indices[0]
             # add indices to the list
             filteredIndices.extend(topStandardDev.tolist())
+            graphFilteredIndices.extend(graphTopStandardDev.tolist())
         else:
             # add indices to the list
             filteredIndices.extend(range(indices[0],indices[1]))
-        
+
+            # calculate standard deviation for each column
+            standardDev = np.std(mFeatures[:, indices[0]:indices[1]], axis=0)
+            graphTopStandardDev = np.argsort(standardDev)[-50:]
+            graphTopStandardDev = graphTopStandardDev + indices[0]
+            graphFilteredIndices.extend(graphTopStandardDev.tolist())
+    # for omicLevel, indices in omicLevels.items():
+    #     if omicLevel != "miRNA":
+    #         # calculate standard deviation for each column
+    #         standardDev = np.std(mFeatures[:, indices[0]:indices[1]], axis=0)
+          
+    #         # get indices of the top 2000 numbers
+    #         topStandardDev = np.argsort(standardDev)[-2000:]
+
+    #         # add in every element of the array the first index of the omic level, in order to keep the full matrix indices
+    #         topStandardDev = topStandardDev + indices[0]
+
+    #         # add indices to the list
+    #         filteredIndices.extend(topStandardDev.tolist())
+    #     else:
+    #         # add indices to the list
+    #         filteredIndices.extend(range(indices[0],indices[1]))
+
+
     # filter the matrix by the indices
     filteredFeatMatrix = np.take(mFeatures, filteredIndices, axis = 1)
     # filter the features by the indices
     filteredFeats = [sfeatureNames[i] for i in filteredIndices]
+    graphFilteredFeats = [sfeatureNames[index] for index in graphFilteredIndices]
     
+    # save to csv file
+    with open('graphSelectedSDFeats.csv', 'w') as f:
+        # using csv.writer method from CSV package
+        write = csv.writer(f)
+        write.writerow(graphFilteredFeats)
+
     return filteredFeatMatrix, filteredFeats
 
 def CheckRowsNaN(input_matrix, nan_threshold=0.2):
@@ -1208,7 +1240,7 @@ def addEdgeAboveThreshold(i, qQueue):
 
 
 # Is this the step where we make the generalised graph? The output is one Graph?
-def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True):
+def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True, stdevFeatSelection=True):
     """
     Returns the overall feature graph, indicating interconnections between features.
 
@@ -1219,16 +1251,21 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True)
     Features with a deviation below this value are considered trivial. Default: log2(10e5).
     :return: The graph containing only useful features and their connections, indicating correlation.
     """
-    
+
     try:
         if bResetGraph:
             raise Exception("User requested graph recreation.")
 
         message("Trying to load graph...")
         g = nx.Graph()
-        g = read_multiline_adjlist(Prefix + "graphAdjacencyList.txt", create_using=g) ## reads the graph from a file using read_multiline_adjlist
-        with open(Prefix + "usefulFeatureNames.pickle", "rb") as fIn: ## reads a list of useful feature names from a pickle file
-            saUsefulFeatureNames = pickle.load(fIn)
+        if stdevFeatSelection:
+            g = read_multiline_adjlist(Prefix + "graphSDAdjacencyList.txt", create_using=g) ## reads the graph from a file using read_multiline_adjlist
+            with open(Prefix + "usefulSDFeatureNames.pickle", "rb") as fIn: ## reads a list of useful feature names from a pickle file
+                saUsefulFeatureNames = pickle.load(fIn)
+        else:    
+            g = read_multiline_adjlist(Prefix + "graphAdjacencyList.txt", create_using=g) ## reads the graph from a file using read_multiline_adjlist
+            with open(Prefix + "usefulFeatureNames.pickle", "rb") as fIn: ## reads a list of useful feature names from a pickle file
+                saUsefulFeatureNames = pickle.load(fIn)
         message("Trying to load graph... Done.")
         return g, saUsefulFeatureNames
     except Exception as e:
@@ -1250,19 +1287,28 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True)
     #!dMeanDescribe = pd.DataFrame(mMeans)
     #!print(str(dMeanDescribe.describe()))
     #############
+    if stdevFeatSelection:
+        fUsefulFeatureNames = open("/home/thlamp/scripts/graphSelectedSDFeats.csv", "r")
 
-    fUsefulFeatureNames = open("/home/thlamp/tcga/bladder_results/DEGs.csv", "r")
+        # labelfile, should have stored tumor_stage or labels?       
 
-    # labelfile, should have stored tumor_stage or labels?       
+        saUsefulFeatureNames = np.genfromtxt(fUsefulFeatureNames,
+                                missing_values=['NA', "na", '-', '--', 'n/a'],
+                                dtype=np.dtype("object"), delimiter=',').astype(str)
 
-    saUsefulFeatureNames = np.genfromtxt(fUsefulFeatureNames, skip_header=1, usecols=(0),
-                                    missing_values=['NA', "na", '-', '--', 'n/a'],
-                                    dtype=np.dtype("object"), delimiter=',').astype(str)
-    ##numpy.genfromtxt function to read data from a file. This function is commonly used to load data from text files into a NumPy array.
-    ##dtype=np.dtype("object"): This sets the data type for the resulting NumPy array to "object," which is a generic data type that can hold any type of data
+    else:
+        fUsefulFeatureNames = open("/home/thlamp/tcga/bladder_results/DEGs.csv", "r")
 
-    #+ removes " from first column 
-    saUsefulFeatureNames[:] = np.char.replace(saUsefulFeatureNames[:], '"', '')
+        # labelfile, should have stored tumor_stage or labels?       
+
+        saUsefulFeatureNames = np.genfromtxt(fUsefulFeatureNames, skip_header=1, usecols=(0),
+                                        missing_values=['NA', "na", '-', '--', 'n/a'],
+                                        dtype=np.dtype("object"), delimiter=',').astype(str)
+        ##numpy.genfromtxt function to read data from a file. This function is commonly used to load data from text files into a NumPy array.
+        ##dtype=np.dtype("object"): This sets the data type for the resulting NumPy array to "object," which is a generic data type that can hold any type of data
+
+        #+ removes " from first column 
+        saUsefulFeatureNames[:] = np.char.replace(saUsefulFeatureNames[:], '"', '')
 
     fUsefulFeatureNames.close()
     # Q1 Chris: is this the step where we apply the threshold? What is the threshold?
@@ -1355,9 +1401,14 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True)
     
     message("Main graph edges: " + str(len(g.edges())) +", main graph nodes: " + str(len(g.nodes())))
     message("Saving graph...")
-    write_multiline_adjlist(g, Prefix + "graphAdjacencyList.txt") ## save a file using write_multiline_adjlist
-    with open(Prefix + "usefulFeatureNames.pickle", "wb") as fOut: ## This line opens a file named "usefulFeatureNames.pickle" in binary write mode ("wb"). The with statement is used to ensure that the file is properly closed after writing.
-        pickle.dump(saUsefulFeatureNames, fOut) ## serialize the Python object saUsefulFeatureNames and write the serialized data to the file fOut. The object is serialized into a binary format suitable for storage or transmission.
+    if stdevFeatSelection:
+        write_multiline_adjlist(g, Prefix + "graphSDAdjacencyList.txt") ## save a file using write_multiline_adjlist
+        with open(Prefix + "usefulSDFeatureNames.pickle", "wb") as fOut: ## This line opens a file named "usefulFeatureNames.pickle" in binary write mode ("wb"). The with statement is used to ensure that the file is properly closed after writing.
+            pickle.dump(saUsefulFeatureNames, fOut)
+    else:
+        write_multiline_adjlist(g, Prefix + "graphAdjacencyList.txt") ## save a file using write_multiline_adjlist
+        with open(Prefix + "usefulFeatureNames.pickle", "wb") as fOut: ## This line opens a file named "usefulFeatureNames.pickle" in binary write mode ("wb"). The with statement is used to ensure that the file is properly closed after writing.
+            pickle.dump(saUsefulFeatureNames, fOut) ## serialize the Python object saUsefulFeatureNames and write the serialized data to the file fOut. The object is serialized into a binary format suitable for storage or transmission.
 
     message("Saving graph... Done.")
 
@@ -1366,7 +1417,8 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True)
     return g, saUsefulFeatureNames
 
 
-def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bPostProcessing=True, bstdevFiltering=False, bNormalize=True, bNormalizeLog2Scale=True, bShow = False, bSave = False): 
+def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bPostProcessing=True, bstdevFiltering=False, bNormalize=True, bNormalizeLog2Scale=True, bShow = False, 
+                    bSave = False, stdevFeatSelection=True): 
     # TODO: dMinDivergenceToKeep: Add as parameter
     """
     Loads the feature correlation graph and all feature data.
@@ -1386,7 +1438,7 @@ def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bP
     # Do mFeatures_noNaNs has all features? Have we applied a threshold to get here?
     mFeatures_noNaNs, vClass, sampleIDs, feat_names, tumor_stage = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=bPostProcessing, bstdevFiltering=bstdevFiltering,
                                                          bNormalize=bNormalize, bNormalizeLog2Scale=bNormalizeLog2Scale)
-    gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=dEdgeThreshold, bResetGraph=bResetGraph)
+    gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=dEdgeThreshold, bResetGraph=bResetGraph, stdevFeatSelection=stdevFeatSelection)
     
     if bShow or bSave:
         drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = bShow, bSave = bSave)
@@ -1788,7 +1840,6 @@ def classify(X, y, lmetricResults, sfeatClass):
     
     loo = LeaveOneOut() 
 
-    crossValidation(X, y, loo, classifier, lmetricResults, sfeatClass)
 
 def stratifiedDummyClf(X, y, lmetricResults, sfeatClass):
     """
@@ -1901,6 +1952,7 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
     ConfusionMatrixDisplay.from_predictions(y, final_y_pred)
     plt.show()
     plt.savefig("confmat"+sfeatClass+".png")
+    
 
 
 def xgboost(X, y, lmetricResults, sfeatClass):
@@ -2114,6 +2166,8 @@ def main(argv):
     # Features
     parser.add_argument("-gfeat", "--graphFeatures", action="store_true", default=False)
     parser.add_argument("-featv", "--featurevectors", action="store_true", default=False)
+    parser.add_argument("-sdfeat", "--selectFeatsBySD", action="store_true", default=False)
+    
 
     # Labels
     parser.add_argument("-cls", "--classes", action="store_true", default=False)
@@ -2149,20 +2203,15 @@ def main(argv):
                                                                                     bstdevFiltering=args.stdevFiltering,
                                                                                     bNormalize=args.normalization,
                                                                                     bNormalizeLog2Scale=args.logScale,
-                                                                                    bShow = args.showGraphs, bSave = args.saveGraphs)
+                                                                                    bShow = args.showGraphs, bSave = args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
     
-    #DEBUG LINES
-    message("mrna")
-    message(str(mFeatures_noNaNs[0:10, 0:10]))
-    message("mirna")
-    message(str(mFeatures_noNaNs[0:10, 61000:61010]))
-    ########
+    
     if args.exploratoryAnalysis:
         #plotDistributions(mFeatures_noNaNs, feat_names)
 
-        plotSDdistributions(mFeatures_noNaNs, feat_names)
+        #plotSDdistributions(mFeatures_noNaNs, feat_names)
         
-        #mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=True)
+        mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=True)
 
         #plotExplainedVariance(mFeatures_noNaNs, n_components=100)
 
@@ -2179,9 +2228,7 @@ def main(argv):
         mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
                                             bResetFeatures=args.resetFeatures,
                                             numOfSelectedSamples=args.numberOfInstances, bShowGraphs=args.showGraphs, bSaveGraphs=args.saveGraphs)
-        #DEBUG LINES
-        message(mGraphFeatures)
-        ##############
+        
         scaler = StandardScaler()
         scaler.fit(mGraphFeatures)
         mGraphFeatures = scaler.transform(mGraphFeatures)
@@ -2221,6 +2268,17 @@ def main(argv):
         filteredFeatures, _, filteredTumorStage = filterTumorStage(mFeatures_noNaNs, mGraphFeatures, vSelectedtumorStage)
     
     metricResults =[]
+
+    # #DEBUG LINES
+    # #from imblearn.over_sampling import RandomOverSampler
+    # from imblearn.under_sampling import RandomUnderSampler
+
+    # #oversample = RandomOverSampler(sampling_strategy=0.41, random_state=123)
+    # aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+    # #mGraphFeatures, vSelectedSamplesClasses = oversample.fit_resample(mGraphFeatures, y)
+    # undersample = RandomUnderSampler(sampling_strategy=0.41, random_state=123)
+    # mGraphFeatures, vSelectedSamplesClasses = undersample.fit_resample(mGraphFeatures, y)
+    # ########
 
     if args.decisionTree and args.graphFeatures and args.classes:
         # Extract class vector for colors
