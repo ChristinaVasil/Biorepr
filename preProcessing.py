@@ -9,6 +9,7 @@ import time
 import matplotlib.pyplot as plt
 import pandas as pd
 import graphviz
+from os.path import exists
 import csv
 import copy
 import itertools
@@ -1771,9 +1772,13 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
         # Extract and return features
         vGraphFeatures = getGraphVector(gMainGraph)
         
+        #DEBUGLINES
         #message("Calling drawAndSaveGraph for graph %s..."%(str(sampleID)))
-        #drawAndSaveGraph(gMainGraph, sPDFFileName = "SampleID%s.pdf" %(sampleID), bShow = bShowGraphs, bSave = bSaveGraphs)
+        #if not exists("/home/thlamp/scripts/testcorrSample.pdf"):
+        #    drawAndSaveGraph(gMainGraph, sPDFFileName = "testcorrSample.pdf", bShow = bShowGraphs, bSave = bSaveGraphs)
         #message("Calling drawAndSaveGraph...Done")
+        ######################
+
         #  Add to common result queue
         
         with lock:  # Acquire the lock before modifying the shared resource
@@ -2058,7 +2063,7 @@ def NBayes(X, y, lmetricResults, sfeatClass):
 
 
 def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names, bResetFeatures=True,
-                          numOfSelectedSamples=-1, bShowGraphs=True, bSaveGraphs=True):
+                          numOfSelectedSamples=-1, bShowGraphs=True, bSaveGraphs=True, stdevFeatSelection=True):
     """
     Extracts the graph feature vectors of a given set of instances/cases.
     :param gMainGraph: The overall feature correlation graph.
@@ -2076,8 +2081,12 @@ def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames,
         message("Trying to load graph feature matrix...")
         if bResetFeatures:
             raise Exception("User requested rebuild of features.")
-        with open(Prefix + "graphFeatures.pickle", "rb") as fIn:
-            mGraphFeatures = pickle.load(fIn)
+        if stdevFeatSelection:
+            with open(Prefix + "SDgraphFeatures.pickle", "rb") as fIn:
+                mGraphFeatures = pickle.load(fIn)
+        else:
+            with open(Prefix + "graphFeatures.pickle", "rb") as fIn:
+                mGraphFeatures = pickle.load(fIn)
         message("Trying to load graph feature matrix... Done.")
     except Exception as e:
         message("Trying to load graph feature matrix... Failed:\n%s" % (str(e)))
@@ -2099,8 +2108,12 @@ def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames,
         message("Computing graph feature matrix... Done.")
 
         message("Saving graph feature matrix...")
-        with open(Prefix + "graphFeatures.pickle", "wb") as fOut:
-            pickle.dump(mGraphFeatures, fOut) 
+        if stdevFeatSelection:
+            with open(Prefix + "SDgraphFeatures.pickle", "wb") as fOut:
+                pickle.dump(mGraphFeatures, fOut) 
+        else:
+            with open(Prefix + "graphFeatures.pickle", "wb") as fOut:
+                pickle.dump(mGraphFeatures, fOut) 
         message("Saving graph feature matrix... Done.")
     return mGraphFeatures
 
@@ -2223,12 +2236,18 @@ def main(argv):
     # vGraphFeatures = getSampleGraphFeatureVector(gMainGraph, mSample, saRemainingFeatureNames)
     # print ("Final graph feature vector: %s"%(str(vGraphFeatures)))
 
+
+
     # TODO: Restore to NOT reset features
     if args.graphFeatures:
         mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
                                             bResetFeatures=args.resetFeatures,
-                                            numOfSelectedSamples=args.numberOfInstances, bShowGraphs=args.showGraphs, bSaveGraphs=args.saveGraphs)
-        
+                                            numOfSelectedSamples=args.numberOfInstances, bShowGraphs=args.showGraphs, 
+                                            bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
+        #DEBUG LINES
+        message("mGraphFeatures: ")
+        message(mGraphFeatures)
+        ##############
         scaler = StandardScaler()
         scaler.fit(mGraphFeatures)
         mGraphFeatures = scaler.transform(mGraphFeatures)
