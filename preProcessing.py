@@ -549,6 +549,28 @@ def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage, featNames, b
 
     return mFeatures, filtered_sample_ids, filtered_vClass, filtered_features, filtered_tumor_stage
 
+def graphVectorPreprocessing(mGraphFeatures):
+    """
+    :param mGraphFeatures: matrix with the topological features from graph
+    :returns the matrix of topological features from graph without the columns that have only one value across all rows
+    """
+
+    scaler = StandardScaler()
+    scaler.fit(mGraphFeatures)
+    mGraphFeatures = scaler.transform(mGraphFeatures)
+
+    # search for columns that have only 0
+    res = np.all(mGraphFeatures == 0, axis = 0)
+    # keep the indices from the columns except from these with only 0
+    resIndex = np.where(~res)[0]
+    #DEBUG LINES
+    print(resIndex)
+    ############
+    # remove the columns that have only 0 from the graph matrix
+    mGraphFeatures = mGraphFeatures[:, resIndex]
+    
+    return mGraphFeatures
+
 def getLevelIndices():
     """
     Returns a list with the first and the last columns corresponding to each omic level, by checking the feature ids.
@@ -901,7 +923,7 @@ def kneighbors(X, y, lmetricResults, sfeatClass):
     :param lmetricResults: list for the results of performance metrics.
     :param sfeatClass: string/information about the ML model, the features and data labels 
     """
-    neigh = KNeighborsClassifier(n_neighbors=3)
+    neigh = KNeighborsClassifier()
     
     # scoring = {
     # 'accuracy': make_scorer(accuracy_score),
@@ -1552,6 +1574,18 @@ def getMeanDegreeCentrality(gGraph):
 #
 #     return fAvgShortestPathLength
 
+def avg_shortest_path(gGraph):
+    res=[]
+    connected_components = nx.connected_components(gGraph)
+    for component  in connected_components:
+    
+        for node in component:
+            new_set = component.copy()
+            new_set.remove(node)
+            
+            for targetNode in new_set:
+                res.append(nx.shortest_path_length(gGraph, source=node, target=targetNode))
+    return np.average(res)
 
 def getGraphVector(gGraph):
     """
@@ -1563,22 +1597,14 @@ def getGraphVector(gGraph):
     # DEBUG LINES
     message("Extracting graph feature vector...")
    
-    try:
-        mRes = np.asarray(
-            [len(gGraph.edges()), len(gGraph.nodes()),
-            np.mean(np.array(list(nx.algorithms.centrality.degree_alg.degree_centrality(gGraph).values()))),
-            len(list(nx.find_cliques(gGraph))),
-            nx.algorithms.connectivity.connectivity.average_node_connectivity(gGraph),
-            nx.average_shortest_path_length(gGraph)
-            ])
-
-    except:
-        mRes = np.asarray(
-            [len(gGraph.edges()), len(gGraph.nodes()),
-            np.mean(np.array(list(nx.algorithms.centrality.degree_alg.degree_centrality(gGraph).values()))),
-            len(list(nx.find_cliques(gGraph))),
-            nx.algorithms.connectivity.connectivity.average_node_connectivity(gGraph), 0
-            ])
+   
+    mRes = np.asarray(
+        [len(gGraph.edges()), len(gGraph.nodes()),
+        np.mean(np.array(list(nx.algorithms.centrality.degree_alg.degree_centrality(gGraph).values()))),
+        len(list(nx.find_cliques(gGraph))),
+        nx.algorithms.connectivity.connectivity.average_node_connectivity(gGraph),
+        avg_shortest_path(gGraph)
+        ])
         
     # DEBUG LINES
     message("Extracting graph feature vector... Done.")
@@ -1841,9 +1867,11 @@ def classify(X, y, lmetricResults, sfeatClass):
     :param sfeatClass: string/information about the ML model, the features and data labels 
     """
 
-    classifier = DecisionTreeClassifier()
+    classifier = DecisionTreeClassifier(class_weight="balanced")
     
     loo = LeaveOneOut() 
+
+    crossValidation(X, y, loo, classifier, lmetricResults, sfeatClass)
 
 
 def stratifiedDummyClf(X, y, lmetricResults, sfeatClass):
@@ -2003,7 +2031,7 @@ def RandomForest(X, y, lmetricResults, sfeatClass):
     :param lmetricResults: list for the results of performance metrics.
     :param sfeatClass: string/information about the ML model, the features and data labels 
     """
-    clf = RandomForestClassifier()
+    clf = RandomForestClassifier(class_weight = "balanced")
     
     # scoring = {
     # 'accuracy': make_scorer(accuracy_score),
@@ -2244,13 +2272,12 @@ def main(argv):
                                             bResetFeatures=args.resetFeatures,
                                             numOfSelectedSamples=args.numberOfInstances, bShowGraphs=args.showGraphs, 
                                             bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
+        
+        mGraphFeatures = graphVectorPreprocessing(mGraphFeatures)
         #DEBUG LINES
         message("mGraphFeatures: ")
         message(mGraphFeatures)
         ##############
-        scaler = StandardScaler()
-        scaler.fit(mGraphFeatures)
-        mGraphFeatures = scaler.transform(mGraphFeatures)
 
         #DEBUG LINES
         message("Max per column: " + str(mGraphFeatures.max(axis=0)))
@@ -2292,16 +2319,23 @@ def main(argv):
     # #from imblearn.over_sampling import RandomOverSampler
     # from imblearn.under_sampling import RandomUnderSampler
 
-    # #oversample = RandomOverSampler(sampling_strategy=0.41, random_state=123)
+    # # #oversample = RandomOverSampler(sampling_strategy=0.41, random_state=123)
     # aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-    # #mGraphFeatures, vSelectedSamplesClasses = oversample.fit_resample(mGraphFeatures, y)
-    # undersample = RandomUnderSampler(sampling_strategy=0.41, random_state=123)
+    # # #mGraphFeatures, vSelectedSamplesClasses = oversample.fit_resample(mGraphFeatures, y)
+    # undersample = RandomUnderSampler(sampling_strategy=1.0, random_state=123)
     # mGraphFeatures, vSelectedSamplesClasses = undersample.fit_resample(mGraphFeatures, y)
+    # message("Shape: "+str(np.shape(mGraphFeatures)))
+    # message("Shape: "+str(np.shape(vSelectedSamplesClasses)))
+    # message("vSelectedSamplesClasses: "+str(np.shape(vSelectedSamplesClasses)))
     # ########
 
     if args.decisionTree and args.graphFeatures and args.classes:
         # Extract class vector for colors
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+        #DEBUG LINES
+        message("aCategories: "+str(np.shape(aCategories)))
+        message("y: "+str(np.shape(y)))
+        ###############
         message("Decision tree on graph feature vectors and classes")
         # X, pca3D = getPCA(mGraphFeatures, 3)
         # fig = draw3DPCA(X, pca3D, c=y)
@@ -2326,7 +2360,7 @@ def main(argv):
         # Extract class vector for colors
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("Decision tree on feature vectors and classes")
-        X, pca3D = getPCA(mFeatures_noNaNs, 100)
+        X, pca3D = getPCA(mFeatures_noNaNs, 5)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
