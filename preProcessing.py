@@ -923,7 +923,7 @@ def kneighbors(X, y, lmetricResults, sfeatClass):
     :param lmetricResults: list for the results of performance metrics.
     :param sfeatClass: string/information about the ML model, the features and data labels 
     """
-    neigh = KNeighborsClassifier()
+    neigh = KNeighborsClassifier(n_neighbors=1)
     
     # scoring = {
     # 'accuracy': make_scorer(accuracy_score),
@@ -1519,7 +1519,7 @@ def drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = True, bSave =
     if bShow:
         plt.show()
 
-def mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=False):
+def mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=False, stdevFeatSelection=False):
     """
     Plots the distribution of the general graph's edges between start and end thresholds adding by 0.1.
     :param mFeatures_noNaNs: the feature matrix
@@ -1532,7 +1532,7 @@ def mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, 
     edgesNum = []
     for threshold in np.arange(startThreshold, endThreshold+0.1, 0.1):
         threshold = round(threshold, 1)
-        gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=threshold, bResetGraph=bResetGraph)
+        gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=threshold, bResetGraph=bResetGraph, stdevFeatSelection=stdevFeatSelection)
         thresholds.append(threshold)
         edgesNum.append(gToDraw.number_of_edges())
 
@@ -1547,9 +1547,12 @@ def mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, 
     for i in range(len(thresholds)):
         plt.text(i, edgesNum[i], edgesNum[i], ha = 'center')
     
-    plt.xlabel('Thresholds')
+    plt.xlabel('Pearson correlation thresholds')
     plt.ylabel('Number of edges')
-    plt.title('Number of edges in the main graph per threshold')
+    if stdevFeatSelection:
+        plt.title('Number of edges in the main graph from standard deviation \n feature selection')
+    else:
+        plt.title('Number of edges in the main graph from DEGs')
     plt.show()
     plt.savefig("edgesDistribution.png")
 
@@ -1933,7 +1936,7 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
     final_y_pred = []
 
     #DEBUG LINES
-    test = 0
+    #test = 0
     ##########
 
     # Perform cross-validation
@@ -1944,6 +1947,14 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
         # Fit the classifier on the training data
         model.fit(X_train, y_train)
 
+        #DEBUG LINES 
+        # Access the weight matrix of the output layer
+        # output_layer_weights = model.coefs_[-1]
+
+        # # The number of output nodes
+        # num_output_nodes = output_layer_weights.shape[1]
+        # print("Number of Output Nodes:", num_output_nodes)
+        ##################3
         # Predict label for the test data
         y_pred = model.predict(X_test)
 
@@ -1974,9 +1985,13 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
     sem_f1_micro = np.std(f1_micro_per_fold) / np.sqrt(len(f1_micro_per_fold))
     sem_f1_macro = np.std(f1_macro_per_fold) / np.sqrt(len(f1_macro_per_fold))
 
-    message("Avg. Performanace: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(accuracy_per_fold), np.std(accuracy_per_fold), sem_accuracy, str(accuracy_per_fold)))
-    message("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (f1_micro, np.std(f1_micro_per_fold), sem_f1_micro, str(f1_micro_per_fold)))
-    message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (f1_macro, np.std(f1_macro_per_fold), sem_f1_macro, str(f1_macro_per_fold)))
+    # message("Avg. Performanace: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(accuracy_per_fold), np.std(accuracy_per_fold), sem_accuracy, str(accuracy_per_fold)))
+    # message("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (f1_micro, np.std(f1_micro_per_fold), sem_f1_micro, str(f1_micro_per_fold)))
+    # message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (f1_macro, np.std(f1_macro_per_fold), sem_f1_macro, str(f1_macro_per_fold)))
+
+    message("Avg. Accuracy: %4.2f (st. dev. %4.2f, sem %4.2f) " % (np.mean(accuracy_per_fold), np.std(accuracy_per_fold), sem_accuracy))
+    message("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) " % (f1_micro, np.std(f1_micro_per_fold), sem_f1_micro))
+    message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) " % (f1_macro, np.std(f1_macro_per_fold), sem_f1_macro))
     
     lmetricResults.append([sfeatClass, accuracy, sem_accuracy, f1_micro, sem_f1_micro, f1_macro, sem_f1_macro])
     
@@ -2246,13 +2261,12 @@ def main(argv):
                                                                                     bNormalizeLog2Scale=args.logScale,
                                                                                     bShow = args.showGraphs, bSave = args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
     
-    
     if args.exploratoryAnalysis:
         #plotDistributions(mFeatures_noNaNs, feat_names)
 
         #plotSDdistributions(mFeatures_noNaNs, feat_names)
         
-        mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=True)
+        mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=True, stdevFeatSelection = args.selectFeatsBySD)
 
         #plotExplainedVariance(mFeatures_noNaNs, n_components=100)
 
@@ -2372,7 +2386,7 @@ def main(argv):
         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
         message("Decision tree on feature vectors and tumor stages")
     
-        X, pca3D = getPCA(filteredFeatures, 100)
+        X, pca3D = getPCA(filteredFeatures, 5)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2380,8 +2394,8 @@ def main(argv):
         classify(X, y, metricResults, "DT_FeatureV_TumorStage")
 
         #DEBUG LINES
-        message("y shape: " + str(np.shape(y)))
-        message("X shape: " +str(np.shape(X)))
+        # message("y shape: " + str(np.shape(y)))
+        # message("X shape: " +str(np.shape(X)))
         ###########
     
     if args.kneighbors and args.graphFeatures and args.classes:
@@ -2418,7 +2432,7 @@ def main(argv):
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("KNN on feature vectors and classes")
            
-        X, pca3D = getPCA(mFeatures_noNaNs, 100)
+        X, pca3D = getPCA(mFeatures_noNaNs, 5)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2429,7 +2443,7 @@ def main(argv):
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
         message("KNN on feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredFeatures, 100)
+        X, pca3D = getPCA(filteredFeatures, 5)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2437,8 +2451,8 @@ def main(argv):
         kneighbors(X, y, metricResults, "kNN_FeatureV_TumorStage")
 
         #DEBUG LINES
-        message("y shape: " + str(np.shape(y)))
-        message("X shape: " +str(np.shape(X)))
+        # message("y shape: " + str(np.shape(y)))
+        # message("X shape: " +str(np.shape(X)))
         ###########
 
     if args.xgboost and args.graphFeatures and args.classes:
@@ -2473,7 +2487,7 @@ def main(argv):
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("XGBoost on feature vectors and classes")
            
-        X, pca3D = getPCA(mFeatures_noNaNs, 100)
+        X, pca3D = getPCA(mFeatures_noNaNs, 5)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2484,7 +2498,7 @@ def main(argv):
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
         message("XGBoost on feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredFeatures, 100)
+        X, pca3D = getPCA(filteredFeatures, 5)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2492,8 +2506,8 @@ def main(argv):
         xgboost(X, y, metricResults, "XGB_FeatureV_TumorStage")
 
         #DEBUG LINES
-        message("y shape: " + str(np.shape(y)))
-        message("X shape: " +str(np.shape(X)))
+        # message("y shape: " + str(np.shape(y)))
+        # message("X shape: " +str(np.shape(X)))
         ###########
     
     if args.randomforest and args.graphFeatures and args.classes:
@@ -2528,7 +2542,7 @@ def main(argv):
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("Random Forest on feature vectors and classes")
            
-        X, pca3D = getPCA(mFeatures_noNaNs, 100)
+        X, pca3D = getPCA(mFeatures_noNaNs, 5)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2539,7 +2553,7 @@ def main(argv):
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
         message("Random Forest on feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredFeatures, 100)
+        X, pca3D = getPCA(filteredFeatures, 5)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2547,8 +2561,8 @@ def main(argv):
         RandomForest(X, y, metricResults, "RF_FeatureV_TumorStage")
 
         #DEBUG LINES
-        message("y shape: " + str(np.shape(y)))
-        message("X shape: " +str(np.shape(X)))
+        # message("y shape: " + str(np.shape(y)))
+        # message("X shape: " +str(np.shape(X)))
         ###########
   
     if args.naivebayes and args.graphFeatures and args.classes:
@@ -2574,8 +2588,8 @@ def main(argv):
         NBayes(filteredGraphFeatures, y, metricResults, "NV_GFeatures_TumorStage")
 
         #DEBUG LINES
-        message("y shape: " + str(np.shape(y)))
-        message("X shape: " +str(np.shape(X)))
+        # message("y shape: " + str(np.shape(y)))
+        # message("X shape: " +str(np.shape(X)))
         ###########
     
     if args.naivebayes and args.featurevectors and args.classes:
@@ -2583,7 +2597,7 @@ def main(argv):
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("Naive Bayes on feature vectors and classes")
            
-        X, pca3D = getPCA(mFeatures_noNaNs, 100)
+        X, pca3D = getPCA(mFeatures_noNaNs, 5)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2594,7 +2608,7 @@ def main(argv):
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
         message("Naive Bayes on feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredFeatures, 100)
+        X, pca3D = getPCA(filteredFeatures, 5)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2602,8 +2616,8 @@ def main(argv):
         NBayes(X, y, metricResults, "RNV_FeatureV_TumorStage")
 
         #DEBUG LINES
-        message("y shape: " + str(np.shape(y)))
-        message("X shape: " +str(np.shape(X)))
+        # message("y shape: " + str(np.shape(y)))
+        # message("X shape: " +str(np.shape(X)))
         ###########
 
     if args.stratifieddummyclf and args.graphFeatures and args.classes:
@@ -2629,8 +2643,8 @@ def main(argv):
         stratifiedDummyClf(filteredGraphFeatures, y, metricResults, "StratDummy_GFeatures_TumorStage")
 
         #DEBUG LINES
-        message("y shape: " + str(np.shape(y)))
-        message("X shape: " +str(np.shape(X)))
+        # message("y shape: " + str(np.shape(y)))
+        # message("X shape: " +str(np.shape(X)))
         ###########
     
     if args.stratifieddummyclf and args.featurevectors and args.classes:
@@ -2638,7 +2652,7 @@ def main(argv):
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("Stratified Dummy Classifier on feature vectors and classes")
            
-        X, pca3D = getPCA(mFeatures_noNaNs, 100)
+        X, pca3D = getPCA(mFeatures_noNaNs, 5)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2649,7 +2663,7 @@ def main(argv):
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
         message("Stratified Dummy Classifier on feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredFeatures, 100)
+        X, pca3D = getPCA(filteredFeatures, 5)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2657,8 +2671,8 @@ def main(argv):
         stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_TumorStage")
 
         #DEBUG LINES
-        message("y shape: " + str(np.shape(y)))
-        message("X shape: " +str(np.shape(X)))
+        # message("y shape: " + str(np.shape(y)))
+        # message("X shape: " +str(np.shape(X)))
         ###########
 
     if args.mostfrequentdummyclf and args.graphFeatures and args.classes:
@@ -2684,8 +2698,8 @@ def main(argv):
         mostFrequentDummyClf(filteredGraphFeatures, y, metricResults, "MFDummy_GFeatures_TumorStage")
 
         #DEBUG LINES
-        message("y shape: " + str(np.shape(y)))
-        message("X shape: " +str(np.shape(X)))
+        # message("y shape: " + str(np.shape(y)))
+        # message("X shape: " +str(np.shape(X)))
         ###########
     
     if args.mostfrequentdummyclf and args.featurevectors and args.classes:
@@ -2693,7 +2707,7 @@ def main(argv):
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("Most frequent Dummy Classifier on feature vectors and classes")
            
-        X, pca3D = getPCA(mFeatures_noNaNs, 100)
+        X, pca3D = getPCA(mFeatures_noNaNs, 5)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2704,7 +2718,7 @@ def main(argv):
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
         message("Most frequent Dummy Classifier on feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredFeatures, 100)
+        X, pca3D = getPCA(filteredFeatures, 5)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2712,8 +2726,8 @@ def main(argv):
         mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_TumorStage")
 
         #DEBUG LINES
-        message("y shape: " + str(np.shape(y)))
-        message("X shape: " +str(np.shape(X)))
+        # message("y shape: " + str(np.shape(y)))
+        # message("X shape: " +str(np.shape(X)))
         ###########
 
     if args.mlpClassifier and args.graphFeatures and args.classes:
@@ -2739,8 +2753,8 @@ def main(argv):
         mlpClassifier(filteredGraphFeatures, y, metricResults, "MLP_GFeatures_TumorStage")
 
         #DEBUG LINES
-        message("y shape: " + str(np.shape(y)))
-        message("X shape: " +str(np.shape(X)))
+        # message("y shape: " + str(np.shape(y)))
+        # message("X shape: " +str(np.shape(X)))
         ###########
     
     if args.mlpClassifier and args.featurevectors and args.classes:
@@ -2748,7 +2762,7 @@ def main(argv):
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         message("MLP Classifier on feature vectors and classes")
            
-        X, pca3D = getPCA(mFeatures_noNaNs, 100)
+        X, pca3D = getPCA(mFeatures_noNaNs, 5)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2759,7 +2773,7 @@ def main(argv):
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
         message("MLP Classifier on feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredFeatures, 100)
+        X, pca3D = getPCA(filteredFeatures, 5)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
@@ -2767,8 +2781,8 @@ def main(argv):
         mlpClassifier(X, y, metricResults, "MLP_FeatureV_TumorStage")
 
         #DEBUG LINES
-        message("y shape: " + str(np.shape(y)))
-        message("X shape: " +str(np.shape(X)))
+        # message("y shape: " + str(np.shape(y)))
+        # message("X shape: " +str(np.shape(X)))
         ###########
 
     # end of main function
