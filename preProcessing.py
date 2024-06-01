@@ -2329,461 +2329,156 @@ def main(argv):
     
     metricResults =[]
 
-    # #DEBUG LINES
-    # #from imblearn.over_sampling import RandomOverSampler
-    # from imblearn.under_sampling import RandomUnderSampler
-
-    # # #oversample = RandomOverSampler(sampling_strategy=0.41, random_state=123)
-    # aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-    # # #mGraphFeatures, vSelectedSamplesClasses = oversample.fit_resample(mGraphFeatures, y)
-    # undersample = RandomUnderSampler(sampling_strategy=1.0, random_state=123)
-    # mGraphFeatures, vSelectedSamplesClasses = undersample.fit_resample(mGraphFeatures, y)
-    # message("Shape: "+str(np.shape(mGraphFeatures)))
-    # message("Shape: "+str(np.shape(vSelectedSamplesClasses)))
-    # message("vSelectedSamplesClasses: "+str(np.shape(vSelectedSamplesClasses)))
-    # ########
-
-    if args.decisionTree and args.graphFeatures and args.classes:
+    if args.classes and args.graphFeatures:
         # Extract class vector for colors
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-        #DEBUG LINES
-        message("aCategories: "+str(np.shape(aCategories)))
-        message("y: "+str(np.shape(y)))
-        ###############
-        message("Decision tree on graph feature vectors and classes")
-        # X, pca3D = getPCA(mGraphFeatures, 3)
-        # fig = draw3DPCA(X, pca3D, c=y)
-        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-        #classify(X, y, metricResults, "DT_GFeatures_Class")
-        classify(mGraphFeatures, y, metricResults, "DT_GFeatures_Class")
-    
-    if args.decisionTree and args.graphFeatures and args.tumorStage:
+            
+        if args.decisionTree:
+            message("Decision tree on graph feature vectors and classes")
+            classify(mGraphFeatures, y, metricResults, "DT_GFeatures_Class")
         
-        # # Extract tumor stages vector for colors
-        aCategories, y = np.unique(filteredGraphTumorStage, return_inverse=True)
-        message("Decision tree on graph feature vectors and tumor stages")
-        # X, pca3D = getPCA(filteredGraphFeatures, 3)
+        if args.kneighbors:
+            message("KNN on graph feature vectors and classes")
+            kneighbors(mGraphFeatures, y, metricResults, "kNN_GFeatures_Class")
+
+        if args.xgboost:
+            message("XGBoost on graph feature vectors and classes")
+            xgboost(mGraphFeatures, y, metricResults, "XGB_GFeatures_Class")
+
+        if args.randomforest:
+            message("Random Forest on graph feature vectors and classes")
+            RandomForest(mGraphFeatures, y, metricResults, "RF_GFeatures_Class")
+
+        if args.naivebayes:
+            message("Naive Bayes on graph feature vectors and classes")
+            NBayes(mGraphFeatures, y, metricResults, "NV_GFeatures_Class")
+
+        if args.stratifieddummyclf: 
+            message("Stratified Dummy Classifier on graph feature vectors and classes")
+            stratifiedDummyClf(mGraphFeatures, y, metricResults, "StratDummy_GFeatures_Class") 
         
-        # fig = draw3DPCA(X, pca3D, c=y)
-        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        classify(filteredGraphFeatures, y, metricResults, "DT_GFeatures_TumorStage")
+        if args.mostfrequentdummyclf:
+            message("Most frequent Dummy Classifier on graph feature vectors and classes")
+            mostFrequentDummyClf(mGraphFeatures, y, metricResults, "MFDummy_GFeatures_Class")
         
+        if args.mlpClassifier:
+            message("MLP Classifier on graph feature vectors and classes")
+            mlpClassifier(mGraphFeatures, y, metricResults, "MLP_GFeatures_Class")
 
-    if args.decisionTree and args.featurevectors and args.classes:  
-        # Extract class vector for colors
-        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-        message("Decision tree on feature vectors and classes")
+
+    if args.classes and args.featurevectors:
         X, pca3D = getPCA(mFeatures_noNaNs, 5)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        if args.decisionTree:
+            message("Decision tree on feature vectors and classes")
+            classify(X, y, metricResults, "DT_FeatureV_Class")
 
-        classify(X, y, metricResults, "DT_FeatureV_Class")
+        if args.kneighbors:
+            message("KNN on feature vectors and classes")
+            kneighbors(X, y, metricResults, "kNN_FeatureV_Class")
 
-    if args.decisionTree and args.featurevectors and args.tumorStage: 
-        # Extract tumor stages vector for colors
-        aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
-        message("Decision tree on feature vectors and tumor stages")
-    
-        X, pca3D = getPCA(filteredFeatures, 5)
-        fig = draw3DPCA(X, pca3D, c=y)
+        if args.xgboost:
+            message("XGBoost on feature vectors and classes")
+            xgboost(X, y, metricResults, "XGB_FeatureV_Class")
 
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        if args.randomforest:
+            message("Random Forest on feature vectors and classes")
+            RandomForest(X, y, metricResults, "RF_FeatureV_Class")
 
-        classify(X, y, metricResults, "DT_FeatureV_TumorStage")
+        if args.naivebayes:
+            message("Naive Bayes on feature vectors and classes")
+            NBayes(X, y, metricResults, "NV_FeatureV_Class")
 
-        #DEBUG LINES
-        # message("y shape: " + str(np.shape(y)))
-        # message("X shape: " +str(np.shape(X)))
-        ###########
-    
-    if args.kneighbors and args.graphFeatures and args.classes:
-        # Extract class vector for colors
-        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-        message("KNN on graph feature vectors and classes")
-        # X, pca3D = getPCA(mGraphFeatures, 3)
-        # fig = draw3DPCA(X, pca3D, c=y)
+        if args.stratifieddummyclf:  
+            message("Stratified Dummy Classifier on feature vectors and classes")
+            stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_Class")
 
-        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        # kneighbors(X, y, metricResults, "kNN_GFeatures_Class")
-        kneighbors(mGraphFeatures, y, metricResults, "kNN_GFeatures_Class")
+        if args.mostfrequentdummyclf:
+            message("Most frequent Dummy Classifier on feature vectors and classes")
+            mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_Class")
         
-            
-    if args.kneighbors and args.graphFeatures and args.tumorStage:
+        if args.mlpClassifier:
+            message("MLP Classifier on feature vectors and classes")
+            mlpClassifier(X, y, metricResults, "MLP_FeatureV_Class")
+
+    if args.tumorStage and args.graphFeatures:
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredGraphTumorStage, return_inverse=True)
-        message("KNN on graph feature vectors and tumor stages")
-        # X, pca3D = getPCA(filteredGraphFeatures, 3)
-        # fig = draw3DPCA(X, pca3D, c=y)
+        if args.decisionTree:
+            message("Decision tree on graph feature vectors and tumor stages")
+            classify(filteredGraphFeatures, y, metricResults, "DT_GFeatures_TumorStage")
+        
+        if args.kneighbors:
+            message("KNN on graph feature vectors and tumor stages")
+            kneighbors(filteredGraphFeatures, y, metricResults, "kNN_GFeatures_TumorStage")
 
-        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        if args.xgboost:
+            message("XGBoost on graph feature vectors and tumor stages")
+            xgboost(filteredGraphFeatures, y, metricResults, "XGB_GFeatures_TumorStage")
 
-        kneighbors(filteredGraphFeatures, y, metricResults, "kNN_GFeatures_TumorStage")
+        if args.randomforest:
+            message("Random Forest on graph feature vectors and tumor stages")
+            RandomForest(filteredGraphFeatures, y, metricResults, "RF_GFeatures_TumorStage")
+        
+        if args.naivebayes:
+            message("Naive Bayes on graph feature vectors and tumor stages")
+            NBayes(filteredGraphFeatures, y, metricResults, "NV_GFeatures_TumorStage")
 
-        # #DEBUG LINES
-        # message("y shape: " + str(np.shape(y)))
-        # message("X shape: " +str(np.shape(X)))
-        # ###########
-    
-    if args.kneighbors and args.featurevectors and args.classes:
-        # Extract class vector for colors
-        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-        message("KNN on feature vectors and classes")
-           
-        X, pca3D = getPCA(mFeatures_noNaNs, 5)
-        fig = draw3DPCA(X, pca3D, c=y)
+        if args.stratifieddummyclf:  
+            message("Stratified Dummy Classifier on graph feature vectors and tumor stages")
+            stratifiedDummyClf(filteredGraphFeatures, y, metricResults, "StratDummy_GFeatures_TumorStage")
 
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        if args.mostfrequentdummyclf:
+            message("Most frequent Dummy Classifier on graph feature vectors and tumor stages")
+            mostFrequentDummyClf(filteredGraphFeatures, y, metricResults, "MFDummy_GFeatures_TumorStage")
+        
+        if args.mlpClassifier:
+            message("MLP Classifier on graph feature vectors and tumor stages")
+            mlpClassifier(filteredGraphFeatures, y, metricResults, "MLP_GFeatures_TumorStage")
 
-        kneighbors(X, y, metricResults, "kNN_FeatureV_Class")
-
-    if args.kneighbors and args.featurevectors and args.tumorStage:
+        
+    if args.tumorStage and args.featurevectors:
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
-        message("KNN on feature vectors and tumor stages")
         X, pca3D = getPCA(filteredFeatures, 5)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        if args.decisionTree:
+            message("Decision tree on feature vectors and tumor stages")
+            classify(X, y, metricResults, "DT_FeatureV_TumorStage")
 
-        kneighbors(X, y, metricResults, "kNN_FeatureV_TumorStage")
+        if args.kneighbors:
+            message("KNN on feature vectors and tumor stages")
+            kneighbors(X, y, metricResults, "kNN_FeatureV_TumorStage")
 
-        #DEBUG LINES
-        # message("y shape: " + str(np.shape(y)))
-        # message("X shape: " +str(np.shape(X)))
-        ###########
+        if args.xgboost:
+            message("XGBoost on feature vectors and tumor stages")
+            xgboost(X, y, metricResults, "XGB_FeatureV_TumorStage")
 
-    if args.xgboost and args.graphFeatures and args.classes:
-        # Extract class vector for colors
-        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-        message("XGBoost on graph feature vectors and classes")
-        # X, pca3D = getPCA(mGraphFeatures, 3)
-        # fig = draw3DPCA(X, pca3D, c=y)
+        if args.randomforest:
+            message("Random Forest on feature vectors and tumor stages")
+            RandomForest(X, y, metricResults, "RF_FeatureV_TumorStage")
 
-        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        if args.naivebayes:
+            message("Naive Bayes on feature vectors and tumor stages")
+            NBayes(X, y, metricResults, "RNV_FeatureV_TumorStage")  
 
-        xgboost(mGraphFeatures, y, metricResults, "XGB_GFeatures_Class")
-            
-    if args.xgboost and args.graphFeatures and args.tumorStage:
-        # Extract tumor stages vector for colors
-        aCategories, y = np.unique(filteredGraphTumorStage, return_inverse=True)
-        message("XGBoost on graph feature vectors and tumor stages")
-        # X, pca3D = getPCA(filteredGraphFeatures, 3)
-        # fig = draw3DPCA(X, pca3D, c=y)
-
-        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        xgboost(filteredGraphFeatures, y, metricResults, "XGB_GFeatures_TumorStage")
-
-        # #DEBUG LINES
-        # message("y shape: " + str(np.shape(y)))
-        # message("X shape: " +str(np.shape(X)))
-        # ###########
+        if args.stratifieddummyclf:  
+            message("Stratified Dummy Classifier on feature vectors and tumor stages")
+            stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_TumorStage")
+        
+        if args.mostfrequentdummyclf:
+            message("Most frequent Dummy Classifier on feature vectors and tumor stages")
+            mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_TumorStage")
     
-    if args.xgboost and args.featurevectors and args.classes:
-        # Extract class vector for colors
-        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-        message("XGBoost on feature vectors and classes")
-           
-        X, pca3D = getPCA(mFeatures_noNaNs, 5)
-        fig = draw3DPCA(X, pca3D, c=y)
-
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        xgboost(X, y, metricResults, "XGB_FeatureV_Class")
-
-    if args.xgboost and args.featurevectors and args.tumorStage:
-        # Extract tumor stages vector for colors
-        aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
-        message("XGBoost on feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredFeatures, 5)
-        fig = draw3DPCA(X, pca3D, c=y)
-
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        xgboost(X, y, metricResults, "XGB_FeatureV_TumorStage")
-
-        #DEBUG LINES
-        # message("y shape: " + str(np.shape(y)))
-        # message("X shape: " +str(np.shape(X)))
-        ###########
+        if args.mlpClassifier:
+            message("MLP Classifier on feature vectors and tumor stages")
+            mlpClassifier(X, y, metricResults, "MLP_FeatureV_TumorStage")
     
-    if args.randomforest and args.graphFeatures and args.classes:
-        # Extract class vector for colors
-        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-        message("Random Forest on graph feature vectors and classes")
-        # X, pca3D = getPCA(mGraphFeatures, 3)
-        # fig = draw3DPCA(X, pca3D, c=y)
-
-        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        RandomForest(mGraphFeatures, y, metricResults, "RF_GFeatures_Class")
-            
-    if args.randomforest and args.graphFeatures and args.tumorStage:
-        # Extract tumor stages vector for colors
-        aCategories, y = np.unique(filteredGraphTumorStage, return_inverse=True)
-        message("Random Forest on graph feature vectors and tumor stages")
-        # X, pca3D = getPCA(filteredGraphFeatures, 3)
-        # fig = draw3DPCA(X, pca3D, c=y)
-
-        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        RandomForest(filteredGraphFeatures, y, metricResults, "RF_GFeatures_TumorStage")
-
-        # #DEBUG LINES
-        # message("y shape: " + str(np.shape(y)))
-        # message("X shape: " +str(np.shape(X)))
-        # ###########
     
-    if args.randomforest and args.featurevectors and args.classes:
-        # Extract class vector for colors
-        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-        message("Random Forest on feature vectors and classes")
-           
-        X, pca3D = getPCA(mFeatures_noNaNs, 5)
-        fig = draw3DPCA(X, pca3D, c=y)
-
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        RandomForest(X, y, metricResults, "RF_FeatureV_Class")
-
-    if args.randomforest and args.featurevectors and args.tumorStage:
-        # Extract tumor stages vector for colors
-        aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
-        message("Random Forest on feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredFeatures, 5)
-        fig = draw3DPCA(X, pca3D, c=y)
-
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        RandomForest(X, y, metricResults, "RF_FeatureV_TumorStage")
-
-        #DEBUG LINES
-        # message("y shape: " + str(np.shape(y)))
-        # message("X shape: " +str(np.shape(X)))
-        ###########
-  
-    if args.naivebayes and args.graphFeatures and args.classes:
-        # Extract class vector for colors
-        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-        message("Naive Bayes on graph feature vectors and classes")
-        # X, pca3D = getPCA(mGraphFeatures, 3)
-        # fig = draw3DPCA(X, pca3D, c=y)
-
-        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        NBayes(mGraphFeatures, y, metricResults, "NV_GFeatures_Class")
-            
-    if args.naivebayes and args.graphFeatures and args.tumorStage:
-        # Extract tumor stages vector for colors
-        aCategories, y = np.unique(filteredGraphTumorStage, return_inverse=True)
-        message("Naive Bayes on graph feature vectors and tumor stages")
-        # X, pca3D = getPCA(filteredGraphFeatures, 3)
-        # fig = draw3DPCA(X, pca3D, c=y)
-
-        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        NBayes(filteredGraphFeatures, y, metricResults, "NV_GFeatures_TumorStage")
-
-        #DEBUG LINES
-        # message("y shape: " + str(np.shape(y)))
-        # message("X shape: " +str(np.shape(X)))
-        ###########
-    
-    if args.naivebayes and args.featurevectors and args.classes:
-        # Extract class vector for colors
-        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-        message("Naive Bayes on feature vectors and classes")
-           
-        X, pca3D = getPCA(mFeatures_noNaNs, 5)
-        fig = draw3DPCA(X, pca3D, c=y)
-
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        NBayes(X, y, metricResults, "NV_FeatureV_Class")
-
-    if args.naivebayes and args.featurevectors and args.tumorStage:
-        # Extract tumor stages vector for colors
-        aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
-        message("Naive Bayes on feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredFeatures, 5)
-        fig = draw3DPCA(X, pca3D, c=y)
-
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        NBayes(X, y, metricResults, "RNV_FeatureV_TumorStage")
-
-        #DEBUG LINES
-        # message("y shape: " + str(np.shape(y)))
-        # message("X shape: " +str(np.shape(X)))
-        ###########
-
-    if args.stratifieddummyclf and args.graphFeatures and args.classes:
-        # Extract class vector for colors
-        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-        message("Stratified Dummy Classifier on graph feature vectors and classes")
-        # X, pca3D = getPCA(mGraphFeatures, 3)
-        # fig = draw3DPCA(X, pca3D, c=y)
-
-        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        stratifiedDummyClf(mGraphFeatures, y, metricResults, "StratDummy_GFeatures_Class")
-            
-    if args.stratifieddummyclf and args.graphFeatures and args.tumorStage:
-        # Extract tumor stages vector for colors
-        aCategories, y = np.unique(filteredGraphTumorStage, return_inverse=True)
-        message("Stratified Dummy Classifier on graph feature vectors and tumor stages")
-        # X, pca3D = getPCA(filteredGraphFeatures, 3)
-        # fig = draw3DPCA(X, pca3D, c=y)
-
-        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        stratifiedDummyClf(filteredGraphFeatures, y, metricResults, "StratDummy_GFeatures_TumorStage")
-
-        #DEBUG LINES
-        # message("y shape: " + str(np.shape(y)))
-        # message("X shape: " +str(np.shape(X)))
-        ###########
-    
-    if args.stratifieddummyclf and args.featurevectors and args.classes:
-        # Extract class vector for colors
-        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-        message("Stratified Dummy Classifier on feature vectors and classes")
-           
-        X, pca3D = getPCA(mFeatures_noNaNs, 5)
-        fig = draw3DPCA(X, pca3D, c=y)
-
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_Class")
-
-    if args.stratifieddummyclf and args.featurevectors and args.tumorStage:
-        # Extract tumor stages vector for colors
-        aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
-        message("Stratified Dummy Classifier on feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredFeatures, 5)
-        fig = draw3DPCA(X, pca3D, c=y)
-
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_TumorStage")
-
-        #DEBUG LINES
-        # message("y shape: " + str(np.shape(y)))
-        # message("X shape: " +str(np.shape(X)))
-        ###########
-
-    if args.mostfrequentdummyclf and args.graphFeatures and args.classes:
-        # Extract class vector for colors
-        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-        message("Most frequent Dummy Classifier on graph feature vectors and classes")
-        # X, pca3D = getPCA(mGraphFeatures, 3)
-        # fig = draw3DPCA(X, pca3D, c=y)
-
-        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        mostFrequentDummyClf(mGraphFeatures, y, metricResults, "MFDummy_GFeatures_Class")
-            
-    if args.mostfrequentdummyclf and args.graphFeatures and args.tumorStage:
-        # Extract tumor stages vector for colors
-        aCategories, y = np.unique(filteredGraphTumorStage, return_inverse=True)
-        message("Most frequent Dummy Classifier on graph feature vectors and tumor stages")
-        # X, pca3D = getPCA(filteredGraphFeatures, 3)
-        # fig = draw3DPCA(X, pca3D, c=y)
-
-        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        mostFrequentDummyClf(filteredGraphFeatures, y, metricResults, "MFDummy_GFeatures_TumorStage")
-
-        #DEBUG LINES
-        # message("y shape: " + str(np.shape(y)))
-        # message("X shape: " +str(np.shape(X)))
-        ###########
-    
-    if args.mostfrequentdummyclf and args.featurevectors and args.classes:
-        # Extract class vector for colors
-        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-        message("Most frequent Dummy Classifier on feature vectors and classes")
-           
-        X, pca3D = getPCA(mFeatures_noNaNs, 5)
-        fig = draw3DPCA(X, pca3D, c=y)
-
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_Class")
-
-    if args.mostfrequentdummyclf and args.featurevectors and args.tumorStage:
-        # Extract tumor stages vector for colors
-        aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
-        message("Most frequent Dummy Classifier on feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredFeatures, 5)
-        fig = draw3DPCA(X, pca3D, c=y)
-
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_TumorStage")
-
-        #DEBUG LINES
-        # message("y shape: " + str(np.shape(y)))
-        # message("X shape: " +str(np.shape(X)))
-        ###########
-
-    if args.mlpClassifier and args.graphFeatures and args.classes:
-        # Extract class vector for colors
-        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-        message("MLP Classifier on graph feature vectors and classes")
-        # X, pca3D = getPCA(mGraphFeatures, 3)
-        # fig = draw3DPCA(X, pca3D, c=y)
-
-        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        mlpClassifier(mGraphFeatures, y, metricResults, "MLP_GFeatures_Class")
-            
-    if args.mlpClassifier and args.graphFeatures and args.tumorStage:
-        # Extract tumor stages vector for colors
-        aCategories, y = np.unique(filteredGraphTumorStage, return_inverse=True)
-        message("MLP Classifier on graph feature vectors and tumor stages")
-        # X, pca3D = getPCA(filteredGraphFeatures, 3)
-        # fig = draw3DPCA(X, pca3D, c=y)
-
-        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        mlpClassifier(filteredGraphFeatures, y, metricResults, "MLP_GFeatures_TumorStage")
-
-        #DEBUG LINES
-        # message("y shape: " + str(np.shape(y)))
-        # message("X shape: " +str(np.shape(X)))
-        ###########
-    
-    if args.mlpClassifier and args.featurevectors and args.classes:
-        # Extract class vector for colors
-        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-        message("MLP Classifier on feature vectors and classes")
-           
-        X, pca3D = getPCA(mFeatures_noNaNs, 5)
-        fig = draw3DPCA(X, pca3D, c=y)
-
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        mlpClassifier(X, y, metricResults, "MLP_FeatureV_Class")
-
-    if args.mlpClassifier and args.featurevectors and args.tumorStage:
-        # Extract tumor stages vector for colors
-        aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
-        message("MLP Classifier on feature vectors and tumor stages")
-        X, pca3D = getPCA(filteredFeatures, 5)
-        fig = draw3DPCA(X, pca3D, c=y)
-
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-        mlpClassifier(X, y, metricResults, "MLP_FeatureV_TumorStage")
-
-        #DEBUG LINES
-        # message("y shape: " + str(np.shape(y)))
-        # message("X shape: " +str(np.shape(X)))
-        ###########
 
     # end of main function
     metricsdf = pd.DataFrame(metricResults, columns=['Method', 'Mean_Accuracy', "SEM_Accuracy", 'Mean_F1_micro', "SEM_F1_micro", 'Mean_F1_macro', "SEM_F1_macro"])
