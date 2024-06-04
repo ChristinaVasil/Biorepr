@@ -885,9 +885,9 @@ def loadTumorStage():
     message(np.shape(clinicalfile))
     return clinicalfile
 
-def filterTumorStage(mFeatures, mgraphsFeatures, vTumorStage):    
+def filterTumorStage(mFeatures, mgraphsFeatures, vTumorStage, vClass, sampleIDs):    
     """
-    Filters out the samples that don't have data at tumor stage (tumor stage == 0) from the feature matrix, graph 
+    Filters out the samples that don't have data at tumor stage (tumor stage == 0) and control samples (class = 2) from the feature matrix, graph 
     feature matrix and tumor stage array and returns these objects.
     :param mFeatures: the feature matrix
     :param mgraphsFeatures: the graph feature matrix
@@ -898,14 +898,20 @@ def filterTumorStage(mFeatures, mgraphsFeatures, vTumorStage):
     message(np.shape(vTumorStage))
     ###################
     
-    izerosIndez = np.where(vTumorStage == "0")[0]
-    mSelectedFeatures = np.delete(mFeatures, izerosIndez, 0)
-    mSelectedGraphFeatures = np.delete(mgraphsFeatures, izerosIndez, 0)
-    sselectedTumorStage = np.delete(vTumorStage, izerosIndez, 0)
+    izerosIndex = np.where(vTumorStage == "0")[0]
+    iNonControlIndex = np.where(vClass == "2")[0]
+    combinedIndex = np.unique(np.concatenate((iNonControlIndex, izerosIndex), axis=None))
+    mSelectedFeatures = np.delete(mFeatures, combinedIndex, 0)
+    mSelectedGraphFeatures = np.delete(mgraphsFeatures, combinedIndex, 0)
+    sselectedTumorStage = np.delete(vTumorStage, combinedIndex, 0)
 
     # DEBUG LINES
     message("Zero indices")
-    message(izerosIndez)
+    message(izerosIndex)
+    message("Non control index")
+    message(iNonControlIndex)
+    message("combinedIndex")
+    message(combinedIndex)
     message("Shape of matrix:")
     message(np.shape(mSelectedFeatures))
     message("Shape of graph matrix:")
@@ -2259,7 +2265,9 @@ def main(argv):
                                                                                     bNormalize=args.normalization,
                                                                                     bNormalizeLog2Scale=args.logScale,
                                                                                     bShow = args.showGraphs, bSave = args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
-    
+    #DEBUG LINES 
+    print(vClass)
+    ################
     if args.exploratoryAnalysis:
         #plotDistributions(mFeatures_noNaNs, feat_names)
 
@@ -2320,11 +2328,8 @@ def main(argv):
         if args.tumorStage:
             vSelectedtumorStage = np.concatenate((vtumorStage[0:int(args.numberOfInstances / 2)][:], vtumorStage[-int(args.numberOfInstances / 2):][:]), axis=0)
     
-    if args.tumorStage and args.graphFeatures:
-        _, filteredGraphFeatures, filteredGraphTumorStage = filterTumorStage(mFeatures_noNaNs, mGraphFeatures, vSelectedtumorStage)
-
-    if args.tumorStage and args.featurevectors:
-        filteredFeatures, _, filteredTumorStage = filterTumorStage(mFeatures_noNaNs, mGraphFeatures, vSelectedtumorStage)
+    if args.tumorStage:
+        filteredFeatures, filteredGraphFeatures, filteredTumorStage = filterTumorStage(mFeatures_noNaNs, mGraphFeatures, vSelectedtumorStage, vClass, sampleIDs)
     
     metricResults =[]
 
@@ -2404,7 +2409,7 @@ def main(argv):
 
     if args.tumorStage and args.graphFeatures:
         # Extract tumor stages vector for colors
-        aCategories, y = np.unique(filteredGraphTumorStage, return_inverse=True)
+        aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
         if args.decisionTree:
             message("Decision tree on graph feature vectors and tumor stages")
             classify(filteredGraphFeatures, y, metricResults, "DT_GFeatures_TumorStage")
