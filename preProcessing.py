@@ -42,7 +42,7 @@ from sklearn.naive_bayes import GaussianNB
 #from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import QuantileTransformer, MinMaxScaler, StandardScaler
 from sklearn.metrics import make_scorer, accuracy_score, f1_score, confusion_matrix, ConfusionMatrixDisplay 
-from sklearn.model_selection import cross_validate, LeaveOneOut
+from sklearn.model_selection import StratifiedKFold, cross_val_score, cross_validate, LeaveOneOut
 from sklearn.neural_network import MLPClassifier
 import xgboost as xgb
 import tensorflow as tf  
@@ -1519,7 +1519,7 @@ def drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = True, bSave =
     if bShow:
         plt.show()
 
-def mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=False, stdevFeatSelection=False):
+def mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=False, stdevFeatSelection=False):
     """
     Plots the distribution of the general graph's edges between start and end thresholds adding by 0.1.
     :param mFeatures_noNaNs: the feature matrix
@@ -1530,17 +1530,19 @@ def mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, 
     """
     thresholds = []
     edgesNum = []
+    nodesNum = []
     for threshold in np.arange(startThreshold, endThreshold+0.1, 0.1):
         threshold = round(threshold, 1)
         gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=threshold, bResetGraph=bResetGraph, stdevFeatSelection=stdevFeatSelection)
         thresholds.append(threshold)
         edgesNum.append(gToDraw.number_of_edges())
+        nodesNum.append(gToDraw.number_of_nodes())
 
     #DEBUG LINES
     message(thresholds)
     message(edgesNum)
     #################
-    graphData = pd.DataFrame({'thresholds' : thresholds, 'edgesNum': edgesNum})
+    graphData = pd.DataFrame({'thresholds' : thresholds, 'edgesNum': edgesNum, 'nodesNum' : nodesNum})
     plt.clf()
     sns.barplot(graphData, x="thresholds", y="edgesNum")
     
@@ -1555,6 +1557,21 @@ def mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, 
         plt.title('Number of edges in the main graph from DEGs')
     plt.show()
     plt.savefig("edgesDistribution.png")
+
+    plt.clf()
+    sns.barplot(graphData, x="thresholds", y="nodesNum")
+    
+    for i in range(len(thresholds)):
+        plt.text(i, nodesNum[i], nodesNum[i], ha = 'center')
+    
+    plt.xlabel('Pearson correlation thresholds')
+    plt.ylabel('Number of nodes')
+    if stdevFeatSelection:
+        plt.title('Number of nodes in the main graph from standard deviation \n feature selection')
+    else:
+        plt.title('Number of nodes in the main graph from DEGs')
+    plt.show()
+    plt.savefig("nodesDistribution.png")
 
 def getMeanDegreeCentrality(gGraph):
     """
@@ -1943,18 +1960,10 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
     for train_index, test_index in cv.split(X):
         X_train, X_test = X[train_index], X[test_index]
         y_train, y_test = y[train_index], y[test_index]
-
+    
         # Fit the classifier on the training data
         model.fit(X_train, y_train)
 
-        #DEBUG LINES 
-        # Access the weight matrix of the output layer
-        # output_layer_weights = model.coefs_[-1]
-
-        # # The number of output nodes
-        # num_output_nodes = output_layer_weights.shape[1]
-        # print("Number of Output Nodes:", num_output_nodes)
-        ##################3
         # Predict label for the test data
         y_pred = model.predict(X_test)
 
@@ -1962,7 +1971,7 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
         accuracy = accuracy_score(y_test, y_pred)
         f1_macro = f1_score(y_test, y_pred, average='macro')
         f1_micro = f1_score(y_test, y_pred, average='micro')
-
+        print(f1_macro)
         final_y_pred.append(y_pred[0])
 
         # Append metrics to lists
@@ -1970,36 +1979,26 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
         f1_macro_per_fold.append(f1_macro)
         f1_micro_per_fold.append(f1_micro)
     
-    accuracy = accuracy_score(y, final_y_pred)
-    f1_micro = f1_score(y, final_y_pred, average='micro')
-    f1_macro = f1_score(y, final_y_pred, average='macro')
+    # accuracy = accuracy_score(y, final_y_pred)
+    # f1_micro = f1_score(y, final_y_pred, average='micro')
+    # f1_macro = f1_score(y, final_y_pred, average='macro')
     
     #DEBUG LINES
-    message(accuracy)
-    message(f1_micro)
-    message(f1_macro)
+    # message(accuracy)
+    # message(f1_micro)
+    # message(f1_macro)
+    # message(f1_macro_per_fold)
     ###############
     
     # Calculate SEM 
-    sem_accuracy = np.std(accuracy_per_fold) / np.sqrt(len(accuracy_per_fold))
-    sem_f1_micro = np.std(f1_micro_per_fold) / np.sqrt(len(f1_micro_per_fold))
-    sem_f1_macro = np.std(f1_macro_per_fold) / np.sqrt(len(f1_macro_per_fold))
+    # sem_accuracy = np.std(accuracy_per_fold) / np.sqrt(len(accuracy_per_fold))
+    # sem_f1_micro = np.std(f1_micro_per_fold) / np.sqrt(len(f1_micro_per_fold))
+    # sem_f1_macro = np.std(f1_macro_per_fold) / np.sqrt(len(f1_macro_per_fold))
 
     # message("Avg. Performanace: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(accuracy_per_fold), np.std(accuracy_per_fold), sem_accuracy, str(accuracy_per_fold)))
     # message("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (f1_micro, np.std(f1_micro_per_fold), sem_f1_micro, str(f1_micro_per_fold)))
     # message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (f1_macro, np.std(f1_macro_per_fold), sem_f1_macro, str(f1_macro_per_fold)))
 
-    message("Avg. Accuracy: %4.2f (st. dev. %4.2f, sem %4.2f) " % (np.mean(accuracy_per_fold), np.std(accuracy_per_fold), sem_accuracy))
-    message("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) " % (f1_micro, np.std(f1_micro_per_fold), sem_f1_micro))
-    message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) " % (f1_macro, np.std(f1_macro_per_fold), sem_f1_macro))
-    
-    lmetricResults.append([sfeatClass, accuracy, sem_accuracy, f1_micro, sem_f1_micro, f1_macro, sem_f1_macro])
-    
-    message(confusion_matrix(y, final_y_pred, ))
-    # Plot confusion matrix for this fold
-    ConfusionMatrixDisplay.from_predictions(y, final_y_pred)
-    plt.show()
-    plt.savefig("confmat"+sfeatClass+".png")
     
 
 
@@ -2266,7 +2265,7 @@ def main(argv):
 
         #plotSDdistributions(mFeatures_noNaNs, feat_names)
         
-        mGraphEdgesDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=True, stdevFeatSelection = args.selectFeatsBySD)
+        mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=True, stdevFeatSelection = args.selectFeatsBySD)
 
         #plotExplainedVariance(mFeatures_noNaNs, n_components=100)
 
