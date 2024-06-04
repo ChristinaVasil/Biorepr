@@ -936,7 +936,7 @@ def kneighbors(X, y, lmetricResults, sfeatClass):
     # 'f1_micro': make_scorer(f1_score, average="micro"),
     # 'f1_macro': make_scorer(f1_score, average="macro")}
     
-    cv = LeaveOneOut() 
+    cv = StratifiedKFold(n_splits=10)
 
     crossValidation(X, y, cv, neigh, lmetricResults, sfeatClass)
     # Calculate cross-validation scores for both accuracy and F1
@@ -1895,9 +1895,9 @@ def classify(X, y, lmetricResults, sfeatClass):
 
     classifier = DecisionTreeClassifier(class_weight="balanced")
     
-    loo = LeaveOneOut() 
-
-    crossValidation(X, y, loo, classifier, lmetricResults, sfeatClass)
+    # loo = LeaveOneOut() 
+    cv = StratifiedKFold(n_splits=10)
+    crossValidation(X, y, cv, classifier, lmetricResults, sfeatClass)
 
 
 def stratifiedDummyClf(X, y, lmetricResults, sfeatClass):
@@ -1910,7 +1910,7 @@ def stratifiedDummyClf(X, y, lmetricResults, sfeatClass):
     """
     dummy_clf = DummyClassifier(strategy="stratified")
     
-    cv = LeaveOneOut() 
+    cv = StratifiedKFold(n_splits=10)
 
     crossValidation(X, y, cv, dummy_clf, lmetricResults, sfeatClass)
 
@@ -1924,7 +1924,7 @@ def mostFrequentDummyClf(X, y, lmetricResults, sfeatClass):
     """
     dummy_clf = DummyClassifier(strategy="most_frequent")
     
-    cv = LeaveOneOut() 
+    cv = StratifiedKFold(n_splits=10)
 
     crossValidation(X, y, cv, dummy_clf, lmetricResults, sfeatClass)
 
@@ -1938,52 +1938,52 @@ def mlpClassifier(X, y, lmetricResults, sfeatClass):
     """
     clf = MLPClassifier(max_iter=300)
 
-    cv = LeaveOneOut() 
+    cv = StratifiedKFold(n_splits=10)
 
     crossValidation(X, y, cv, clf, lmetricResults, sfeatClass)
     
 
-def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
-    """
-    Performs the cross validation and save the metrics per iteration, computes the overall matrics and plot the confusion matrix
-    :param X: The feature vector matrix.
-    :param y: The labels.
-    :param cv: the fold that were created from cross validation
-    :param lmetricResults: list for the results of performance metrics.
-    :param sfeatClass: string/information about the ML model, the features and data labels 
-    """
-    # Initialize lists to store metrics per fold
-    accuracy_per_fold = []
-    f1_macro_per_fold = []
-    f1_micro_per_fold = []
-    final_y_pred = []
+# def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
+#     """
+#     Performs the cross validation and save the metrics per iteration, computes the overall matrics and plot the confusion matrix
+#     :param X: The feature vector matrix.
+#     :param y: The labels.
+#     :param cv: the fold that were created from cross validation
+#     :param lmetricResults: list for the results of performance metrics.
+#     :param sfeatClass: string/information about the ML model, the features and data labels 
+#     """
+#     # Initialize lists to store metrics per fold
+#     accuracy_per_fold = []
+#     f1_macro_per_fold = []
+#     f1_micro_per_fold = []
+#     final_y_pred = []
 
-    #DEBUG LINES
-    #test = 0
-    ##########
+#     #DEBUG LINES
+#     #test = 0
+#     ##########
 
-    # Perform cross-validation
-    for train_index, test_index in cv.split(X):
-        X_train, X_test = X[train_index], X[test_index]
-        y_train, y_test = y[train_index], y[test_index]
+#     # Perform cross-validation
+#     for train_index, test_index in cv.split(X):
+#         X_train, X_test = X[train_index], X[test_index]
+#         y_train, y_test = y[train_index], y[test_index]
     
-        # Fit the classifier on the training data
-        model.fit(X_train, y_train)
+#         # Fit the classifier on the training data
+#         model.fit(X_train, y_train)
 
-        # Predict label for the test data
-        y_pred = model.predict(X_test)
+#         # Predict label for the test data
+#         y_pred = model.predict(X_test)
 
-        # Calculate metrics for this fold
-        accuracy = accuracy_score(y_test, y_pred)
-        f1_macro = f1_score(y_test, y_pred, average='macro')
-        f1_micro = f1_score(y_test, y_pred, average='micro')
-        print(f1_macro)
-        final_y_pred.append(y_pred[0])
+#         # Calculate metrics for this fold
+#         accuracy = accuracy_score(y_test, y_pred)
+#         f1_macro = f1_score(y_test, y_pred, average='macro')
+#         f1_micro = f1_score(y_test, y_pred, average='micro')
+#         print(f1_macro)
+#         final_y_pred.append(y_pred[0])
 
-        # Append metrics to lists
-        accuracy_per_fold.append(accuracy)
-        f1_macro_per_fold.append(f1_macro)
-        f1_micro_per_fold.append(f1_micro)
+#         # Append metrics to lists
+#         accuracy_per_fold.append(accuracy)
+#         f1_macro_per_fold.append(f1_macro)
+#         f1_micro_per_fold.append(f1_micro)
     
     # accuracy = accuracy_score(y, final_y_pred)
     # f1_micro = f1_score(y, final_y_pred, average='micro')
@@ -2005,8 +2005,62 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
     # message("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (f1_micro, np.std(f1_micro_per_fold), sem_f1_micro, str(f1_micro_per_fold)))
     # message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (f1_macro, np.std(f1_macro_per_fold), sem_f1_macro, str(f1_macro_per_fold)))
 
-    
+def crossValidation(X, y, cv, model, lmetricResults, sfeatClass): 
+    """
+    Performs the cross validation and save the metrics per iteration, computes the overall matrics and plot the confusion matrix
+    :param X: The feature vector matrix.
+    :param y: The labels.
+    :param cv: the fold that were created from cross validation
+    :param lmetricResults: list for the results of performance metrics.
+    :param sfeatClass: string/information about the ML model, the features and data labels 
+    """
+    # Initialize lists to store metrics per fold
+    accuracy_per_fold = []
+    f1_macro_per_fold = []
+    f1_micro_per_fold = []
+    final_y_pred = []
+    final_y = []    
+    # Perform cross-validation
+    for train_index, test_index in cv.split(X, y):
+        X_train, X_test = X[train_index], X[test_index]
+        y_train, y_test = y[train_index], y[test_index]
+        
+        final_y.extend(y_test)
 
+        # Fit the classifier on the training data
+        model.fit(X_train, y_train)
+
+        # Predict label for the test data
+        y_pred = model.predict(X_test)
+        
+        # Calculate metrics for this fold
+        accuracy = accuracy_score(y_test, y_pred)
+        f1_macro = f1_score(y_test, y_pred, average='macro')
+        f1_micro = f1_score(y_test, y_pred, average='micro')
+
+        final_y_pred.extend(y_pred)
+
+        # Append metrics to lists
+        accuracy_per_fold.append(accuracy)
+        f1_macro_per_fold.append(f1_macro)
+        f1_micro_per_fold.append(f1_micro)
+
+    # Calculate SEM 
+    sem_accuracy = np.std(accuracy_per_fold) / np.sqrt(len(accuracy_per_fold))
+    sem_f1_micro = np.std(f1_micro_per_fold) / np.sqrt(len(f1_micro_per_fold))
+    sem_f1_macro = np.std(f1_macro_per_fold) / np.sqrt(len(f1_macro_per_fold))  
+
+    message("Avg. Accuracy: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(accuracy_per_fold), np.std(accuracy_per_fold), sem_accuracy, str(accuracy_per_fold)))
+    message("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(f1_micro_per_fold), np.std(f1_micro_per_fold), sem_f1_micro, str(f1_micro_per_fold)))
+    message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(f1_macro_per_fold), np.std(f1_macro_per_fold), sem_f1_macro, str(f1_macro_per_fold)))
+    cm = confusion_matrix(final_y, final_y_pred)
+    print(cm)
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+    disp.plot()
+    plt.savefig("confMat"+ sfeatClass +".png")
+    plt.show()
+
+    lmetricResults.append([sfeatClass, np.mean(accuracy_per_fold), sem_accuracy, np.mean(f1_micro_per_fold), sem_f1_micro, np.mean(f1_macro_per_fold), sem_f1_macro])
 
 def xgboost(X, y, lmetricResults, sfeatClass):
     """
@@ -2023,7 +2077,7 @@ def xgboost(X, y, lmetricResults, sfeatClass):
     # 'f1_micro': make_scorer(f1_score, average="micro"),
     # 'f1_macro': make_scorer(f1_score, average="macro")}
     
-    cv = LeaveOneOut() 
+    cv = StratifiedKFold(n_splits=10)
 
     crossValidation(X, y, cv, model, lmetricResults, sfeatClass)
 
@@ -2058,7 +2112,7 @@ def RandomForest(X, y, lmetricResults, sfeatClass):
     # 'f1_micro': make_scorer(f1_score, average="micro"),
     # 'f1_macro': make_scorer(f1_score, average="macro")}
     
-    cv = LeaveOneOut() 
+    cv = StratifiedKFold(n_splits=10) 
 
     crossValidation(X, y, cv, clf, lmetricResults, sfeatClass)
     # Calculate cross-validation scores for both accuracy and F1
@@ -2091,7 +2145,7 @@ def NBayes(X, y, lmetricResults, sfeatClass):
     # 'f1_micro': make_scorer(f1_score, average="micro"),
     # 'f1_macro': make_scorer(f1_score, average="macro")}
     
-    cv = LeaveOneOut() 
+    cv = StratifiedKFold(n_splits=10)
 
     crossValidation(X, y, cv, gnb, lmetricResults, sfeatClass)
     # Calculate cross-validation scores for both accuracy and F1
@@ -2468,7 +2522,7 @@ def main(argv):
 
         if args.naivebayes:
             message("Naive Bayes on feature vectors and tumor stages")
-            NBayes(X, y, metricResults, "RNV_FeatureV_TumorStage")  
+            NBayes(X, y, metricResults, "NV_FeatureV_TumorStage")  
 
         if args.stratifieddummyclf:  
             message("Stratified Dummy Classifier on feature vectors and tumor stages")
