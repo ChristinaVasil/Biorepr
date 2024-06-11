@@ -25,7 +25,7 @@ from networkx.drawing.nx_agraph import graphviz_layout
 from networkx.drawing.nx_pydot import write_dot
 import logging
 from threading import Thread, Lock
-from scipy.stats import pearsonr
+from scipy.stats import pearsonr, wilcoxon
 
 # WARNING: This line is important for 3d plotting. DO NOT REMOVE
 from mpl_toolkits.mplot3d import Axes3D
@@ -42,7 +42,7 @@ from sklearn.naive_bayes import GaussianNB
 #from sklearn.model_selection import cross_val_score
 from sklearn.preprocessing import QuantileTransformer, MinMaxScaler, StandardScaler
 from sklearn.metrics import make_scorer, accuracy_score, f1_score, confusion_matrix, ConfusionMatrixDisplay 
-from sklearn.model_selection import StratifiedKFold, cross_val_score, cross_validate, LeaveOneOut
+from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit, cross_val_score, cross_validate, LeaveOneOut
 from sklearn.neural_network import MLPClassifier
 import xgboost as xgb
 import tensorflow as tf  
@@ -921,13 +921,14 @@ def filterTumorStage(mFeatures, mgraphsFeatures, vTumorStage, vClass, sampleIDs)
     ###################
     return mSelectedFeatures, mSelectedGraphFeatures, sselectedTumorStage
 
-def kneighbors(X, y, lmetricResults, sfeatClass):
+def kneighbors(X, y, lmetricResults, sfeatClass, F1macroResults):
     """
     Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
     :param X: The feature vector matrix.
     :param y: The labels.
     :param lmetricResults: list for the results of performance metrics.
     :param sfeatClass: string/information about the ML model, the features and data labels 
+    :param F1macroResults: dictionary for the F1-macro results for wilcoxon test
     """
     neigh = KNeighborsClassifier(n_neighbors=1)
     
@@ -937,8 +938,7 @@ def kneighbors(X, y, lmetricResults, sfeatClass):
     # 'f1_macro': make_scorer(f1_score, average="macro")}
     
     cv = StratifiedKFold(n_splits=10)
-
-    crossValidation(X, y, cv, neigh, lmetricResults, sfeatClass)
+    crossValidation(X, y, cv, neigh, lmetricResults, sfeatClass, F1macroResults)
     # Calculate cross-validation scores for both accuracy and F1
     # scores = cross_validate(neigh, X, y, cv=cv, scoring=scoring)
     
@@ -1884,63 +1884,63 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
 #     graph = graphviz.Source(dot_data)
 #     graph.render("Rules")
 
-def classify(X, y, lmetricResults, sfeatClass):
+def classify(X, y, lmetricResults, sfeatClass, F1macroResults):
     """
     Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
     :param X: The feature vector matrix.
     :param y: The labels.
     :param lmetricResults: list for the results of performance metrics.
     :param sfeatClass: string/information about the ML model, the features and data labels 
+    :param F1macroResults: dictionary for the F1-macro results for wilcoxon test
     """
 
     classifier = DecisionTreeClassifier(class_weight="balanced")
     
-    # loo = LeaveOneOut() 
     cv = StratifiedKFold(n_splits=10)
-    crossValidation(X, y, cv, classifier, lmetricResults, sfeatClass)
+    crossValidation(X, y, cv, classifier, lmetricResults, sfeatClass, F1macroResults)
 
 
-def stratifiedDummyClf(X, y, lmetricResults, sfeatClass):
+def stratifiedDummyClf(X, y, lmetricResults, sfeatClass, F1macroResults):
     """
     Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
     :param X: The feature vector matrix.
     :param y: The labels.
     :param lmetricResults: list for the results of performance metrics.
-    :param sfeatClass: string/information about the ML model, the features and data labels 
+    :param sfeatClass: string/information about the ML model, the features and data labels
+    :param F1macroResults: dictionary for the F1-macro results for wilcoxon test 
     """
     dummy_clf = DummyClassifier(strategy="stratified")
     
     cv = StratifiedKFold(n_splits=10)
+    crossValidation(X, y, cv, dummy_clf, lmetricResults, sfeatClass, F1macroResults)
 
-    crossValidation(X, y, cv, dummy_clf, lmetricResults, sfeatClass)
-
-def mostFrequentDummyClf(X, y, lmetricResults, sfeatClass):
+def mostFrequentDummyClf(X, y, lmetricResults, sfeatClass, F1macroResults):
     """
     Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
     :param X: The feature vector matrix.
     :param y: The labels.
     :param lmetricResults: list for the results of performance metrics.
-    :param sfeatClass: string/information about the ML model, the features and data labels 
+    :param sfeatClass: string/information about the ML model, the features and data labels
+    :param F1macroResults: dictionary for the F1-macro results for wilcoxon test 
     """
     dummy_clf = DummyClassifier(strategy="most_frequent")
     
     cv = StratifiedKFold(n_splits=10)
+    crossValidation(X, y, cv, dummy_clf, lmetricResults, sfeatClass, F1macroResults)
 
-    crossValidation(X, y, cv, dummy_clf, lmetricResults, sfeatClass)
-
-def mlpClassifier(X, y, lmetricResults, sfeatClass):
+def mlpClassifier(X, y, lmetricResults, sfeatClass, F1macroResults):
     """
     Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
     :param X: The feature vector matrix.
     :param y: The labels.
     :param lmetricResults: list for the results of performance metrics.
     :param sfeatClass: string/information about the ML model, the features and data labels 
+    :param F1macroResults: dictionary for the F1-macro results for wilcoxon test
     """
     clf = MLPClassifier(max_iter=300)
 
     cv = StratifiedKFold(n_splits=10)
-
-    crossValidation(X, y, cv, clf, lmetricResults, sfeatClass)
+    crossValidation(X, y, cv, clf, lmetricResults, sfeatClass, F1macroResults)
     
 
 # def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
@@ -2005,7 +2005,7 @@ def mlpClassifier(X, y, lmetricResults, sfeatClass):
     # message("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (f1_micro, np.std(f1_micro_per_fold), sem_f1_micro, str(f1_micro_per_fold)))
     # message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (f1_macro, np.std(f1_macro_per_fold), sem_f1_macro, str(f1_macro_per_fold)))
 
-def crossValidation(X, y, cv, model, lmetricResults, sfeatClass): 
+def crossValidation(X, y, cv, model, lmetricResults, sfeatClass, F1macroResults): 
     """
     Performs the cross validation and save the metrics per iteration, computes the overall matrics and plot the confusion matrix
     :param X: The feature vector matrix.
@@ -2013,6 +2013,7 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
     :param cv: the fold that were created from cross validation
     :param lmetricResults: list for the results of performance metrics.
     :param sfeatClass: string/information about the ML model, the features and data labels 
+    :param F1macroResults: dictionary for the F1-macro results for wilcoxon test
     """
     # Initialize lists to store metrics per fold
     accuracy_per_fold = []
@@ -2024,7 +2025,7 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
     for train_index, test_index in cv.split(X, y):
         X_train, X_test = X[train_index], X[test_index]
         y_train, y_test = y[train_index], y[test_index]
-        
+       
         final_y.extend(y_test)
 
         # Fit the classifier on the training data
@@ -2050,9 +2051,12 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
     sem_f1_micro = np.std(f1_micro_per_fold) / np.sqrt(len(f1_micro_per_fold))
     sem_f1_macro = np.std(f1_macro_per_fold) / np.sqrt(len(f1_macro_per_fold))  
 
-    message("Avg. Accuracy: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(accuracy_per_fold), np.std(accuracy_per_fold), sem_accuracy, str(accuracy_per_fold)))
-    message("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(f1_micro_per_fold), np.std(f1_micro_per_fold), sem_f1_micro, str(f1_micro_per_fold)))
-    message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(f1_macro_per_fold), np.std(f1_macro_per_fold), sem_f1_macro, str(f1_macro_per_fold)))
+    message("Avg. Accuracy: %4.2f (st. dev. %4.2f, sem %4.2f)" % (np.mean(accuracy_per_fold), np.std(accuracy_per_fold), sem_accuracy))#\n %s      , str(accuracy_per_fold)
+    message("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f)" % (np.mean(f1_micro_per_fold), np.std(f1_micro_per_fold), sem_f1_micro))# \n %s     , str(f1_micro_per_fold)
+    message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f)\n %s" % (np.mean(f1_macro_per_fold), np.std(f1_macro_per_fold), sem_f1_macro, str(f1_macro_per_fold)))# \n %s     , str(f1_macro_per_fold)
+    
+    F1macroResults[sfeatClass]=f1_macro_per_fold
+
     cm = confusion_matrix(final_y, final_y_pred)
     print(cm)
     disp = ConfusionMatrixDisplay(confusion_matrix=cm)
@@ -2062,13 +2066,14 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
 
     lmetricResults.append([sfeatClass, np.mean(accuracy_per_fold), sem_accuracy, np.mean(f1_micro_per_fold), sem_f1_micro, np.mean(f1_macro_per_fold), sem_f1_macro])
 
-def xgboost(X, y, lmetricResults, sfeatClass):
+def xgboost(X, y, lmetricResults, sfeatClass, F1macroResults):
     """
     Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
     :param X: The feature vector matrix.
     :param y: The labels.
     :param lmetricResults: list for the results of performance metrics.
     :param sfeatClass: string/information about the ML model, the features and data labels 
+    :param F1macroResults: dictionary for the F1-macro results for wilcoxon test
     """
     model = xgb.XGBClassifier()
     
@@ -2078,8 +2083,7 @@ def xgboost(X, y, lmetricResults, sfeatClass):
     # 'f1_macro': make_scorer(f1_score, average="macro")}
     
     cv = StratifiedKFold(n_splits=10)
-
-    crossValidation(X, y, cv, model, lmetricResults, sfeatClass)
+    crossValidation(X, y, cv, model, lmetricResults, sfeatClass, F1macroResults)
 
     # # Calculate cross-validation scores for both accuracy and F1
     # scores = cross_validate(model, X, y, cv=cv, scoring=scoring)
@@ -2097,13 +2101,14 @@ def xgboost(X, y, lmetricResults, sfeatClass):
     #                   np.mean(scores['test_f1_macro']), sem_f1_macro])
 
 
-def RandomForest(X, y, lmetricResults, sfeatClass):
+def RandomForest(X, y, lmetricResults, sfeatClass, F1macroResults):
     """
     Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
     :param X: The feature vector matrix.
     :param y: The labels.
     :param lmetricResults: list for the results of performance metrics.
     :param sfeatClass: string/information about the ML model, the features and data labels 
+    :param F1macroResults: dictionary for the F1-macro results for wilcoxon test
     """
     clf = RandomForestClassifier(class_weight = "balanced")
     
@@ -2113,8 +2118,7 @@ def RandomForest(X, y, lmetricResults, sfeatClass):
     # 'f1_macro': make_scorer(f1_score, average="macro")}
     
     cv = StratifiedKFold(n_splits=10) 
-
-    crossValidation(X, y, cv, clf, lmetricResults, sfeatClass)
+    crossValidation(X, y, cv, clf, lmetricResults, sfeatClass, F1macroResults)
     # Calculate cross-validation scores for both accuracy and F1
     # scores = cross_validate(clf, X, y, cv=cv, scoring=scoring)
     
@@ -2130,13 +2134,14 @@ def RandomForest(X, y, lmetricResults, sfeatClass):
     # lmetricResults.append([sfeatClass, np.mean(scores['test_accuracy']), sem_accuracy, np.mean(scores['test_f1_micro']), sem_f1_micro, 
     #                   np.mean(scores['test_f1_macro']), sem_f1_macro])
 
-def NBayes(X, y, lmetricResults, sfeatClass):
+def NBayes(X, y, lmetricResults, sfeatClass, F1macroResults):
     """
     Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
     :param X: The feature vector matrix.
     :param y: The labels.
     :param lmetricResults: list for the results of performance metrics.
     :param sfeatClass: string/information about the ML model, the features and data labels 
+    :param F1macroResults: dictionary for the F1-macro results for wilcoxon test
     """
     gnb = GaussianNB()
     
@@ -2146,8 +2151,7 @@ def NBayes(X, y, lmetricResults, sfeatClass):
     # 'f1_macro': make_scorer(f1_score, average="macro")}
     
     cv = StratifiedKFold(n_splits=10)
-
-    crossValidation(X, y, cv, gnb, lmetricResults, sfeatClass)
+    crossValidation(X, y, cv, gnb, lmetricResults, sfeatClass, F1macroResults)
     # Calculate cross-validation scores for both accuracy and F1
     # scores = cross_validate(gnb, X, y, cv=cv, scoring=scoring)
     
@@ -2240,6 +2244,26 @@ def getDegs():
     fUsefulFeatureNames.close()
     return saUsefulFeatureNames
 
+def wilcoxonTests(metricsResults):
+    """
+    Function that performs wilcoxon test for each pair of ML models F1-macro results
+    :param metricsResults: dictionary with the F1-macro results
+    """
+    keys = list(metricsResults.keys())
+    n = len(keys)
+    
+    for i in range(n):
+        for j in range(i + 1, n):
+            key1 = keys[i]
+            key2 = keys[j]
+            data1 = metricsResults[key1]
+            data2 = metricsResults[key2]
+            
+            stat, p = wilcoxon(data1, data2)
+            
+            print(f"Wilcoxon test between {key1} and {key2}:")
+            print(f"Statistic: {stat}, p-value: {p}\n")
+
 
 def main(argv):
     # Init arguments
@@ -2298,6 +2322,10 @@ def main(argv):
     # Multithreading: NOT suggested for now
     global THREADS_TO_USE
     parser.add_argument("-t", "--numberOfThreads", type=int, default=THREADS_TO_USE)
+
+    # Statistical test
+    parser.add_argument("-wilc", "--wilcoxonTest", action="store_true", default=False)
+    parser.add_argument("-rwr", "--resetWilcoxonResults", action="store_true", default=False)
 
     args = parser.parse_args(argv)
 
@@ -2387,156 +2415,179 @@ def main(argv):
     
     metricResults =[]
 
+    if args.resetWilcoxonResults:
+        F1macroResults = {}
+        message("Loading F1-macro results for wilcoxon...Failed.")
+    
+    else:   
+        if os.path.exists("wilcoxon_results.pkl"):
+            # Load file with the F1-macro results
+            with open("wilcoxon_results.pkl", 'rb') as f:
+                F1macroResults = pickle.load(f)
+                message("Loading F1-macro results for wilcoxon...Done.")
+        else:
+            F1macroResults = {}
+            message("Loading F1-macro results for wilcoxon...Failed.")
+    
+        
+
     if args.classes and args.graphFeatures:
         # Extract class vector for colors
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
             
         if args.decisionTree:
             message("Decision tree on graph feature vectors and classes")
-            classify(mGraphFeatures, y, metricResults, "DT_GFeatures_Class")
+            classify(mGraphFeatures, y, metricResults, "DT_GFeatures_Class", F1macroResults)
         
         if args.kneighbors:
             message("KNN on graph feature vectors and classes")
-            kneighbors(mGraphFeatures, y, metricResults, "kNN_GFeatures_Class")
+            kneighbors(mGraphFeatures, y, metricResults, "kNN_GFeatures_Class", F1macroResults)
 
         if args.xgboost:
             message("XGBoost on graph feature vectors and classes")
-            xgboost(mGraphFeatures, y, metricResults, "XGB_GFeatures_Class")
+            xgboost(mGraphFeatures, y, metricResults, "XGB_GFeatures_Class", F1macroResults)
 
         if args.randomforest:
             message("Random Forest on graph feature vectors and classes")
-            RandomForest(mGraphFeatures, y, metricResults, "RF_GFeatures_Class")
+            RandomForest(mGraphFeatures, y, metricResults, "RF_GFeatures_Class", F1macroResults)
 
         if args.naivebayes:
             message("Naive Bayes on graph feature vectors and classes")
-            NBayes(mGraphFeatures, y, metricResults, "NV_GFeatures_Class")
+            NBayes(mGraphFeatures, y, metricResults, "NV_GFeatures_Class", F1macroResults)
 
         if args.stratifieddummyclf: 
             message("Stratified Dummy Classifier on graph feature vectors and classes")
-            stratifiedDummyClf(mGraphFeatures, y, metricResults, "StratDummy_GFeatures_Class") 
+            stratifiedDummyClf(mGraphFeatures, y, metricResults, "StratDummy_GFeatures_Class", F1macroResults) 
         
         if args.mostfrequentdummyclf:
             message("Most frequent Dummy Classifier on graph feature vectors and classes")
-            mostFrequentDummyClf(mGraphFeatures, y, metricResults, "MFDummy_GFeatures_Class")
+            mostFrequentDummyClf(mGraphFeatures, y, metricResults, "MFDummy_GFeatures_Class", F1macroResults)
         
         if args.mlpClassifier:
             message("MLP Classifier on graph feature vectors and classes")
-            mlpClassifier(mGraphFeatures, y, metricResults, "MLP_GFeatures_Class")
+            mlpClassifier(mGraphFeatures, y, metricResults, "MLP_GFeatures_Class", F1macroResults)
 
 
     if args.classes and args.featurevectors:
-        X, pca3D = getPCA(mFeatures_noNaNs, 5)
+        # Extract class vector for colors
+        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+        X, pca3D = getPCA(mFeatures_noNaNs, 100)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
         if args.decisionTree:
             message("Decision tree on feature vectors and classes")
-            classify(X, y, metricResults, "DT_FeatureV_Class")
+            classify(X, y, metricResults, "DT_FeatureV_Class", F1macroResults)
 
         if args.kneighbors:
             message("KNN on feature vectors and classes")
-            kneighbors(X, y, metricResults, "kNN_FeatureV_Class")
+            kneighbors(X, y, metricResults, "kNN_FeatureV_Class", F1macroResults)
 
         if args.xgboost:
             message("XGBoost on feature vectors and classes")
-            xgboost(X, y, metricResults, "XGB_FeatureV_Class")
+            xgboost(X, y, metricResults, "XGB_FeatureV_Class", F1macroResults)
 
         if args.randomforest:
             message("Random Forest on feature vectors and classes")
-            RandomForest(X, y, metricResults, "RF_FeatureV_Class")
+            RandomForest(X, y, metricResults, "RF_FeatureV_Class", F1macroResults)
 
         if args.naivebayes:
             message("Naive Bayes on feature vectors and classes")
-            NBayes(X, y, metricResults, "NV_FeatureV_Class")
+            NBayes(X, y, metricResults, "NV_FeatureV_Class", F1macroResults)
 
         if args.stratifieddummyclf:  
             message("Stratified Dummy Classifier on feature vectors and classes")
-            stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_Class")
+            stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_Class", F1macroResults)
 
         if args.mostfrequentdummyclf:
             message("Most frequent Dummy Classifier on feature vectors and classes")
-            mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_Class")
+            mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_Class", F1macroResults)
         
         if args.mlpClassifier:
             message("MLP Classifier on feature vectors and classes")
-            mlpClassifier(X, y, metricResults, "MLP_FeatureV_Class")
+            mlpClassifier(X, y, metricResults, "MLP_FeatureV_Class", F1macroResults)
 
     if args.tumorStage and args.graphFeatures:
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
         if args.decisionTree:
             message("Decision tree on graph feature vectors and tumor stages")
-            classify(filteredGraphFeatures, y, metricResults, "DT_GFeatures_TumorStage")
+            classify(filteredGraphFeatures, y, metricResults, "DT_GFeatures_TumorStage", F1macroResults)
         
         if args.kneighbors:
             message("KNN on graph feature vectors and tumor stages")
-            kneighbors(filteredGraphFeatures, y, metricResults, "kNN_GFeatures_TumorStage")
+            kneighbors(filteredGraphFeatures, y, metricResults, "kNN_GFeatures_TumorStage", F1macroResults)
 
         if args.xgboost:
             message("XGBoost on graph feature vectors and tumor stages")
-            xgboost(filteredGraphFeatures, y, metricResults, "XGB_GFeatures_TumorStage")
+            xgboost(filteredGraphFeatures, y, metricResults, "XGB_GFeatures_TumorStage", F1macroResults)
 
         if args.randomforest:
             message("Random Forest on graph feature vectors and tumor stages")
-            RandomForest(filteredGraphFeatures, y, metricResults, "RF_GFeatures_TumorStage")
+            RandomForest(filteredGraphFeatures, y, metricResults, "RF_GFeatures_TumorStage", F1macroResults)
         
         if args.naivebayes:
             message("Naive Bayes on graph feature vectors and tumor stages")
-            NBayes(filteredGraphFeatures, y, metricResults, "NV_GFeatures_TumorStage")
+            NBayes(filteredGraphFeatures, y, metricResults, "NV_GFeatures_TumorStage", F1macroResults)
 
         if args.stratifieddummyclf:  
             message("Stratified Dummy Classifier on graph feature vectors and tumor stages")
-            stratifiedDummyClf(filteredGraphFeatures, y, metricResults, "StratDummy_GFeatures_TumorStage")
+            stratifiedDummyClf(filteredGraphFeatures, y, metricResults, "StratDummy_GFeatures_TumorStage", F1macroResults)
 
         if args.mostfrequentdummyclf:
             message("Most frequent Dummy Classifier on graph feature vectors and tumor stages")
-            mostFrequentDummyClf(filteredGraphFeatures, y, metricResults, "MFDummy_GFeatures_TumorStage")
+            mostFrequentDummyClf(filteredGraphFeatures, y, metricResults, "MFDummy_GFeatures_TumorStage", F1macroResults)
         
         if args.mlpClassifier:
             message("MLP Classifier on graph feature vectors and tumor stages")
-            mlpClassifier(filteredGraphFeatures, y, metricResults, "MLP_GFeatures_TumorStage")
+            mlpClassifier(filteredGraphFeatures, y, metricResults, "MLP_GFeatures_TumorStage", F1macroResults)
 
         
     if args.tumorStage and args.featurevectors:
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
-        X, pca3D = getPCA(filteredFeatures, 5)
+        X, pca3D = getPCA(filteredFeatures, 100)
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
         if args.decisionTree:
             message("Decision tree on feature vectors and tumor stages")
-            classify(X, y, metricResults, "DT_FeatureV_TumorStage")
+            classify(X, y, metricResults, "DT_FeatureV_TumorStage", F1macroResults)
 
         if args.kneighbors:
             message("KNN on feature vectors and tumor stages")
-            kneighbors(X, y, metricResults, "kNN_FeatureV_TumorStage")
+            kneighbors(X, y, metricResults, "kNN_FeatureV_TumorStage", F1macroResults)
 
         if args.xgboost:
             message("XGBoost on feature vectors and tumor stages")
-            xgboost(X, y, metricResults, "XGB_FeatureV_TumorStage")
+            xgboost(X, y, metricResults, "XGB_FeatureV_TumorStage", F1macroResults)
 
         if args.randomforest:
             message("Random Forest on feature vectors and tumor stages")
-            RandomForest(X, y, metricResults, "RF_FeatureV_TumorStage")
+            RandomForest(X, y, metricResults, "RF_FeatureV_TumorStage", F1macroResults)
 
         if args.naivebayes:
             message("Naive Bayes on feature vectors and tumor stages")
-            NBayes(X, y, metricResults, "NV_FeatureV_TumorStage")  
+            NBayes(X, y, metricResults, "NV_FeatureV_TumorStage", F1macroResults)  
 
         if args.stratifieddummyclf:  
             message("Stratified Dummy Classifier on feature vectors and tumor stages")
-            stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_TumorStage")
+            stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_TumorStage", F1macroResults)
         
         if args.mostfrequentdummyclf:
             message("Most frequent Dummy Classifier on feature vectors and tumor stages")
-            mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_TumorStage")
+            mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_TumorStage", F1macroResults)
     
         if args.mlpClassifier:
             message("MLP Classifier on feature vectors and tumor stages")
-            mlpClassifier(X, y, metricResults, "MLP_FeatureV_TumorStage")
+            mlpClassifier(X, y, metricResults, "MLP_FeatureV_TumorStage", F1macroResults)
     
-    
+    # Save pickle file with the F1-macro results for wilcoxon test
+    with open("wilcoxon_results.pkl", 'wb') as f:
+        pickle.dump(F1macroResults, f)
+
+    if args.wilcoxonTest:
+        wilcoxonTests(F1macroResults)
 
     # end of main function
     metricsdf = pd.DataFrame(metricResults, columns=['Method', 'Mean_Accuracy', "SEM_Accuracy", 'Mean_F1_micro', "SEM_F1_micro", 'Mean_F1_macro', "SEM_F1_macro"])
