@@ -2284,6 +2284,9 @@ def main(argv):
     parser.add_argument("-ls", "--logScale", action="store_true", default=False)
     parser.add_argument("-stdf", "--stdevFiltering", action="store_true", default=False)
 
+    # Post-processing graph features
+    parser.add_argument("-scalDeact", "--scalingDeactivation", action="store_false", default=True)
+
     # Exploratory analysis plots
     parser.add_argument("-expan", "--exploratoryAnalysis", action="store_true", default=False)
 
@@ -2375,18 +2378,24 @@ def main(argv):
                                             bResetFeatures=args.resetFeatures,
                                             numOfSelectedSamples=args.numberOfInstances, bShowGraphs=args.showGraphs, 
                                             bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
-        
-        mGraphFeatures = graphVectorPreprocessing(mGraphFeatures)
         #DEBUG LINES
         message("mGraphFeatures: ")
         message(mGraphFeatures)
         ##############
+        # if args.tumorStage:
+        #     filteredFeatures, filteredGraphFeatures, filteredTumorStage = filterTumorStage(mFeatures_noNaNs, mGraphFeatures, vSelectedtumorStage, vClass, sampleIDs)
+        #     if args.scalingDeactivation:
+        #         filteredGraphFeatures = graphVectorPreprocessing(filteredGraphFeatures)
 
-        #DEBUG LINES
-        message("Max per column: " + str(mGraphFeatures.max(axis=0)))
-        message("Min per column: " + str(mGraphFeatures.min(axis=0)))
-        message(mGraphFeatures)
-        ##################
+        # if args.scalingDeactivation:
+        #     mGraphFeatures = graphVectorPreprocessing(mGraphFeatures)
+        
+
+        # #DEBUG LINES
+        # message("Max per column: " + str(mGraphFeatures.max(axis=0)))
+        # message("Min per column: " + str(mGraphFeatures.min(axis=0)))
+        # message(mGraphFeatures)
+        # ##################
 
         # Get selected instance classes
     if args.autoencoder:
@@ -2410,9 +2419,27 @@ def main(argv):
         if args.tumorStage:
             vSelectedtumorStage = np.concatenate((vtumorStage[0:int(args.numberOfInstances / 2)][:], vtumorStage[-int(args.numberOfInstances / 2):][:]), axis=0)
     
-    if args.tumorStage:
+    if args.graphFeatures and args.tumorStage:
         filteredFeatures, filteredGraphFeatures, filteredTumorStage = filterTumorStage(mFeatures_noNaNs, mGraphFeatures, vSelectedtumorStage, vClass, sampleIDs)
-    
+        if args.scalingDeactivation:
+            filteredGraphFeatures = graphVectorPreprocessing(filteredGraphFeatures)
+            #DEBUG LINES
+            message("Graph features for tumor stage")
+            message("Max per column: " + str(filteredGraphFeatures.max(axis=0)))
+            message("Min per column: " + str(filteredGraphFeatures.min(axis=0)))
+            message(filteredGraphFeatures)
+            ##################
+
+    if args.scalingDeactivation:
+        mGraphFeatures = graphVectorPreprocessing(mGraphFeatures)
+        
+        #DEBUG LINES
+        message("Graph features for classes")
+        message("Max per column: " + str(mGraphFeatures.max(axis=0)))
+        message("Min per column: " + str(mGraphFeatures.min(axis=0)))
+        message(mGraphFeatures)
+        ##################
+
     metricResults =[]
 
     if args.resetWilcoxonResults:
