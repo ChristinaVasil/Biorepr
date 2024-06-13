@@ -59,6 +59,7 @@ THREADS_TO_USE = mp.cpu_count()  # Init to all CPUs
 FEATURE_VECTOR_FILENAME = "/home/thlamp/tcga/bladder_results/normalized_data_integrated_matrix.txt"
 os.chdir("/home/thlamp/scripts")
 lock = Lock()
+mpl_lock = Lock()
 
 def progress(s):
     sys.stdout.write("%s" % (str(s)))
@@ -1470,13 +1471,13 @@ def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bP
                                                          bNormalize=bNormalize, bNormalizeLog2Scale=bNormalizeLog2Scale)
     gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=dEdgeThreshold, bResetGraph=bResetGraph, stdevFeatSelection=stdevFeatSelection)
     
-    if bShow or bSave:
-        drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = bShow, bSave = bSave)
+    # if bShow or bSave:
+    #     drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = bShow, bSave = bSave)
 
     return gToDraw, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names, tumor_stage
 
 
-def drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = True, bSave = True):
+def drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph",bShow = True, bSave = True):
     
     """
     Draws and displays a given graph, by using graphviz.
@@ -1514,8 +1515,8 @@ def drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = True, bSave =
     if bSave:
         message("Saving graph to file...")
         try:
-            write_dot(gToDraw, 'corrGraph.dot')
-            plt.savefig(sPDFFileName, bbox_inches='tight')## bbox_inches='tight': This parameter adjusts the bounding box around the saved figure. The argument 'tight' is used to minimize the whitespace around the actual content of the figure
+            write_dot(gToDraw, sPDFFileName + '.dot')
+            plt.savefig(sPDFFileName + ".pdf", bbox_inches='tight')## bbox_inches='tight': This parameter adjusts the bounding box around the saved figure. The argument 'tight' is used to minimize the whitespace around the actual content of the figure
             # plt.savefig(sPDFFileName)
             message("Saving graph to file... Done.")
         except Exception as e:
@@ -1757,6 +1758,9 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
 
     # Init result list
     lResList = []
+    graphList = []
+    # Counter for the specific sampleID suffix
+    saveCounter = {"11A": 0, "01A": 0} 
     
     
     threads = [Thread(target=getSampleGraphFeatureVector, args=(i, qTasks,bShowGraphs, bSaveGraphs,)) for i in range(num_worker_threads)]
@@ -1766,13 +1770,17 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     
     # Add all items to queue
     for idx in range (np.shape(mAllSamples)[0]):
-        qTasks.put((sampleIDs[idx], lResList, gMainGraph, mAllSamples[idx, :], saRemainingFeatureNames, feat_names, next(iCnt), iAllCount, dStartTime))
+        qTasks.put((sampleIDs[idx], lResList, gMainGraph, mAllSamples[idx, :], saRemainingFeatureNames, feat_names, next(iCnt), iAllCount, dStartTime, saveCounter, graphList))
     
     message("Waiting for completion...")
     
     qTasks.join() 
 
     message("Total time (sec): %4.2f" % (perf_counter() - dStartTime))
+
+    # Plot and save the collected graphs
+    for gMainGraph, sPDFFileName in graphList:
+        drawAndSaveGraph(gMainGraph, sPDFFileName, bShowGraphs, bSaveGraphs)
 
     return np.array(lResList)
 
@@ -1807,7 +1815,7 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
             message("Waited long enough. Reached and of queue... Stopping.")
             break
         
-        sampleID, lResList, gMainGraph, mSample, saRemainingFeatureNames, feat_names, iCnt, iAllCount, dStartTime = params
+        sampleID, lResList, gMainGraph, mSample, saRemainingFeatureNames, feat_names, iCnt, iAllCount, dStartTime, saveCounter, graphList = params
            
         # DEBUG LINES  
         message("Working on instance %d of %d..." % (iCnt, iAllCount))
@@ -1825,6 +1833,21 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
         # Extract and return features
         vGraphFeatures = getGraphVector(gMainGraph)
         
+        #DEBUG LINES
+        message("sample id: "+sampleID)
+        ###################
+        # Save or show the graph if required
+        if sampleID.endswith("01A") or sampleID.endswith("11A"):
+            suffix = sampleID[-3:]  # Extract the suffix (last 3 characters)
+            if saveCounter[suffix] < 3:
+                saveCounter[suffix] += 1
+                with lock:
+                    graphList.append((gMainGraph, "graph_" + sampleID))
+                    #DEBUG LINES
+                    message(str(graphList))
+                    ###################
+
+
         #DEBUGLINES
         #message("Calling drawAndSaveGraph for graph %s..."%(str(sampleID)))
         #if not exists("/home/thlamp/scripts/testcorrSample.pdf"):
@@ -2388,7 +2411,7 @@ def main(argv):
                                                                                     bNormalizeLog2Scale=args.logScale,
                                                                                     bShow = args.showGraphs, bSave = args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
     #DEBUG LINES 
-    print(vClass)
+    print(sampleIDs)
     ################
     if args.exploratoryAnalysis:
         #plotDistributions(mFeatures_noNaNs, feat_names)
