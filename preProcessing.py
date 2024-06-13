@@ -904,6 +904,7 @@ def filterTumorStage(mFeatures, mgraphsFeatures, vTumorStage, vClass, sampleIDs)
     mSelectedFeatures = np.delete(mFeatures, combinedIndex, 0)
     mSelectedGraphFeatures = np.delete(mgraphsFeatures, combinedIndex, 0)
     sselectedTumorStage = np.delete(vTumorStage, combinedIndex, 0)
+    selectedvClass = np.delete(vClass, combinedIndex, 0)
 
     # DEBUG LINES
     message("Zero indices")
@@ -919,7 +920,7 @@ def filterTumorStage(mFeatures, mgraphsFeatures, vTumorStage, vClass, sampleIDs)
     message("Shape of tumor stage:")
     message(np.shape(sselectedTumorStage))
     ###################
-    return mSelectedFeatures, mSelectedGraphFeatures, sselectedTumorStage
+    return mSelectedFeatures, mSelectedGraphFeatures, sselectedTumorStage, selectedvClass
 
 def kneighbors(X, y, lmetricResults, sfeatClass, F1macroResults):
     """
@@ -2264,6 +2265,41 @@ def wilcoxonTests(metricsResults):
             print(f"Wilcoxon test between {key1} and {key2}:")
             print(f"Statistic: {stat}, p-value: {p}\n")
 
+def scalingPerClass(matrix, classes):
+    # Separate the matrix into two sub-matrices based on class labels
+    matrix_class_0 = matrix[classes == "1"]
+    matrix_class_1 = matrix[classes == "2"]
+
+    # Initialize the StandardScaler
+    scaler_0 = StandardScaler()
+    scaler_1 = StandardScaler()
+
+    # Scale each sub-matrix
+    scaled_matrix_class_0 = scaler_0.fit_transform(matrix_class_0)
+    # DEBUG LINES
+    message("Shape of non control matrix in scaling: " + str(np.shape(scaled_matrix_class_0)))
+    ###########
+    scaled_matrix_class_1 = scaler_1.fit_transform(matrix_class_1)
+    # DEBUG LINES
+    message("Shape of control matrix in scaling: " + str(np.shape(scaled_matrix_class_1)))
+    ###########
+
+    # Combine the scaled sub-matrices back into the original positions
+    scaled_matrix = np.zeros_like(matrix, dtype=float)
+    
+    scaled_matrix[classes == "1"] = scaled_matrix_class_0
+    scaled_matrix[classes == "2"] = scaled_matrix_class_1
+
+    # search for columns that have only 0
+    res = np.all(scaled_matrix == 0, axis = 0)
+    # keep the indices from the columns except from these with only 0
+    resIndex = np.where(~res)[0]
+    #DEBUG LINES
+    print(resIndex)
+    ############
+    # remove the columns that have only 0 from the graph matrix
+    scaled_matrix = scaled_matrix[:, resIndex]
+    return scaled_matrix
 
 def main(argv):
     # Init arguments
@@ -2286,6 +2322,7 @@ def main(argv):
 
     # Post-processing graph features
     parser.add_argument("-scalDeact", "--scalingDeactivation", action="store_false", default=True)
+    parser.add_argument("-scalCls", "--scalingClass", action="store_true", default=False)
 
     # Exploratory analysis plots
     parser.add_argument("-expan", "--exploratoryAnalysis", action="store_true", default=False)
@@ -2420,21 +2457,30 @@ def main(argv):
             vSelectedtumorStage = np.concatenate((vtumorStage[0:int(args.numberOfInstances / 2)][:], vtumorStage[-int(args.numberOfInstances / 2):][:]), axis=0)
     
     if args.graphFeatures and args.tumorStage:
-        filteredFeatures, filteredGraphFeatures, filteredTumorStage = filterTumorStage(mFeatures_noNaNs, mGraphFeatures, vSelectedtumorStage, vClass, sampleIDs)
-        if args.scalingDeactivation:
-            filteredGraphFeatures = graphVectorPreprocessing(filteredGraphFeatures)
-            #DEBUG LINES
-            message("Graph features for tumor stage")
-            message("Max per column: " + str(filteredGraphFeatures.max(axis=0)))
-            message("Min per column: " + str(filteredGraphFeatures.min(axis=0)))
-            message(filteredGraphFeatures)
-            ##################
-
-    if args.scalingDeactivation:
-        mGraphFeatures = graphVectorPreprocessing(mGraphFeatures)
-        
+        filteredFeatures, filteredGraphFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, mGraphFeatures, vSelectedtumorStage, vClass, sampleIDs)
+    
+    if args.tumorStage and args.scalingDeactivation:
+        filteredGraphFeatures = graphVectorPreprocessing(filteredGraphFeatures)
         #DEBUG LINES
-        message("Graph features for classes")
+        message("Graph features for tumor stage with scaling")
+        message("Max per column: " + str(filteredGraphFeatures.max(axis=0)))
+        message("Min per column: " + str(filteredGraphFeatures.min(axis=0)))
+        message(filteredGraphFeatures)
+        ##################
+
+    if args.classes and args.scalingDeactivation and args.scalingClass:
+        mGraphFeatures = scalingPerClass(mGraphFeatures, vSelectedSamplesClasses)
+        #DEBUG LINES
+        message("Graph features for classes with scaling per class")
+        message("Max per column: " + str(mGraphFeatures.max(axis=0)))
+        message("Min per column: " + str(mGraphFeatures.min(axis=0)))
+        message(mGraphFeatures)
+        ##################
+
+    elif args.classes and args.scalingDeactivation:
+        mGraphFeatures = graphVectorPreprocessing(mGraphFeatures)
+        #DEBUG LINES
+        message("Graph features for classes with scaling")
         message("Max per column: " + str(mGraphFeatures.max(axis=0)))
         message("Min per column: " + str(mGraphFeatures.min(axis=0)))
         message(mGraphFeatures)
