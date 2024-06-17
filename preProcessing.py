@@ -226,7 +226,7 @@ def getPCA(mFeatures_noNaNs, n_components=3):
     X = pca.transform(mFeatures_noNaNs)
     return X, pca
 
-def plotExplainedVariance(mFeatures_noNaNs, n_components=3):
+def plotExplainedVariance(mFeatures_noNaNs, n_components=100, featSelection = False):
     """
     Save the cumulative plot for the Explained Variance Ratio of PCA.
     :param mFeatures_noNaNs: The array to analyze.
@@ -243,7 +243,10 @@ def plotExplainedVariance(mFeatures_noNaNs, n_components=3):
     sns.lineplot(x = 'PCs', y = 'Variance', data = PCAdata, marker="o")
     plt.xlabel('Number of Principal Components')
     plt.ylabel('Cumulative Explained Variance Ratio')
-    plt.title('Cumulative Explained Variance Ratio by Principal Components')
+    if featSelection:
+        plt.title('Cumulative Explained Variance Ratio for selected features\n by Principal Components')
+    else:
+        plt.title('Cumulative Explained Variance Ratio for full vector\n by Principal Components')
     plt.show()
     plt.savefig("cumulative.png")
 
@@ -1833,19 +1836,13 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
         # Extract and return features
         vGraphFeatures = getGraphVector(gMainGraph)
         
-        #DEBUG LINES
-        message("sample id: "+sampleID)
-        ###################
         # Save or show the graph if required
         if sampleID.endswith("01A") or sampleID.endswith("11A"):
             suffix = sampleID[-3:]  # Extract the suffix (last 3 characters)
-            if saveCounter[suffix] < 3:
+            if saveCounter[suffix] < 2:
                 saveCounter[suffix] += 1
                 with lock:
                     graphList.append((gMainGraph, "graph_" + sampleID))
-                    #DEBUG LINES
-                    message(str(graphList))
-                    ###################
 
 
         #DEBUGLINES
@@ -2418,9 +2415,9 @@ def main(argv):
 
         #plotSDdistributions(mFeatures_noNaNs, feat_names)
         
-        mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=True, stdevFeatSelection = args.selectFeatsBySD)
+        #mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=True, stdevFeatSelection = args.selectFeatsBySD)
 
-        #plotExplainedVariance(mFeatures_noNaNs, n_components=100)
+        plotExplainedVariance(mFeatures_noNaNs, n_components=100, featSelection = args.stdevFiltering)
 
     # vGraphFeatures = getGraphVector(gMainGraph)
     # print ("Graph feature vector: %s"%(str(vGraphFeatures)))
@@ -2508,6 +2505,20 @@ def main(argv):
         message("Min per column: " + str(mGraphFeatures.min(axis=0)))
         message(mGraphFeatures)
         ##################
+
+    if not args.scalingDeactivation:
+        #DEBUG LINES
+        message("First sample before filtering: " + str(mGraphFeatures[0, :]))
+        ##############
+        # Identify columns where all values are the same
+        columns_to_keep = ~np.all(mGraphFeatures == mGraphFeatures[0, :], axis=0)
+
+        # Remove columns with the same value
+        mGraphFeatures = mGraphFeatures[:, columns_to_keep]
+
+        #DEBUG LINES
+        message("First sample after filtering: " + str(mGraphFeatures[0, :]))
+        ##############
 
     metricResults =[]
 
