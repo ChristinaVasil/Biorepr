@@ -357,7 +357,7 @@ def useAencoder(mFeatures):
     X_encoded = encoder_model.predict(mFeatures)
     return X_encoded
 
-def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bstdevFiltering=False, bNormalize=True, bNormalizeLog2Scale=True):
+def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bstdevFiltering=False, bNormalize=True, bNormalizeLog2Scale=True, nfeat=50):
     """
     Initializes the case/instance feature matrices, also creating intermediate files for faster startup.
 
@@ -439,7 +439,7 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bstdevFil
 
     # the new bPostProcessing removes columns from mFeatures and mControlFeatureMatrix
     if bPostProcessing:
-        mFeatures, sampleIDs, vClass, feat_names, tumor_stage = postProcessFeatures(mFeatures, vClass, sampleIDs, tumor_stage, feat_names, bstdevFiltering=bstdevFiltering)
+        mFeatures, sampleIDs, vClass, feat_names, tumor_stage = postProcessFeatures(mFeatures, vClass, sampleIDs, tumor_stage, feat_names, bstdevFiltering=bstdevFiltering, nfeat=nfeat)
         
     # Update control matrix, taking into account postprocessed data
     mControlFeatureMatrix = getControlFeatureMatrix(mFeatures, vClass)
@@ -454,7 +454,7 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bstdevFil
     return mFeatures, vClass, sampleIDs, feat_names, tumor_stage
 
 
-def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage, featNames, bstdevFiltering = False):
+def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage, featNames, bstdevFiltering = False, nfeat=50):
     """
     Post-processes feature matrix to replace NaNs with control instance feature mean values, and also to remove
     all-NaN columns.
@@ -547,7 +547,7 @@ def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage, featNames, b
     message(mFeatures)
 
     if bstdevFiltering:
-        mFeatures, filtered_features = filteringBySD(filtered_features, mFeatures)
+        mFeatures, filtered_features = filteringBySD(filtered_features, mFeatures, nfeat=nfeat)
         message("mFeatures shape after stdev filtering: " + str(np.shape(mFeatures)))
         message("filtered_features shape after stdev filtering: " + str(np.shape(filtered_features)))
 
@@ -644,7 +644,7 @@ def getOmicLevels(sfeatureNames):
     #########
     return(omicLevels)
 
-def filteringBySD(sfeatureNames, mFeatures):
+def filteringBySD(sfeatureNames, mFeatures, nfeat=50):
     """
     Filters the features by the standard deviation
     :param sfeatureNames: list with the feature names
@@ -662,7 +662,7 @@ def filteringBySD(sfeatureNames, mFeatures):
           
             # get indices of the top 2000 numbers
             topStandardDev = np.argsort(standardDev)[-2000:]
-            graphTopStandardDev = np.argsort(standardDev)[-50:]
+            graphTopStandardDev = np.argsort(standardDev)[-nfeat:]
             # add in every element of the array the first index of the omic level, in order to keep the full matrix indices
             topStandardDev = topStandardDev + indices[0]
             graphTopStandardDev = graphTopStandardDev + indices[0]
@@ -675,7 +675,7 @@ def filteringBySD(sfeatureNames, mFeatures):
 
             # calculate standard deviation for each column
             standardDev = np.std(mFeatures[:, indices[0]:indices[1]], axis=0)
-            graphTopStandardDev = np.argsort(standardDev)[-50:]
+            graphTopStandardDev = np.argsort(standardDev)[-nfeat:]
             graphTopStandardDev = graphTopStandardDev + indices[0]
             graphFilteredIndices.extend(graphTopStandardDev.tolist())
     # for omicLevel, indices in omicLevels.items():
@@ -926,14 +926,14 @@ def filterTumorStage(mFeatures, mgraphsFeatures, vTumorStage, vClass, sampleIDs)
     ###################
     return mSelectedFeatures, mSelectedGraphFeatures, sselectedTumorStage, selectedvClass
 
-def kneighbors(X, y, lmetricResults, sfeatClass, F1macroResults):
+def kneighbors(X, y, lmetricResults, sfeatClass, savedResults):
     """
     Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
     :param X: The feature vector matrix.
     :param y: The labels.
     :param lmetricResults: list for the results of performance metrics.
     :param sfeatClass: string/information about the ML model, the features and data labels 
-    :param F1macroResults: dictionary for the F1-macro results for wilcoxon test
+    :param savedResults: dictionary for the F1-macro results for wilcoxon test
     """
     neigh = KNeighborsClassifier(n_neighbors=1)
     
@@ -943,7 +943,7 @@ def kneighbors(X, y, lmetricResults, sfeatClass, F1macroResults):
     # 'f1_macro': make_scorer(f1_score, average="macro")}
     
     cv = StratifiedKFold(n_splits=10)
-    crossValidation(X, y, cv, neigh, lmetricResults, sfeatClass, F1macroResults)
+    crossValidation(X, y, cv, neigh, lmetricResults, sfeatClass, savedResults)
     # Calculate cross-validation scores for both accuracy and F1
     # scores = cross_validate(neigh, X, y, cv=cv, scoring=scoring)
     
@@ -1173,6 +1173,7 @@ def plotSDdistributions(mFeatures, sfeatureNames):
             
         # x-axis label
         plt.xlabel('log2(Values+1)')
+        #plt.xlabel('Values')
         # frequency label
         plt.ylabel('Counts')
         # plot title
@@ -1452,7 +1453,7 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True,
 
 
 def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bPostProcessing=True, bstdevFiltering=False, bNormalize=True, bNormalizeLog2Scale=True, bShow = False, 
-                    bSave = False, stdevFeatSelection=True): 
+                    bSave = False, stdevFeatSelection=True, nfeat=50): 
     # TODO: dMinDivergenceToKeep: Add as parameter
     """
     Loads the feature correlation graph and all feature data.
@@ -1471,7 +1472,7 @@ def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bP
     """
     # Do mFeatures_noNaNs has all features? Have we applied a threshold to get here?
     mFeatures_noNaNs, vClass, sampleIDs, feat_names, tumor_stage = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=bPostProcessing, bstdevFiltering=bstdevFiltering,
-                                                         bNormalize=bNormalize, bNormalizeLog2Scale=bNormalizeLog2Scale)
+                                                         bNormalize=bNormalize, bNormalizeLog2Scale=bNormalizeLog2Scale, nfeat=nfeat)
     gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=dEdgeThreshold, bResetGraph=bResetGraph, stdevFeatSelection=stdevFeatSelection)
     
     # if bShow or bSave:
@@ -1905,63 +1906,63 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
 #     graph = graphviz.Source(dot_data)
 #     graph.render("Rules")
 
-def classify(X, y, lmetricResults, sfeatClass, F1macroResults):
+def classify(X, y, lmetricResults, sfeatClass, savedResults):
     """
     Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
     :param X: The feature vector matrix.
     :param y: The labels.
     :param lmetricResults: list for the results of performance metrics.
     :param sfeatClass: string/information about the ML model, the features and data labels 
-    :param F1macroResults: dictionary for the F1-macro results for wilcoxon test
+    :param savedResults: dictionary for the F1-macro results for wilcoxon test
     """
 
     classifier = DecisionTreeClassifier(class_weight="balanced")
     
     cv = StratifiedKFold(n_splits=10)
-    crossValidation(X, y, cv, classifier, lmetricResults, sfeatClass, F1macroResults)
+    crossValidation(X, y, cv, classifier, lmetricResults, sfeatClass, savedResults)
 
 
-def stratifiedDummyClf(X, y, lmetricResults, sfeatClass, F1macroResults):
+def stratifiedDummyClf(X, y, lmetricResults, sfeatClass, savedResults):
     """
     Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
     :param X: The feature vector matrix.
     :param y: The labels.
     :param lmetricResults: list for the results of performance metrics.
     :param sfeatClass: string/information about the ML model, the features and data labels
-    :param F1macroResults: dictionary for the F1-macro results for wilcoxon test 
+    :param savedResults: dictionary for the F1-macro results for wilcoxon test 
     """
     dummy_clf = DummyClassifier(strategy="stratified")
     
     cv = StratifiedKFold(n_splits=10)
-    crossValidation(X, y, cv, dummy_clf, lmetricResults, sfeatClass, F1macroResults)
+    crossValidation(X, y, cv, dummy_clf, lmetricResults, sfeatClass, savedResults)
 
-def mostFrequentDummyClf(X, y, lmetricResults, sfeatClass, F1macroResults):
+def mostFrequentDummyClf(X, y, lmetricResults, sfeatClass, savedResults):
     """
     Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
     :param X: The feature vector matrix.
     :param y: The labels.
     :param lmetricResults: list for the results of performance metrics.
     :param sfeatClass: string/information about the ML model, the features and data labels
-    :param F1macroResults: dictionary for the F1-macro results for wilcoxon test 
+    :param savedResults: dictionary for the F1-macro results for wilcoxon test 
     """
     dummy_clf = DummyClassifier(strategy="most_frequent")
     
     cv = StratifiedKFold(n_splits=10)
-    crossValidation(X, y, cv, dummy_clf, lmetricResults, sfeatClass, F1macroResults)
+    crossValidation(X, y, cv, dummy_clf, lmetricResults, sfeatClass, savedResults)
 
-def mlpClassifier(X, y, lmetricResults, sfeatClass, F1macroResults):
+def mlpClassifier(X, y, lmetricResults, sfeatClass, savedResults):
     """
     Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
     :param X: The feature vector matrix.
     :param y: The labels.
     :param lmetricResults: list for the results of performance metrics.
     :param sfeatClass: string/information about the ML model, the features and data labels 
-    :param F1macroResults: dictionary for the F1-macro results for wilcoxon test
+    :param savedResults: dictionary for the F1-macro results for wilcoxon test
     """
     clf = MLPClassifier(max_iter=300)
 
     cv = StratifiedKFold(n_splits=10)
-    crossValidation(X, y, cv, clf, lmetricResults, sfeatClass, F1macroResults)
+    crossValidation(X, y, cv, clf, lmetricResults, sfeatClass, savedResults)
     
 
 # def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
@@ -2026,7 +2027,7 @@ def mlpClassifier(X, y, lmetricResults, sfeatClass, F1macroResults):
     # message("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (f1_micro, np.std(f1_micro_per_fold), sem_f1_micro, str(f1_micro_per_fold)))
     # message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (f1_macro, np.std(f1_macro_per_fold), sem_f1_macro, str(f1_macro_per_fold)))
 
-def crossValidation(X, y, cv, model, lmetricResults, sfeatClass, F1macroResults): 
+def crossValidation(X, y, cv, model, lmetricResults, sfeatClass, savedResults): 
     """
     Performs the cross validation and save the metrics per iteration, computes the overall matrics and plot the confusion matrix
     :param X: The feature vector matrix.
@@ -2034,7 +2035,7 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass, F1macroResults)
     :param cv: the fold that were created from cross validation
     :param lmetricResults: list for the results of performance metrics.
     :param sfeatClass: string/information about the ML model, the features and data labels 
-    :param F1macroResults: dictionary for the F1-macro results for wilcoxon test
+    :param savedResults: dictionary for the F1-macro results for wilcoxon test
     """
     # Initialize lists to store metrics per fold
     accuracy_per_fold = []
@@ -2076,7 +2077,11 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass, F1macroResults)
     message("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f)" % (np.mean(f1_micro_per_fold), np.std(f1_micro_per_fold), sem_f1_micro))# \n %s     , str(f1_micro_per_fold)
     message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f)\n %s" % (np.mean(f1_macro_per_fold), np.std(f1_macro_per_fold), sem_f1_macro, str(f1_macro_per_fold)))# \n %s     , str(f1_macro_per_fold)
     
-    F1macroResults[sfeatClass]=f1_macro_per_fold
+    savedResults[sfeatClass]={}
+    savedResults[sfeatClass]["accuracy_per_fold"]=accuracy_per_fold
+    savedResults[sfeatClass]["f1_micro_per_fold"]=f1_micro_per_fold
+    savedResults[sfeatClass]["f1_macro_per_fold"]=f1_macro_per_fold
+
 
     cm = confusion_matrix(final_y, final_y_pred)
     print(cm)
@@ -2087,14 +2092,14 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass, F1macroResults)
 
     lmetricResults.append([sfeatClass, np.mean(accuracy_per_fold), sem_accuracy, np.mean(f1_micro_per_fold), sem_f1_micro, np.mean(f1_macro_per_fold), sem_f1_macro])
 
-def xgboost(X, y, lmetricResults, sfeatClass, F1macroResults):
+def xgboost(X, y, lmetricResults, sfeatClass, savedResults):
     """
     Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
     :param X: The feature vector matrix.
     :param y: The labels.
     :param lmetricResults: list for the results of performance metrics.
     :param sfeatClass: string/information about the ML model, the features and data labels 
-    :param F1macroResults: dictionary for the F1-macro results for wilcoxon test
+    :param savedResults: dictionary for the F1-macro results for wilcoxon test
     """
     model = xgb.XGBClassifier()
     
@@ -2104,7 +2109,7 @@ def xgboost(X, y, lmetricResults, sfeatClass, F1macroResults):
     # 'f1_macro': make_scorer(f1_score, average="macro")}
     
     cv = StratifiedKFold(n_splits=10)
-    crossValidation(X, y, cv, model, lmetricResults, sfeatClass, F1macroResults)
+    crossValidation(X, y, cv, model, lmetricResults, sfeatClass, savedResults)
 
     # # Calculate cross-validation scores for both accuracy and F1
     # scores = cross_validate(model, X, y, cv=cv, scoring=scoring)
@@ -2122,14 +2127,14 @@ def xgboost(X, y, lmetricResults, sfeatClass, F1macroResults):
     #                   np.mean(scores['test_f1_macro']), sem_f1_macro])
 
 
-def RandomForest(X, y, lmetricResults, sfeatClass, F1macroResults):
+def RandomForest(X, y, lmetricResults, sfeatClass, savedResults):
     """
     Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
     :param X: The feature vector matrix.
     :param y: The labels.
     :param lmetricResults: list for the results of performance metrics.
     :param sfeatClass: string/information about the ML model, the features and data labels 
-    :param F1macroResults: dictionary for the F1-macro results for wilcoxon test
+    :param savedResults: dictionary for the F1-macro results for wilcoxon test
     """
     clf = RandomForestClassifier(class_weight = "balanced")
     
@@ -2139,7 +2144,7 @@ def RandomForest(X, y, lmetricResults, sfeatClass, F1macroResults):
     # 'f1_macro': make_scorer(f1_score, average="macro")}
     
     cv = StratifiedKFold(n_splits=10) 
-    crossValidation(X, y, cv, clf, lmetricResults, sfeatClass, F1macroResults)
+    crossValidation(X, y, cv, clf, lmetricResults, sfeatClass, savedResults)
     # Calculate cross-validation scores for both accuracy and F1
     # scores = cross_validate(clf, X, y, cv=cv, scoring=scoring)
     
@@ -2155,14 +2160,14 @@ def RandomForest(X, y, lmetricResults, sfeatClass, F1macroResults):
     # lmetricResults.append([sfeatClass, np.mean(scores['test_accuracy']), sem_accuracy, np.mean(scores['test_f1_micro']), sem_f1_micro, 
     #                   np.mean(scores['test_f1_macro']), sem_f1_macro])
 
-def NBayes(X, y, lmetricResults, sfeatClass, F1macroResults):
+def NBayes(X, y, lmetricResults, sfeatClass, savedResults):
     """
     Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
     :param X: The feature vector matrix.
     :param y: The labels.
     :param lmetricResults: list for the results of performance metrics.
     :param sfeatClass: string/information about the ML model, the features and data labels 
-    :param F1macroResults: dictionary for the F1-macro results for wilcoxon test
+    :param savedResults: dictionary for the F1-macro results for wilcoxon test
     """
     gnb = GaussianNB()
     
@@ -2172,7 +2177,7 @@ def NBayes(X, y, lmetricResults, sfeatClass, F1macroResults):
     # 'f1_macro': make_scorer(f1_score, average="macro")}
     
     cv = StratifiedKFold(n_splits=10)
-    crossValidation(X, y, cv, gnb, lmetricResults, sfeatClass, F1macroResults)
+    crossValidation(X, y, cv, gnb, lmetricResults, sfeatClass, savedResults)
     # Calculate cross-validation scores for both accuracy and F1
     # scores = cross_validate(gnb, X, y, cv=cv, scoring=scoring)
     
@@ -2339,6 +2344,7 @@ def main(argv):
     parser.add_argument("-norm", "--normalization", action="store_true", default=False)
     parser.add_argument("-ls", "--logScale", action="store_true", default=False)
     parser.add_argument("-stdf", "--stdevFiltering", action="store_true", default=False)
+    parser.add_argument("-nfeat", "--numberOfFeaturesPerLevel", type=int, default=50)
 
     # Post-processing graph features
     parser.add_argument("-scalDeact", "--scalingDeactivation", action="store_false", default=True)
@@ -2384,6 +2390,7 @@ def main(argv):
     parser.add_argument("-t", "--numberOfThreads", type=int, default=THREADS_TO_USE)
 
     # Statistical test
+    parser.add_argument("-savres", "--saveResults", action="store_true", default=False)
     parser.add_argument("-wilc", "--wilcoxonTest", action="store_true", default=False)
     parser.add_argument("-rwr", "--resetWilcoxonResults", action="store_true", default=False)
 
@@ -2406,18 +2413,20 @@ def main(argv):
                                                                                     bstdevFiltering=args.stdevFiltering,
                                                                                     bNormalize=args.normalization,
                                                                                     bNormalizeLog2Scale=args.logScale,
-                                                                                    bShow = args.showGraphs, bSave = args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
+                                                                                    bShow = args.showGraphs, bSave = args.saveGraphs, 
+                                                                                    stdevFeatSelection = args.selectFeatsBySD,
+                                                                                    nfeat=args.numberOfFeaturesPerLevel)
     #DEBUG LINES 
     print(sampleIDs)
     ################
     if args.exploratoryAnalysis:
         #plotDistributions(mFeatures_noNaNs, feat_names)
 
-        #plotSDdistributions(mFeatures_noNaNs, feat_names)
+        plotSDdistributions(mFeatures_noNaNs, feat_names)
         
         #mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=True, stdevFeatSelection = args.selectFeatsBySD)
 
-        plotExplainedVariance(mFeatures_noNaNs, n_components=100, featSelection = args.stdevFiltering)
+        #plotExplainedVariance(mFeatures_noNaNs, n_components=100, featSelection = args.stdevFiltering)
 
     # vGraphFeatures = getGraphVector(gMainGraph)
     # print ("Graph feature vector: %s"%(str(vGraphFeatures)))
@@ -2430,15 +2439,15 @@ def main(argv):
 
 
     # TODO: Restore to NOT reset features
-    if args.graphFeatures:
-        mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
-                                            bResetFeatures=args.resetFeatures,
-                                            numOfSelectedSamples=args.numberOfInstances, bShowGraphs=args.showGraphs, 
-                                            bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
-        #DEBUG LINES
-        message("mGraphFeatures: ")
-        message(mGraphFeatures)
-        ##############
+    
+    mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
+                                        bResetFeatures=args.resetFeatures,
+                                        numOfSelectedSamples=args.numberOfInstances, bShowGraphs=args.showGraphs, 
+                                        bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
+    #DEBUG LINES
+    message("mGraphFeatures: ")
+    message(mGraphFeatures)
+    ##############
         # if args.tumorStage:
         #     filteredFeatures, filteredGraphFeatures, filteredTumorStage = filterTumorStage(mFeatures_noNaNs, mGraphFeatures, vSelectedtumorStage, vClass, sampleIDs)
         #     if args.scalingDeactivation:
@@ -2466,20 +2475,16 @@ def main(argv):
         #########
 
     if args.numberOfInstances < 0:
-        if args.classes:
-            vSelectedSamplesClasses = vClass
-        if args.tumorStage:
-            vSelectedtumorStage = vtumorStage
+        vSelectedSamplesClasses = vClass
+        vSelectedtumorStage = vtumorStage
     else:
-        if args.classes:
-            vSelectedSamplesClasses = np.concatenate((vClass[0:int(args.numberOfInstances / 2)][:], vClass[-int(args.numberOfInstances / 2):][:]), axis=0)
-        if args.tumorStage:
-            vSelectedtumorStage = np.concatenate((vtumorStage[0:int(args.numberOfInstances / 2)][:], vtumorStage[-int(args.numberOfInstances / 2):][:]), axis=0)
+        vSelectedSamplesClasses = np.concatenate((vClass[0:int(args.numberOfInstances / 2)][:], vClass[-int(args.numberOfInstances / 2):][:]), axis=0)
+        vSelectedtumorStage = np.concatenate((vtumorStage[0:int(args.numberOfInstances / 2)][:], vtumorStage[-int(args.numberOfInstances / 2):][:]), axis=0)
     
-    if args.graphFeatures and args.tumorStage:
-        filteredFeatures, filteredGraphFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, mGraphFeatures, vSelectedtumorStage, vClass, sampleIDs)
     
-    if args.tumorStage and args.scalingDeactivation:
+    filteredFeatures, filteredGraphFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, mGraphFeatures, vSelectedtumorStage, vClass, sampleIDs)
+    
+    if args.tumorStage and args.scalingDeactivation and args.graphFeatures:
         filteredGraphFeatures = graphVectorPreprocessing(filteredGraphFeatures)
         #DEBUG LINES
         message("Graph features for tumor stage with scaling")
@@ -2488,7 +2493,7 @@ def main(argv):
         message(filteredGraphFeatures)
         ##################
 
-    if args.classes and args.scalingDeactivation and args.scalingClass:
+    if args.classes and args.scalingDeactivation and args.scalingClass and args.graphFeatures:
         mGraphFeatures = scalingPerClass(mGraphFeatures, vSelectedSamplesClasses)
         #DEBUG LINES
         message("Graph features for classes with scaling per class")
@@ -2497,7 +2502,7 @@ def main(argv):
         message(mGraphFeatures)
         ##################
 
-    elif args.classes and args.scalingDeactivation:
+    elif args.classes and args.scalingDeactivation and args.graphFeatures:
         mGraphFeatures = graphVectorPreprocessing(mGraphFeatures)
         #DEBUG LINES
         message("Graph features for classes with scaling")
@@ -2506,7 +2511,7 @@ def main(argv):
         message(mGraphFeatures)
         ##################
 
-    if not args.scalingDeactivation:
+    if args.graphFeatures and not args.scalingDeactivation:
         #DEBUG LINES
         message("First sample before filtering: " + str(mGraphFeatures[0, :]))
         ##############
@@ -2523,56 +2528,62 @@ def main(argv):
     metricResults =[]
 
     if args.resetWilcoxonResults:
-        F1macroResults = {}
-        message("Loading F1-macro results for wilcoxon...Failed.")
+        savedResults = {}
+        message("Loading results for wilcoxon...Failed.")
     
     else:   
         if os.path.exists("wilcoxon_results.pkl"):
             # Load file with the F1-macro results
             with open("wilcoxon_results.pkl", 'rb') as f:
-                F1macroResults = pickle.load(f)
-                message("Loading F1-macro results for wilcoxon...Done.")
+                savedResults = pickle.load(f)
+                message("Loading results for wilcoxon...Done.")
         else:
-            F1macroResults = {}
-            message("Loading F1-macro results for wilcoxon...Failed.")
+            savedResults = {}
+            message("Loading results for wilcoxon...Failed.")
     
+
+    if args.graphFeatures:
+        graphLabels = ''
+        if args.scalingDeactivation:
+            graphLabels += '_Scaling'
         
+        graphLabels += '_' + str(args.edgeThreshold) + '_' + str(args.numberOfFeaturesPerLevel)
 
     if args.classes and args.graphFeatures:
         # Extract class vector for colors
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-            
+        
         if args.decisionTree:
             message("Decision tree on graph feature vectors and classes")
-            classify(mGraphFeatures, y, metricResults, "DT_GFeatures_Class", F1macroResults)
+            classify(mGraphFeatures, y, metricResults, "DT_GFeatures_Class" + graphLabels, savedResults)
         
         if args.kneighbors:
             message("KNN on graph feature vectors and classes")
-            kneighbors(mGraphFeatures, y, metricResults, "kNN_GFeatures_Class", F1macroResults)
+            kneighbors(mGraphFeatures, y, metricResults, "kNN_GFeatures_Class" + graphLabels, savedResults)
 
         if args.xgboost:
             message("XGBoost on graph feature vectors and classes")
-            xgboost(mGraphFeatures, y, metricResults, "XGB_GFeatures_Class", F1macroResults)
+            xgboost(mGraphFeatures, y, metricResults, "XGB_GFeatures_Class" + graphLabels, savedResults)
 
         if args.randomforest:
             message("Random Forest on graph feature vectors and classes")
-            RandomForest(mGraphFeatures, y, metricResults, "RF_GFeatures_Class", F1macroResults)
+            RandomForest(mGraphFeatures, y, metricResults, "RF_GFeatures_Class" + graphLabels, savedResults)
 
         if args.naivebayes:
             message("Naive Bayes on graph feature vectors and classes")
-            NBayes(mGraphFeatures, y, metricResults, "NV_GFeatures_Class", F1macroResults)
+            NBayes(mGraphFeatures, y, metricResults, "NV_GFeatures_Class" + graphLabels, savedResults)
 
         if args.stratifieddummyclf: 
             message("Stratified Dummy Classifier on graph feature vectors and classes")
-            stratifiedDummyClf(mGraphFeatures, y, metricResults, "StratDummy_GFeatures_Class", F1macroResults) 
+            stratifiedDummyClf(mGraphFeatures, y, metricResults, "StratDummy_GFeatures_Class" + graphLabels, savedResults) 
         
         if args.mostfrequentdummyclf:
             message("Most frequent Dummy Classifier on graph feature vectors and classes")
-            mostFrequentDummyClf(mGraphFeatures, y, metricResults, "MFDummy_GFeatures_Class", F1macroResults)
+            mostFrequentDummyClf(mGraphFeatures, y, metricResults, "MFDummy_GFeatures_Class" + graphLabels, savedResults)
         
         if args.mlpClassifier:
             message("MLP Classifier on graph feature vectors and classes")
-            mlpClassifier(mGraphFeatures, y, metricResults, "MLP_GFeatures_Class", F1macroResults)
+            mlpClassifier(mGraphFeatures, y, metricResults, "MLP_GFeatures_Class" + graphLabels, savedResults)
 
 
     if args.classes and args.featurevectors:
@@ -2582,72 +2593,77 @@ def main(argv):
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        if args.selectFeatsBySD or args.stdevFiltering:
+            label = '_featureSelection'
+        else:
+            label = ''
         if args.decisionTree:
             message("Decision tree on feature vectors and classes")
-            classify(X, y, metricResults, "DT_FeatureV_Class", F1macroResults)
+            classify(X, y, metricResults, "DT_FeatureV_Class" + label, savedResults)
 
         if args.kneighbors:
             message("KNN on feature vectors and classes")
-            kneighbors(X, y, metricResults, "kNN_FeatureV_Class", F1macroResults)
+            kneighbors(X, y, metricResults, "kNN_FeatureV_Class" + label, savedResults)
 
         if args.xgboost:
             message("XGBoost on feature vectors and classes")
-            xgboost(X, y, metricResults, "XGB_FeatureV_Class", F1macroResults)
+            xgboost(X, y, metricResults, "XGB_FeatureV_Class" + label, savedResults)
 
         if args.randomforest:
             message("Random Forest on feature vectors and classes")
-            RandomForest(X, y, metricResults, "RF_FeatureV_Class", F1macroResults)
+            RandomForest(X, y, metricResults, "RF_FeatureV_Class" + label, savedResults)
 
         if args.naivebayes:
             message("Naive Bayes on feature vectors and classes")
-            NBayes(X, y, metricResults, "NV_FeatureV_Class", F1macroResults)
+            NBayes(X, y, metricResults, "NV_FeatureV_Class" + label, savedResults)
 
         if args.stratifieddummyclf:  
             message("Stratified Dummy Classifier on feature vectors and classes")
-            stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_Class", F1macroResults)
+            stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_Class" + label, savedResults)
 
         if args.mostfrequentdummyclf:
             message("Most frequent Dummy Classifier on feature vectors and classes")
-            mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_Class", F1macroResults)
+            mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_Class" + label, savedResults)
         
         if args.mlpClassifier:
             message("MLP Classifier on feature vectors and classes")
-            mlpClassifier(X, y, metricResults, "MLP_FeatureV_Class", F1macroResults)
+            mlpClassifier(X, y, metricResults, "MLP_FeatureV_Class" + label, savedResults)
 
     if args.tumorStage and args.graphFeatures:
         # Extract tumor stages vector for colors
         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
         if args.decisionTree:
             message("Decision tree on graph feature vectors and tumor stages")
-            classify(filteredGraphFeatures, y, metricResults, "DT_GFeatures_TumorStage", F1macroResults)
+            classify(filteredGraphFeatures, y, metricResults, "DT_GFeatures_TumorStage" + graphLabels, savedResults)
         
         if args.kneighbors:
             message("KNN on graph feature vectors and tumor stages")
-            kneighbors(filteredGraphFeatures, y, metricResults, "kNN_GFeatures_TumorStage", F1macroResults)
+            kneighbors(filteredGraphFeatures, y, metricResults, "kNN_GFeatures_TumorStage" + graphLabels, savedResults)
 
         if args.xgboost:
             message("XGBoost on graph feature vectors and tumor stages")
-            xgboost(filteredGraphFeatures, y, metricResults, "XGB_GFeatures_TumorStage", F1macroResults)
+            xgboost(filteredGraphFeatures, y, metricResults, "XGB_GFeatures_TumorStage" + graphLabels, savedResults)
 
         if args.randomforest:
             message("Random Forest on graph feature vectors and tumor stages")
-            RandomForest(filteredGraphFeatures, y, metricResults, "RF_GFeatures_TumorStage", F1macroResults)
+            RandomForest(filteredGraphFeatures, y, metricResults, "RF_GFeatures_TumorStage" + graphLabels, savedResults)
         
         if args.naivebayes:
             message("Naive Bayes on graph feature vectors and tumor stages")
-            NBayes(filteredGraphFeatures, y, metricResults, "NV_GFeatures_TumorStage", F1macroResults)
+            NBayes(filteredGraphFeatures, y, metricResults, "NV_GFeatures_TumorStage" + graphLabels, savedResults)
 
         if args.stratifieddummyclf:  
             message("Stratified Dummy Classifier on graph feature vectors and tumor stages")
-            stratifiedDummyClf(filteredGraphFeatures, y, metricResults, "StratDummy_GFeatures_TumorStage", F1macroResults)
+            stratifiedDummyClf(filteredGraphFeatures, y, metricResults, "StratDummy_GFeatures_TumorStage" + graphLabels, savedResults)
 
         if args.mostfrequentdummyclf:
             message("Most frequent Dummy Classifier on graph feature vectors and tumor stages")
-            mostFrequentDummyClf(filteredGraphFeatures, y, metricResults, "MFDummy_GFeatures_TumorStage", F1macroResults)
+            mostFrequentDummyClf(filteredGraphFeatures, y, metricResults, "MFDummy_GFeatures_TumorStage" + graphLabels, savedResults)
         
         if args.mlpClassifier:
             message("MLP Classifier on graph feature vectors and tumor stages")
-            mlpClassifier(filteredGraphFeatures, y, metricResults, "MLP_GFeatures_TumorStage", F1macroResults)
+            mlpClassifier(filteredGraphFeatures, y, metricResults, "MLP_GFeatures_TumorStage" + graphLabels, savedResults)
 
         
     if args.tumorStage and args.featurevectors:
@@ -2657,44 +2673,51 @@ def main(argv):
         fig = draw3DPCA(X, pca3D, c=y)
 
         fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+        if args.selectFeatsBySD or args.stdevFiltering:
+            label = '_featureSelection'
+        else:
+            label = ''
+
         if args.decisionTree:
             message("Decision tree on feature vectors and tumor stages")
-            classify(X, y, metricResults, "DT_FeatureV_TumorStage", F1macroResults)
+            classify(X, y, metricResults, "DT_FeatureV_TumorStage" + label, savedResults)
 
         if args.kneighbors:
             message("KNN on feature vectors and tumor stages")
-            kneighbors(X, y, metricResults, "kNN_FeatureV_TumorStage", F1macroResults)
+            kneighbors(X, y, metricResults, "kNN_FeatureV_TumorStage" + label, savedResults)
 
         if args.xgboost:
             message("XGBoost on feature vectors and tumor stages")
-            xgboost(X, y, metricResults, "XGB_FeatureV_TumorStage", F1macroResults)
+            xgboost(X, y, metricResults, "XGB_FeatureV_TumorStage" + label, savedResults)
 
         if args.randomforest:
             message("Random Forest on feature vectors and tumor stages")
-            RandomForest(X, y, metricResults, "RF_FeatureV_TumorStage", F1macroResults)
+            RandomForest(X, y, metricResults, "RF_FeatureV_TumorStage" + label, savedResults)
 
         if args.naivebayes:
             message("Naive Bayes on feature vectors and tumor stages")
-            NBayes(X, y, metricResults, "NV_FeatureV_TumorStage", F1macroResults)  
+            NBayes(X, y, metricResults, "NV_FeatureV_TumorStage" + label, savedResults)  
 
         if args.stratifieddummyclf:  
             message("Stratified Dummy Classifier on feature vectors and tumor stages")
-            stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_TumorStage", F1macroResults)
+            stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_TumorStage" + label, savedResults)
         
         if args.mostfrequentdummyclf:
             message("Most frequent Dummy Classifier on feature vectors and tumor stages")
-            mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_TumorStage", F1macroResults)
+            mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_TumorStage" + label, savedResults)
     
         if args.mlpClassifier:
             message("MLP Classifier on feature vectors and tumor stages")
-            mlpClassifier(X, y, metricResults, "MLP_FeatureV_TumorStage", F1macroResults)
+            mlpClassifier(X, y, metricResults, "MLP_FeatureV_TumorStage" + label, savedResults)
     
-    # Save pickle file with the F1-macro results for wilcoxon test
-    with open("wilcoxon_results.pkl", 'wb') as f:
-        pickle.dump(F1macroResults, f)
+    if args.saveResults:
+        # Save pickle file with the F1-macro results for wilcoxon test
+        with open("wilcoxon_results.pkl", 'wb') as f:
+            pickle.dump(savedResults, f)
 
     if args.wilcoxonTest:
-        wilcoxonTests(F1macroResults)
+        wilcoxonTests(savedResults)
 
     # end of main function
     metricsdf = pd.DataFrame(metricResults, columns=['Method', 'Mean_Accuracy', "SEM_Accuracy", 'Mean_F1_micro', "SEM_F1_micro", 'Mean_F1_macro', "SEM_F1_macro"])
