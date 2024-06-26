@@ -492,7 +492,7 @@ def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage, featNames, b
     samples_to_remove = np.concatenate((rows_to_remove, incomplete_samples))
     samples_to_remove = np.unique(samples_to_remove)
     
-    features_to_remove = CheckColsNaN(mFeatures)
+    features_to_remove = CheckColsNaN(mFeatures, levels_indices)
    
     # Remove samples from the matrix
     mFeatures = np.delete(mFeatures, samples_to_remove, axis=0)
@@ -518,6 +518,9 @@ def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage, featNames, b
     
     # Create a new list without the elements at the specified indices
     filtered_features = [element for index, element in enumerate(features) if index not in features_to_remove]
+    #DEBUG LINES
+    message("filtered_features shape: "+str(np.shape(filtered_features)))
+    #############
 
     message(mFeatures)
 
@@ -763,7 +766,7 @@ def incompleteSamples(mAllData, level_indices):
     indices_of_empty_rows = np.unique(indices_of_empty_rows).astype(int)
     return indices_of_empty_rows
 
-def CheckColsNaN(input_matrix,nan_threshold=0.2):
+def CheckColsNaN(input_matrix, levels, nan_threshold=0.2):
     """
     Returns an array with the index of the columns that were kept
     :param input_matrix: the matrix that will be filtered
@@ -771,17 +774,66 @@ def CheckColsNaN(input_matrix,nan_threshold=0.2):
     """
     message("Columns' filtering... ")
     columns_length = input_matrix.shape[0]
+
     # count nan per column
     nan_per_column = count_nan_per_column(input_matrix)
     # compute the frequency of nan per column
     nan_frequency  = nan_per_column / columns_length
-    # return an array with boolean values, that show the columns with <=nan_threshold t
-    columns_to_remove = nan_frequency > nan_threshold
+    
+    # Count zeros per column
+    zero_per_column = count_zero_per_column(input_matrix[:, levels["mRNA"][0]:levels["miRNA"][1]])
+    # Compute the frequency of zeros per column
+    zero_frequency = zero_per_column / columns_length
+    
+    # Identify columns to remove based on NaN and zero frequency thresholds
+    columns_to_remove = (nan_frequency > nan_threshold) | (zero_frequency > nan_threshold)
 
-    columns_to_remove = np.where(columns_to_remove)
-    # Flatten the 2D array into a 1D array 
-    columns_to_remove = np.ravel(columns_to_remove)
+    # Get the indices of columns to remove
+    columns_to_remove = np.where(columns_to_remove)[0]
+
+    # # return an array with boolean values, that show the columns with <=nan_threshold t
+    # columns_to_remove = nan_frequency > nan_threshold
+
+    # columns_to_remove = np.where(columns_to_remove)
+    # # Flatten the 2D array into a 1D array 
+    # columns_to_remove = np.ravel(columns_to_remove)
     return columns_to_remove
+
+def CheckColsNaN(input_matrix, levels, nan_threshold=0.2, zero_threshold=0.2):
+    """
+    Returns an array with the index of the columns that should be removed
+    :param input_matrix: the matrix that will be filtered
+    :param nan_threshold: threshold for the frequency of NaN
+    :param zero_threshold: threshold for the frequency of zeros
+    """
+    message("Columns' filtering... ")
+
+    columns_length = input_matrix.shape[0]
+    #DEBUG LINES
+    message("columns_length: "+str(columns_length))
+    message("shape: "+str(np.shape(input_matrix)))
+    ##############
+    # Count NaNs per column
+    nan_per_column = count_nan_per_column(input_matrix)
+    # Compute the frequency of NaNs per column
+    nan_frequency = nan_per_column / columns_length
+    
+    # Count zeros per column only in the first two columns
+    zero_per_column = count_zero_per_column(input_matrix[:, levels["mRNA"][0]:levels["miRNA"][1]])
+    
+    # Compute the frequency of zeros per column for the first two columns
+    zero_frequency = zero_per_column / columns_length
+    
+    # Initialize a mask for columns to remove based on NaN threshold for all columns
+    columns_to_remove = nan_frequency > nan_threshold
+    
+    # Update the mask for the first two columns based on zero threshold
+    columns_to_remove[:levels["miRNA"][1]] = columns_to_remove[:levels["miRNA"][1]] | (zero_frequency > zero_threshold)
+    
+    # Get the indices of columns to remove
+    columns_to_remove_indices = np.where(columns_to_remove)[0]
+
+    return columns_to_remove_indices
 
 def count_nan_per_column(input_matrix):
     """
@@ -789,6 +841,9 @@ def count_nan_per_column(input_matrix):
     """
     nan_count_per_column = np.sum(np.isnan(input_matrix), axis=0)
     return nan_count_per_column
+
+def count_zero_per_column(matrix):
+    return np.sum(matrix == 0, axis=0)
 
 # TODO add sampleid in splitFeatures
 
@@ -1081,7 +1136,7 @@ def normalizeData(mFeaturesToNormalize, sfeatureNames, logScale=True):
     Calculates relative change per feature, transforming also to a log 2 norm/scale
 
     :param mFeaturesToNormalize: The matrix of features to normalize.
-    :param mControlData: The control data sub-matrix.
+    :param sfeatureNames: The names of the columns/features
     :param logScale: If True, log scaling will occur to the result. Default: True.
     :return: The normalized and - possibly - log scaled version of the input feature matrix.
     """
@@ -1090,11 +1145,9 @@ def normalizeData(mFeaturesToNormalize, sfeatureNames, logScale=True):
     #############
     message("Normalizing data...")
     levels = getOmicLevels(sfeatureNames)
-    #levels = getLevelIndices()
+    
     # if logScale:
-    #     mFeaturesToNormalize[:, levels[0][0]:levels[1][1]] = np.log2(2.0 + mFeaturesToNormalize[:, levels[0][0]:levels[1][1]])  # Ascertain positive numbers
-    if logScale:
-        mFeaturesToNormalize[:, levels["mRNA"][0]:levels["miRNA"][1]] = np.log2(2.0 + mFeaturesToNormalize[:, levels["mRNA"][0]:levels["miRNA"][1]])  # Ascertain positive numbers
+    #     mFeaturesToNormalize[:, levels["mRNA"][0]:levels["miRNA"][1]] = np.log2(2.0 + mFeaturesToNormalize[:, levels["mRNA"][0]:levels["miRNA"][1]])  # Ascertain positive numbers
     
     scaler = MinMaxScaler()
     scaler.fit(mFeaturesToNormalize[:, levels["mRNA"][0]:levels["miRNA"][1]])
