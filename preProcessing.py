@@ -2131,6 +2131,18 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass, savedResults):
     message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f)\n %s" % (np.mean(f1_macro_per_fold), np.std(f1_macro_per_fold), sem_f1_macro, str(f1_macro_per_fold)))# \n %s     , str(f1_macro_per_fold)
     
     savedResults[sfeatClass]={}
+    savedResults[sfeatClass]["mean_accuracy"]=np.mean(accuracy_per_fold)
+    savedResults[sfeatClass]["mean_F1_micro"]=np.mean(f1_micro_per_fold)
+    savedResults[sfeatClass]["mean_F1_macro"]=np.mean(f1_macro_per_fold)
+
+    savedResults[sfeatClass]["std_accuracy"]=np.std(accuracy_per_fold)
+    savedResults[sfeatClass]["std_F1_micro"]=np.std(f1_micro_per_fold)
+    savedResults[sfeatClass]["std_F1_macro"]=np.std(f1_macro_per_fold)
+
+    savedResults[sfeatClass]["sem_accuracy"]=sem_accuracy
+    savedResults[sfeatClass]["sem_F1_micro"]=sem_f1_micro
+    savedResults[sfeatClass]["sem_F1_macro"]=sem_f1_macro
+    
     savedResults[sfeatClass]["accuracy_per_fold"]=accuracy_per_fold
     savedResults[sfeatClass]["f1_micro_per_fold"]=f1_micro_per_fold
     savedResults[sfeatClass]["f1_macro_per_fold"]=f1_macro_per_fold
@@ -2475,9 +2487,9 @@ def main(argv):
     if args.exploratoryAnalysis:
         #plotDistributions(mFeatures_noNaNs, feat_names)
 
-        plotSDdistributions(mFeatures_noNaNs, feat_names)
+        #plotSDdistributions(mFeatures_noNaNs, feat_names)
         
-        #mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=True, stdevFeatSelection = args.selectFeatsBySD)
+        mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=True, stdevFeatSelection = args.selectFeatsBySD)
 
         #plotExplainedVariance(mFeatures_noNaNs, n_components=100, featSelection = args.stdevFiltering)
 
@@ -2579,20 +2591,21 @@ def main(argv):
         ##############
 
     metricResults =[]
+    savedResults = {}
 
-    if args.resetWilcoxonResults:
-        savedResults = {}
-        message("Loading results for wilcoxon...Failed.")
+    # if args.resetWilcoxonResults:
+    #     savedResults = {}
+    #     message("Loading results for wilcoxon...Failed.")
     
-    else:   
-        if os.path.exists("wilcoxon_results.pkl"):
-            # Load file with the F1-macro results
-            with open("wilcoxon_results.pkl", 'rb') as f:
-                savedResults = pickle.load(f)
-                message("Loading results for wilcoxon...Done.")
-        else:
-            savedResults = {}
-            message("Loading results for wilcoxon...Failed.")
+    # else:   
+    #     if os.path.exists("wilcoxon_results.pkl"):
+    #         # Load file with the F1-macro results
+    #         with open("wilcoxon_results.pkl", 'rb') as f:
+    #             savedResults = pickle.load(f)
+    #             message("Loading results for wilcoxon...Done.")
+    #     else:
+    #         savedResults = {}
+    #         message("Loading results for wilcoxon...Failed.")
     
 
     if args.graphFeatures:
@@ -2764,10 +2777,27 @@ def main(argv):
             message("MLP Classifier on feature vectors and tumor stages")
             mlpClassifier(X, y, metricResults, "MLP_FeatureV_TumorStage" + label, savedResults)
     
+    
     if args.saveResults:
-        # Save pickle file with the F1-macro results for wilcoxon test
-        with open("wilcoxon_results.pkl", 'wb') as f:
-            pickle.dump(savedResults, f)
+        # Convert the nested dictionary to a DataFrame
+        new_df = pd.DataFrame.from_dict(savedResults, orient='index').reset_index()
+        new_df.rename(columns={'index': 'sfeatClass'}, inplace=True)
+
+        if os.path.exists("saved_results100.csv"):
+            # Read the existing CSV file into a DataFrame
+            existing_df = pd.read_csv("saved_results100.csv")
+        else:
+            # Create an empty DataFrame if the CSV file does not exist
+            existing_df = pd.DataFrame()
+
+        # Append the new results to the existing DataFrame
+        if not existing_df.empty:
+            combined_df = pd.concat([existing_df, new_df], ignore_index=True)
+        else:
+            combined_df = new_df
+
+        # Write the updated DataFrame back to the CSV file
+        combined_df.to_csv("saved_results100.csv", index=False)
 
     if args.wilcoxonTest:
         wilcoxonTests(savedResults)
