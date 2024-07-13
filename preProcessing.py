@@ -713,7 +713,7 @@ def filteringBySD(sfeatureNames, mFeatures, nfeat=50):
 
     return filteredFeatMatrix, filteredFeats
 
-def CheckRowsNaN(input_matrix, nan_threshold=0.2):
+def CheckRowsNaN(input_matrix, nan_threshold=0.1):
     """
     Returns an array with the index of the rows that were kept after the filtering.
     :param input_matrix: the matrix that will be filtered
@@ -799,7 +799,7 @@ def CheckColsNaN(input_matrix, levels, nan_threshold=0.2):
     # columns_to_remove = np.ravel(columns_to_remove)
     return columns_to_remove
 
-def CheckColsNaN(input_matrix, levels, nan_threshold=0.2, zero_threshold=0.2):
+def CheckColsNaN(input_matrix, levels, nan_threshold=0.1, zero_threshold=0.2):
     """
     Returns an array with the index of the columns that should be removed
     :param input_matrix: the matrix that will be filtered
@@ -818,10 +818,10 @@ def CheckColsNaN(input_matrix, levels, nan_threshold=0.2, zero_threshold=0.2):
     # Compute the frequency of NaNs per column
     nan_frequency = nan_per_column / columns_length
     
-    # Count zeros per column only in the first two columns
+    # Count zeros per column only in mRNA and miRNA
     zero_per_column = count_zero_per_column(input_matrix[:, levels["mRNA"][0]:levels["miRNA"][1]])
     
-    # Compute the frequency of zeros per column for the first two columns
+    # Compute the frequency of zeros per column for mRNA and miRNA
     zero_frequency = zero_per_column / columns_length
     
     # Initialize a mask for columns to remove based on NaN threshold for all columns
@@ -1328,12 +1328,13 @@ def addEdgeAboveThreshold(i, qQueue):
 
 
 # Is this the step where we make the generalised graph? The output is one Graph?
-def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True, stdevFeatSelection=True):
+def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, nfeat=50, bResetGraph=True, stdevFeatSelection=True):
     """
     Returns the overall feature graph, indicating interconnections between features.
 
     :param mAllData: The matrix containing all case/instance data.
     :param dEdgeThreshold: The threshold of minimum correlation required to keep an edge.
+    :param nfeat: number of features per level
     :param bResetGraph: If True, recompute correlations, else load from disc (if available). Default: True.
     :param dMinDivergenceToKeep: The threshold of deviation, indicating which features it makes sense to keep.
     Features with a deviation below this value are considered trivial. Default: log2(10e5).
@@ -1385,7 +1386,7 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, bResetGraph=True,
                                 dtype=np.dtype("object"), delimiter=',').astype(str)
 
     else:
-        fUsefulFeatureNames = open("/home/thlamp/tcga/bladder_results/DEGs.csv", "r")
+        fUsefulFeatureNames = open("/home/thlamp/tcga/bladder_results/DEGs" +str(nfeat) + ".csv", "r")
 
         # labelfile, should have stored tumor_stage or labels?       
 
@@ -1526,7 +1527,7 @@ def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bP
     # Do mFeatures_noNaNs has all features? Have we applied a threshold to get here?
     mFeatures_noNaNs, vClass, sampleIDs, feat_names, tumor_stage = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=bPostProcessing, bstdevFiltering=bstdevFiltering,
                                                          bNormalize=bNormalize, bNormalizeLog2Scale=bNormalizeLog2Scale, nfeat=nfeat)
-    gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=dEdgeThreshold, bResetGraph=bResetGraph, stdevFeatSelection=stdevFeatSelection)
+    gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=dEdgeThreshold, nfeat=nfeat, bResetGraph=bResetGraph, stdevFeatSelection=stdevFeatSelection)
     
     # if bShow or bSave:
     #     drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = bShow, bSave = bSave)
@@ -1584,7 +1585,7 @@ def drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph",bShow = True, bSave = Tru
     if bShow:
         plt.show()
 
-def mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=False, stdevFeatSelection=False):
+def mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, nfeat=50, bResetGraph=False, stdevFeatSelection=False):
     """
     Plots the distribution of the general graph's edges between start and end thresholds adding by 0.1.
     :param mFeatures_noNaNs: the feature matrix
@@ -1598,7 +1599,7 @@ def mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endTh
     nodesNum = []
     for threshold in np.arange(startThreshold, endThreshold+0.1, 0.1):
         threshold = round(threshold, 1)
-        gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=threshold, bResetGraph=bResetGraph, stdevFeatSelection=stdevFeatSelection)
+        gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=threshold, nfeat=nfeat, bResetGraph=bResetGraph, stdevFeatSelection=stdevFeatSelection)
         thresholds.append(threshold)
         edgesNum.append(gToDraw.number_of_edges())
         nodesNum.append(gToDraw.number_of_nodes())
@@ -2489,7 +2490,7 @@ def main(argv):
 
         #plotSDdistributions(mFeatures_noNaNs, feat_names)
         
-        mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, bResetGraph=True, stdevFeatSelection = args.selectFeatsBySD)
+        mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, nfeat=args.numberOfFeaturesPerLevel, bResetGraph=True, stdevFeatSelection = args.selectFeatsBySD)
 
         #plotExplainedVariance(mFeatures_noNaNs, n_components=100, featSelection = args.stdevFiltering)
 
@@ -2783,9 +2784,9 @@ def main(argv):
         new_df = pd.DataFrame.from_dict(savedResults, orient='index').reset_index()
         new_df.rename(columns={'index': 'sfeatClass'}, inplace=True)
 
-        if os.path.exists("saved_results100.csv"):
+        if os.path.exists("saved_resultsDEGs150.csv"):
             # Read the existing CSV file into a DataFrame
-            existing_df = pd.read_csv("saved_results100.csv")
+            existing_df = pd.read_csv("saved_resultsDEGs150.csv")
         else:
             # Create an empty DataFrame if the CSV file does not exist
             existing_df = pd.DataFrame()
@@ -2797,7 +2798,7 @@ def main(argv):
             combined_df = new_df
 
         # Write the updated DataFrame back to the CSV file
-        combined_df.to_csv("saved_results100.csv", index=False)
+        combined_df.to_csv("saved_resultsDEGs150.csv", index=False)
 
     if args.wilcoxonTest:
         wilcoxonTests(savedResults)
