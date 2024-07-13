@@ -1815,7 +1815,7 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     dStartTime = perf_counter()
 
     # Init result list
-    lResList = []
+    dResDict = {}
     graphList = []
     # Counter for the specific sampleID suffix
     saveCounter = {"11A": 0, "01A": 0} 
@@ -1828,7 +1828,7 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     
     # Add all items to queue
     for idx in range (np.shape(mAllSamples)[0]):
-        qTasks.put((sampleIDs[idx], lResList, gMainGraph, mAllSamples[idx, :], saRemainingFeatureNames, feat_names, next(iCnt), iAllCount, dStartTime, saveCounter, graphList))
+        qTasks.put((sampleIDs[idx], dResDict, gMainGraph, mAllSamples[idx, :], saRemainingFeatureNames, feat_names, next(iCnt), iAllCount, dStartTime, saveCounter, graphList))
     
     message("Waiting for completion...")
     
@@ -1840,7 +1840,7 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     for gMainGraph, sPDFFileName in graphList:
         drawAndSaveGraph(gMainGraph, sPDFFileName, bShowGraphs, bSaveGraphs)
 
-    return np.array(lResList)
+    return dResDict
 
 
 def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
@@ -1848,7 +1848,7 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
     Helper parallelization function, which calculates the graph representation of a given sample.
     :param i: The thread number calling the helper.
     :param qQueue: A Queue, from which the execution data will be drawn. Should contain:
-    lResList -- reference to the list containing the result
+    dResDict -- reference to the dictionary containing the result
     gMainGraph -- the generic graph of feature correlations
     mSample -- the sample to represent
     saRemainingFeatureNames -- the list of useful feature names
@@ -1873,7 +1873,7 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
             message("Waited long enough. Reached and of queue... Stopping.")
             break
         
-        sampleID, lResList, gMainGraph, mSample, saRemainingFeatureNames, feat_names, iCnt, iAllCount, dStartTime, saveCounter, graphList = params
+        sampleID, dResDict, gMainGraph, mSample, saRemainingFeatureNames, feat_names, iCnt, iAllCount, dStartTime, saveCounter, graphList = params
            
         # DEBUG LINES  
         message("Working on instance %d of %d..." % (iCnt, iAllCount))
@@ -1909,8 +1909,8 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
 
         #  Add to common result queue
         
-        with lock:  # Acquire the lock before modifying the shared resource
-            lResList.append(vGraphFeatures)
+        #with lock:  # Acquire the lock before modifying the shared resource
+        dResDict[sampleID] = vGraphFeatures
         
         # Signal done
         qQueue.task_done()
@@ -2260,7 +2260,7 @@ def NBayes(X, y, lmetricResults, sfeatClass, savedResults):
     #                   np.mean(scores['test_f1_macro']), sem_f1_macro])
 
 
-def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names, bResetFeatures=True,
+def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names, bResetFeatures=True, dEdgeThreshold=0.3, nfeat=50,
                           numOfSelectedSamples=-1, bShowGraphs=True, bSaveGraphs=True, stdevFeatSelection=True):
     """
     Extracts the graph feature vectors of a given set of instances/cases.
@@ -2280,10 +2280,10 @@ def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames,
         if bResetFeatures:
             raise Exception("User requested rebuild of features.")
         if stdevFeatSelection:
-            with open(Prefix + "SDgraphFeatures.pickle", "rb") as fIn:
+            with open(Prefix + "SDgraphFeatures_" + str(dEdgeThreshold) + "_" + str(nfeat) + ".pickle", "rb") as fIn:
                 mGraphFeatures = pickle.load(fIn)
         else:
-            with open(Prefix + "graphFeatures.pickle", "rb") as fIn:
+            with open(Prefix + "graphFeatures_" + str(dEdgeThreshold) + "_" + str(nfeat) + ".pickle", "rb") as fIn:
                 mGraphFeatures = pickle.load(fIn)
         message("Trying to load graph feature matrix... Done.")
     except Exception as e:
@@ -2301,16 +2301,34 @@ def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames,
         message("Extracted selected samples:\n" + str(mSamplesSelected[:][0:10]))
         # Extract vectors
         # TODO pass SampleID to generateAllSampleGraphFeatureVectors
-        mGraphFeatures = generateAllSampleGraphFeatureVectors(gMainGraph, mSamplesSelected, saRemainingFeatureNames, sampleIDsSelected, feat_names, bShowGraphs, bSaveGraphs)
+        dResDict = generateAllSampleGraphFeatureVectors(gMainGraph, mSamplesSelected, saRemainingFeatureNames, sampleIDsSelected, feat_names, bShowGraphs, bSaveGraphs)
         
+        mGraphFeatures = np.array(list(dResDict.values())) 
+        reorderedSampleIds = np.array(list(dResDict.keys()))
+
+        # Create a mapping from reorderedSampleIds to their positions
+        index_map = {id_: idx for idx, id_ in enumerate(reorderedSampleIds)}
+        
+        # Find the indices that would reorder reorderedSampleIds to match sampleIDsSelected
+        order_indices = [index_map[id_] for id_ in sampleIDsSelected]
+        
+
+        # Reorder mGraphFeatures using the calculated indices
+        mGraphFeatures = mGraphFeatures[order_indices]
+
+        #DEBUG LINES
+        message("dResDict: " + str(dResDict))
+        message("mGraphFeatures: " + str(mGraphFeatures))
+        ############
+
         message("Computing graph feature matrix... Done.")
 
         message("Saving graph feature matrix...")
         if stdevFeatSelection:
-            with open(Prefix + "SDgraphFeatures.pickle", "wb") as fOut:
-                pickle.dump(mGraphFeatures, fOut) 
+            with open(Prefix + "SDgraphFeatures_" + str(dEdgeThreshold) + "_" + str(nfeat) + ".pickle", "wb") as fOut:
+                pickle.dump(mGraphFeatures, fOut)  
         else:
-            with open(Prefix + "graphFeatures.pickle", "wb") as fOut:
+            with open(Prefix + "graphFeatures_" + str(dEdgeThreshold) + "_" + str(nfeat) + ".pickle", "wb") as fOut:
                 pickle.dump(mGraphFeatures, fOut) 
         message("Saving graph feature matrix... Done.")
     return mGraphFeatures
@@ -2446,6 +2464,7 @@ def main(argv):
     
     # Graph generation parameters
     parser.add_argument("-e", "--edgeThreshold", type=float, default=0.3)
+    parser.add_argument("-rfat", "--runForAllThresholds", action="store_true", default=False)
     #parser.add_argument("-d", "--minDivergenceToKeep", type=float, default=6)
 
     # Model building parameters
@@ -2471,20 +2490,58 @@ def main(argv):
     # Update global threads to use
     THREADS_TO_USE = args.numberOfThreads
 
+    if args.runForAllThresholds:
+        for threshold in np.arange(0.7, 0.85, 0.1):
+            threshold = round(threshold, 1)
+            # main function
+            gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names, vtumorStage = getGraphAndData(bResetGraph=args.resetGraph,
+                                                                                            dEdgeThreshold=threshold,
+                                                                                            bResetFiles=args.resetCSVCacheFiles,
+                                                                                            bPostProcessing=args.postProcessing,
+                                                                                            bstdevFiltering=args.stdevFiltering,
+                                                                                            bNormalize=args.normalization,
+                                                                                            bNormalizeLog2Scale=args.logScale,
+                                                                                            bShow = args.showGraphs, bSave = args.saveGraphs, 
+                                                                                            stdevFeatSelection = args.selectFeatsBySD,
+                                                                                            nfeat=args.numberOfFeaturesPerLevel)
+            #DEBUG LINES 
+            print(sampleIDs)
+            ################
+
+            # TODO: Restore to NOT reset features
+            
+            mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
+                                            bResetFeatures=args.resetFeatures, dEdgeThreshold=threshold, 
+                                            nfeat=args.numberOfFeaturesPerLevel, bShowGraphs=args.showGraphs, 
+                                            bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
+    else:
     # main function
-    gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names, vtumorStage = getGraphAndData(bResetGraph=args.resetGraph,
-                                                                                    dEdgeThreshold=args.edgeThreshold,
-                                                                                    bResetFiles=args.resetCSVCacheFiles,
-                                                                                    bPostProcessing=args.postProcessing,
-                                                                                    bstdevFiltering=args.stdevFiltering,
-                                                                                    bNormalize=args.normalization,
-                                                                                    bNormalizeLog2Scale=args.logScale,
-                                                                                    bShow = args.showGraphs, bSave = args.saveGraphs, 
-                                                                                    stdevFeatSelection = args.selectFeatsBySD,
-                                                                                    nfeat=args.numberOfFeaturesPerLevel)
-    #DEBUG LINES 
-    print(sampleIDs)
-    ################
+        gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names, vtumorStage = getGraphAndData(bResetGraph=args.resetGraph,
+                                                                                        dEdgeThreshold=args.edgeThreshold,
+                                                                                        bResetFiles=args.resetCSVCacheFiles,
+                                                                                        bPostProcessing=args.postProcessing,
+                                                                                        bstdevFiltering=args.stdevFiltering,
+                                                                                        bNormalize=args.normalization,
+                                                                                        bNormalizeLog2Scale=args.logScale,
+                                                                                        bShow = args.showGraphs, bSave = args.saveGraphs, 
+                                                                                        stdevFeatSelection = args.selectFeatsBySD,
+                                                                                        nfeat=args.numberOfFeaturesPerLevel)
+        #DEBUG LINES 
+        print(sampleIDs)
+        ################
+
+        # TODO: Restore to NOT reset features 
+        
+        mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
+                                            bResetFeatures=args.resetFeatures, dEdgeThreshold=args.edgeThreshold, 
+                                            nfeat=args.numberOfFeaturesPerLevel, bShowGraphs=args.showGraphs, 
+                                            bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
+        
+        #DEBUG LINES 
+        print("sampleIDs: ")
+        print(sampleIDs)
+        ################
+    
     if args.exploratoryAnalysis:
         #plotDistributions(mFeatures_noNaNs, feat_names)
 
@@ -2502,14 +2559,6 @@ def main(argv):
     # vGraphFeatures = getSampleGraphFeatureVector(gMainGraph, mSample, saRemainingFeatureNames)
     # print ("Final graph feature vector: %s"%(str(vGraphFeatures)))
 
-
-
-    # TODO: Restore to NOT reset features
-    
-    mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
-                                        bResetFeatures=args.resetFeatures,
-                                        numOfSelectedSamples=args.numberOfInstances, bShowGraphs=args.showGraphs, 
-                                        bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
     #DEBUG LINES
     message("mGraphFeatures: ")
     message(mGraphFeatures)
