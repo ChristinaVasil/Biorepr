@@ -357,7 +357,7 @@ def useAencoder(mFeatures):
     X_encoded = encoder_model.predict(mFeatures)
     return X_encoded
 
-def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bstdevFiltering=False, bNormalize=True, bNormalizeLog2Scale=True, nfeat=50):
+def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bstdevFiltering=False, bNormalize=True, bNormalizeLog2Scale=True, nfeat=50, expSelectedFeats=False):
     """
     Initializes the case/instance feature matrices, also creating intermediate files for faster startup.
 
@@ -365,6 +365,9 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bstdevFil
     :param bPostProcessing: If True, then apply post-processing to remove NaNs, etc. Default: True.
     :param bNormalize: If True, then apply normalization to the initial data. Default: True.
     :param bNormalizeLog2Scale: If True, then apply log2 scaling after normalization to the initial data. Default: True.
+    :param bstdevFiltering: If True, perform filtering for top variated features per level
+    :param nfeat: number of features per level for graphs 
+    :param expSelectedFeats: If True, save selected feature names to txt
     :return: The initial feature matrix of the cases/instances.
     """
 
@@ -449,6 +452,18 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bstdevFil
 
     if bNormalize:
         mFeatures = normalizeData(mFeatures, feat_names, bNormalizeLog2Scale)
+
+    if expSelectedFeats and bstdevFiltering:
+        # open file
+        with open('exportedSelectedFeatures.txt', 'w+') as f:
+            
+            # write elements of list
+            for items in feat_names:
+                f.write('%s\n' %items)
+            
+        #DEBUG LINES
+        message("File written successfully")
+        ####################
 
     # return feat_names in the function with updated postProcessFeatures
     return mFeatures, vClass, sampleIDs, feat_names, tumor_stage
@@ -1543,7 +1558,7 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, nfeat=50, bResetG
 
 
 def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bPostProcessing=True, bstdevFiltering=False, bNormalize=True, bNormalizeLog2Scale=True, bShow = False, 
-                    bSave = False, stdevFeatSelection=True, nfeat=50): 
+                    bSave = False, stdevFeatSelection=True, nfeat=50, expSelectedFeats=False): 
     # TODO: dMinDivergenceToKeep: Add as parameter
     """
     Loads the feature correlation graph and all feature data.
@@ -1562,7 +1577,7 @@ def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bP
     """
     # Do mFeatures_noNaNs has all features? Have we applied a threshold to get here?
     mFeatures_noNaNs, vClass, sampleIDs, feat_names, tumor_stage = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=bPostProcessing, bstdevFiltering=bstdevFiltering,
-                                                         bNormalize=bNormalize, bNormalizeLog2Scale=bNormalizeLog2Scale, nfeat=nfeat)
+                                                         bNormalize=bNormalize, bNormalizeLog2Scale=bNormalizeLog2Scale, nfeat=nfeat, expSelectedFeats=expSelectedFeats)
     gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=dEdgeThreshold, nfeat=nfeat, bResetGraph=bResetGraph, stdevFeatSelection=stdevFeatSelection)
     
     # if bShow or bSave:
@@ -2492,6 +2507,7 @@ def main(argv):
     parser.add_argument("-gfeat", "--graphFeatures", action="store_true", default=False)
     parser.add_argument("-featv", "--featurevectors", action="store_true", default=False)
     parser.add_argument("-sdfeat", "--selectFeatsBySD", action="store_true", default=False)
+    parser.add_argument("-expFeats", "--exportSelectedFeats", action="store_true", default=False)
     
 
     # Labels
@@ -2539,7 +2555,7 @@ def main(argv):
                                                                                             bNormalizeLog2Scale=args.logScale,
                                                                                             bShow = args.showGraphs, bSave = args.saveGraphs, 
                                                                                             stdevFeatSelection = args.selectFeatsBySD,
-                                                                                            nfeat=args.numberOfFeaturesPerLevel)
+                                                                                            nfeat=args.numberOfFeaturesPerLevel, expSelectedFeats=args.exportSelectedFeats)
             #DEBUG LINES 
             print(sampleIDs)
             ################
@@ -2561,7 +2577,8 @@ def main(argv):
                                                                                         bNormalizeLog2Scale=args.logScale,
                                                                                         bShow = args.showGraphs, bSave = args.saveGraphs, 
                                                                                         stdevFeatSelection = args.selectFeatsBySD,
-                                                                                        nfeat=args.numberOfFeaturesPerLevel)
+                                                                                        nfeat=args.numberOfFeaturesPerLevel, 
+                                                                                        expSelectedFeats=args.exportSelectedFeats)
         #DEBUG LINES 
         print(sampleIDs)
         ################
