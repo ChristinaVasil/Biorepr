@@ -401,7 +401,7 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bstdevFil
         #DEBUG LINES
         message("FILENAME: "+FEATURE_VECTOR_FILENAME)
         ############
-        labelfile = np.genfromtxt(fControl, skip_header=1, usecols=(0, 100472),
+        labelfile = np.genfromtxt(fControl, skip_header=1, usecols=(0, 97467),
                                   missing_values=['NA', "na", '-', '--', 'n/a'],
                                   dtype=np.dtype("object"), delimiter=' ').astype(str)
         
@@ -530,8 +530,44 @@ def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage, featNames, b
     ############
     
     # imputation for completing missing values using k-Nearest Neighbors
+    levels_indices = getOmicLevels(filtered_features)
+    
+    #DEBUG LINES
+    message("levels_indices for methylation" + str(np.shape(levels_indices)))
+    ###########
+
+    matrixForKnnImp = mFeatures[:, levels_indices["methylation"][0]:levels_indices["methylation"][1]]
+
+    #DEBUG LINES
+    with open("matrixForKnnImp.pickle", "wb") as fOut: 
+            pickle.dump(matrixForKnnImp, fOut)
+    ###########
+
+    #DEBUG LINES
+    message("Matrix shape before transpose: " + str(np.shape(matrixForKnnImp)))
+    ###########
+    
+    matrixForKnnImp = matrixForKnnImp.transpose()
+
+    #DEBUG LINES
+    message("Matrix shape after transpose: " + str(np.shape(matrixForKnnImp)))
+    ###########
+    
     imputer = KNNImputer()
-    mFeatures = imputer.fit_transform(mFeatures)
+    matrixForKnnImp = imputer.fit_transform(matrixForKnnImp)
+
+    matrixForKnnImp = matrixForKnnImp.transpose()
+
+    #DEBUG LINES
+    message("Matrix shape after second transpose: " + str(np.shape(matrixForKnnImp)))
+    ###########
+
+    mFeatures[:, levels_indices["methylation"][0]:levels_indices["methylation"][1]] = matrixForKnnImp
+
+    #DEBUG LINES
+    with open("afterImputationmFeatures.pickle", "wb") as fOut: 
+            pickle.dump(mFeatures, fOut)
+    ###########
 
     #DEBUG LINES 
     print(mFeatures[inds][0:5])
@@ -910,7 +946,7 @@ def loadPatientAndControlData():
     """
     message("Loading features...")
     fControl = open(FEATURE_VECTOR_FILENAME, "r")
-    datafile = np.genfromtxt(fControl, skip_header=1, usecols=range(1, 100472),
+    datafile = np.genfromtxt(fControl, skip_header=1, usecols=range(1, 97467),
                              missing_values=['NA', "na", '-', '--', 'n/a'], delimiter=" ",
                              dtype=np.dtype("float")
                              )
@@ -930,7 +966,7 @@ def loadTumorStage():
     message("Loading tumor stage...")
     fControl = open(FEATURE_VECTOR_FILENAME, "r")
     
-    clinicalfile = np.genfromtxt(fControl, skip_header=1, usecols=(0, 100473),
+    clinicalfile = np.genfromtxt(fControl, skip_header=1, usecols=(0, 97468),
                                   missing_values=['NA', "na", '-', '--', 'n/a'],
                                   dtype=np.dtype("object"), delimiter=' ').astype(str)
     
@@ -2491,7 +2527,7 @@ def main(argv):
     THREADS_TO_USE = args.numberOfThreads
 
     if args.runForAllThresholds:
-        for threshold in np.arange(0.7, 0.85, 0.1):
+        for threshold in np.arange(0.3, 0.85, 0.1):
             threshold = round(threshold, 1)
             # main function
             gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names, vtumorStage = getGraphAndData(bResetGraph=args.resetGraph,
