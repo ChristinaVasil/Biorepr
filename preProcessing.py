@@ -488,9 +488,9 @@ def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage, featNames, b
     # imputer = Imputer(strategy="mean", missing_values="NaN", verbose=1)
     # mFeatures_noNaNs = imputer.fit_transform(mFeatures)
 
-    rows_to_remove = CheckRowsNaN(mFeatures)
+    #rows_to_remove = CheckRowsNaN(mFeatures)
     # DEBUG LINES
-    message("rows_to_remove"+str(rows_to_remove))
+    #message("rows_to_remove"+str(sample_ids[rows_to_remove]))
     #    levels_indices = getLevelIndices()
     #############
     
@@ -499,14 +499,15 @@ def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage, featNames, b
     # DEBUG LINES
     message("Omic Levels: "+str(levels_indices))
     #############
-    incomplete_samples = incompleteSamples(mFeatures, levels_indices)
+    #incomplete_samples = incompleteSamples(mFeatures, levels_indices)
+    samples_to_remove = incompleteSamples(mFeatures, levels_indices)
     # DEBUG LINES
-    message("incomplete_samples"+str(sample_ids[incomplete_samples]))
+    message("incomplete_samples"+str(sample_ids[samples_to_remove]))
     #############
 
-    samples_to_remove = np.concatenate((rows_to_remove, incomplete_samples))
-    samples_to_remove = np.unique(samples_to_remove)
-    
+    #samples_to_remove = np.concatenate((rows_to_remove, incomplete_samples))
+    #samples_to_remove = np.unique(samples_to_remove)
+
     features_to_remove = CheckColsNaN(mFeatures, levels_indices)
    
     # Remove samples from the matrix
@@ -817,38 +818,38 @@ def incompleteSamples(mAllData, level_indices):
     indices_of_empty_rows = np.unique(indices_of_empty_rows).astype(int)
     return indices_of_empty_rows
 
-def CheckColsNaN(input_matrix, levels, nan_threshold=0.2):
-    """
-    Returns an array with the index of the columns that were kept
-    :param input_matrix: the matrix that will be filtered
-    :param nan_threshold: threshold for the frequency of NaN
-    """
-    message("Columns' filtering... ")
-    columns_length = input_matrix.shape[0]
+# def CheckColsNaN(input_matrix, levels, nan_threshold=0.2):
+#     """
+#     Returns an array with the index of the columns that were kept
+#     :param input_matrix: the matrix that will be filtered
+#     :param nan_threshold: threshold for the frequency of NaN
+#     """
+#     message("Columns' filtering... ")
+#     columns_length = input_matrix.shape[0]
 
-    # count nan per column
-    nan_per_column = count_nan_per_column(input_matrix)
-    # compute the frequency of nan per column
-    nan_frequency  = nan_per_column / columns_length
+#     # count nan per column
+#     nan_per_column = count_nan_per_column(input_matrix)
+#     # compute the frequency of nan per column
+#     nan_frequency  = nan_per_column / columns_length
     
-    # Count zeros per column
-    zero_per_column = count_zero_per_column(input_matrix[:, levels["mRNA"][0]:levels["miRNA"][1]])
-    # Compute the frequency of zeros per column
-    zero_frequency = zero_per_column / columns_length
+#     # Count zeros per column
+#     zero_per_column = count_zero_per_column(input_matrix[:, levels["mRNA"][0]:levels["miRNA"][1]])
+#     # Compute the frequency of zeros per column
+#     zero_frequency = zero_per_column / columns_length
     
-    # Identify columns to remove based on NaN and zero frequency thresholds
-    columns_to_remove = (nan_frequency > nan_threshold) | (zero_frequency > nan_threshold)
+#     # Identify columns to remove based on NaN and zero frequency thresholds
+#     columns_to_remove = (nan_frequency > nan_threshold) | (zero_frequency > nan_threshold)
 
-    # Get the indices of columns to remove
-    columns_to_remove = np.where(columns_to_remove)[0]
+#     # Get the indices of columns to remove
+#     columns_to_remove = np.where(columns_to_remove)[0]
 
-    # # return an array with boolean values, that show the columns with <=nan_threshold t
-    # columns_to_remove = nan_frequency > nan_threshold
+#     # # return an array with boolean values, that show the columns with <=nan_threshold t
+#     # columns_to_remove = nan_frequency > nan_threshold
 
-    # columns_to_remove = np.where(columns_to_remove)
-    # # Flatten the 2D array into a 1D array 
-    # columns_to_remove = np.ravel(columns_to_remove)
-    return columns_to_remove
+#     # columns_to_remove = np.where(columns_to_remove)
+#     # # Flatten the 2D array into a 1D array 
+#     # columns_to_remove = np.ravel(columns_to_remove)
+#     return columns_to_remove
 
 def CheckColsNaN(input_matrix, levels, nan_threshold=0.1, zero_threshold=0.2):
     """
