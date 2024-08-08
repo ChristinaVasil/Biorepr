@@ -357,7 +357,7 @@ def useAencoder(mFeatures):
     X_encoded = encoder_model.predict(mFeatures)
     return X_encoded
 
-def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bstdevFiltering=False, bNormalize=True, bNormalizeLog2Scale=True, nfeat=50, expSelectedFeats=False):
+def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bstdevFiltering=False, bNormalize=True, bNormalizeLog2Scale=True, nfeat=50, expSelectedFeats=False, bExportImpMat=False):
     """
     Initializes the case/instance feature matrices, also creating intermediate files for faster startup.
 
@@ -439,6 +439,8 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bstdevFil
     message("1 .This is the shape of the control matrix:")
     message(np.shape(mControlFeatureMatrix))
 
+    if bExportImpMat:
+        exportImputatedMatrix(mFeatures, sampleIDs, feat_names)
 
     # the new bPostProcessing removes columns from mFeatures and mControlFeatureMatrix
     if bPostProcessing:
@@ -607,6 +609,81 @@ def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage, featNames, b
         message("filtered_features shape after stdev filtering: " + str(np.shape(filtered_features)))
 
     return mFeatures, filtered_sample_ids, filtered_vClass, filtered_features, filtered_tumor_stage
+
+def exportImputatedMatrix (mFeatures, sample_ids, feat_names):
+    
+    levels_indices = getOmicLevels(feat_names)
+
+    matrixForKnnImp = mFeatures[:, levels_indices["methylation"][0]:levels_indices["methylation"][1]]
+
+    #DEBUG LINES
+    message("Matrix shape: " + str(np.shape(matrixForKnnImp)))
+    ###########
+
+    levels_indices = {"methylation":levels_indices["methylation"]}
+
+    columns_length = matrixForKnnImp.shape[0]
+    
+    # Count NaNs per column
+    nan_per_column = count_nan_per_column(matrixForKnnImp)
+    
+    # Compute the frequency of NaNs per column
+    nan_frequency = nan_per_column / columns_length
+    
+    # Initialize a mask for columns to remove based on NaN threshold for all columns
+    columns_to_remove = nan_frequency > 0.1
+    
+    # Get the indices of columns to remove
+    columns_to_remove_indices = np.where(columns_to_remove)[0]
+
+
+    # Create a boolean mask where each row is True if it does not contain all NaNs
+    mask = np.all(np.isnan(matrixForKnnImp), axis=1)
+
+    # Use the mask to filter out rows with all NaNs
+    samples_to_remove = np.where(mask)[0]
+
+    #DEBUG LINES
+    message("columns_to_remove_indices: " + str(columns_to_remove_indices))
+    message("samples_to_remove: " + str(samples_to_remove))
+    ###########
+
+    # Remove samples from the matrix
+    matrixForKnnImp = np.delete(matrixForKnnImp, samples_to_remove, axis=0)
+
+    # Remove features from the matrix
+    matrixForKnnImp = np.delete(matrixForKnnImp, columns_to_remove_indices, axis=1)
+
+    # Create a boolean mask to keep elements not in the indices_to_remove array
+    mask = np.ones(len(sample_ids), dtype=bool)
+    mask[samples_to_remove] = False
+
+    # Use the mask to filter the array
+    filtered_sample_ids = sample_ids[mask]
+
+    features = getFeatureNames()
+
+    features = features[levels_indices["methylation"][0]:levels_indices["methylation"][1]]
+
+    # Create a new list without the elements at the specified indices
+    filtered_features = [element for index, element in enumerate(features) if index not in columns_to_remove_indices]
+
+    #DEBUG LINES
+    message("Matrix shape before transpose: " + str(np.shape(matrixForKnnImp)))
+    ###########
+    
+    matrixForKnnImp = matrixForKnnImp.transpose()
+
+    #DEBUG LINES
+    message("Matrix shape after transpose: " + str(np.shape(matrixForKnnImp)))
+    ###########
+    
+    imputer = KNNImputer()
+    matrixForKnnImp = imputer.fit_transform(matrixForKnnImp)
+
+    imputedDf = pd.DataFrame(matrixForKnnImp, index= filtered_features, columns=filtered_sample_ids)
+
+    imputedDf.to_csv('/home/thlamp/tcga/bladder_results/imputedMethylationMatrix.txt')  
 
 def graphVectorPreprocessing(mGraphFeatures):
     """
@@ -1559,7 +1636,7 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, nfeat=50, bResetG
 
 
 def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bPostProcessing=True, bstdevFiltering=False, bNormalize=True, bNormalizeLog2Scale=True, bShow = False, 
-                    bSave = False, stdevFeatSelection=True, nfeat=50, expSelectedFeats=False): 
+                    bSave = False, stdevFeatSelection=True, nfeat=50, expSelectedFeats=False, bExportImpMat=False): 
     # TODO: dMinDivergenceToKeep: Add as parameter
     """
     Loads the feature correlation graph and all feature data.
@@ -1578,7 +1655,7 @@ def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bP
     """
     # Do mFeatures_noNaNs has all features? Have we applied a threshold to get here?
     mFeatures_noNaNs, vClass, sampleIDs, feat_names, tumor_stage = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=bPostProcessing, bstdevFiltering=bstdevFiltering,
-                                                         bNormalize=bNormalize, bNormalizeLog2Scale=bNormalizeLog2Scale, nfeat=nfeat, expSelectedFeats=expSelectedFeats)
+                                                         bNormalize=bNormalize, bNormalizeLog2Scale=bNormalizeLog2Scale, nfeat=nfeat, expSelectedFeats=expSelectedFeats, bExportImpMat=bExportImpMat)
     gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=dEdgeThreshold, nfeat=nfeat, bResetGraph=bResetGraph, stdevFeatSelection=stdevFeatSelection)
     
     # if bShow or bSave:
@@ -2509,7 +2586,7 @@ def main(argv):
     parser.add_argument("-featv", "--featurevectors", action="store_true", default=False)
     parser.add_argument("-sdfeat", "--selectFeatsBySD", action="store_true", default=False)
     parser.add_argument("-expFeats", "--exportSelectedFeats", action="store_true", default=False)
-    
+    parser.add_argument("-expImpMat", "--exportImputatedMatrix", action="store_true", default=False)
 
     # Labels
     parser.add_argument("-cls", "--classes", action="store_true", default=False)
@@ -2544,7 +2621,7 @@ def main(argv):
     THREADS_TO_USE = args.numberOfThreads
 
     if args.runForAllThresholds:
-        for threshold in np.arange(0.3, 0.85, 0.1):
+        for threshold in np.arange(0.5, 0.85, 0.1):
             threshold = round(threshold, 1)
             # main function
             gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names, vtumorStage = getGraphAndData(bResetGraph=args.resetGraph,
@@ -2556,7 +2633,9 @@ def main(argv):
                                                                                             bNormalizeLog2Scale=args.logScale,
                                                                                             bShow = args.showGraphs, bSave = args.saveGraphs, 
                                                                                             stdevFeatSelection = args.selectFeatsBySD,
-                                                                                            nfeat=args.numberOfFeaturesPerLevel, expSelectedFeats=args.exportSelectedFeats)
+                                                                                            nfeat=args.numberOfFeaturesPerLevel, 
+                                                                                            expSelectedFeats=args.exportSelectedFeats,
+                                                                                            bExportImpMat=args.exportImputatedMatrix)
             #DEBUG LINES 
             print(sampleIDs)
             ################
@@ -2579,7 +2658,8 @@ def main(argv):
                                                                                         bShow = args.showGraphs, bSave = args.saveGraphs, 
                                                                                         stdevFeatSelection = args.selectFeatsBySD,
                                                                                         nfeat=args.numberOfFeaturesPerLevel, 
-                                                                                        expSelectedFeats=args.exportSelectedFeats)
+                                                                                        expSelectedFeats=args.exportSelectedFeats,
+                                                                                        bExportImpMat=args.exportImputatedMatrix)
         #DEBUG LINES 
         print(sampleIDs)
         ################
