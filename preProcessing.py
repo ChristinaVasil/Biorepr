@@ -618,6 +618,27 @@ def exportImputatedMatrix (mFeatures, sample_ids, feat_names):
 
     #DEBUG LINES
     message("Matrix shape: " + str(np.shape(matrixForKnnImp)))
+    message("NaN before removing of empty samples: " + str(np.count_nonzero(np.isnan(matrixForKnnImp))))
+    ###########
+
+    # Create a boolean mask where each row is True if it does not contain all NaNs
+    mask = np.all(np.isnan(matrixForKnnImp), axis=1)
+
+    # Use the mask to filter out rows with all NaNs
+    samples_to_remove = np.where(mask)[0]
+
+    # Remove samples from the matrix
+    matrixForKnnImp = np.delete(matrixForKnnImp, samples_to_remove, axis=0)
+    
+    # Create a boolean mask to keep elements not in the indices_to_remove array
+    mask = np.ones(len(sample_ids), dtype=bool)
+    mask[samples_to_remove] = False
+
+    # Use the mask to filter the array
+    filtered_sample_ids = sample_ids[mask]
+
+    #DEBUG LINES
+    message("NaN after removing of empty samples: " + str(np.count_nonzero(np.isnan(matrixForKnnImp))))
     ###########
 
     levels_indices = {"methylation":levels_indices["methylation"]}
@@ -636,30 +657,13 @@ def exportImputatedMatrix (mFeatures, sample_ids, feat_names):
     # Get the indices of columns to remove
     columns_to_remove_indices = np.where(columns_to_remove)[0]
 
-
-    # Create a boolean mask where each row is True if it does not contain all NaNs
-    mask = np.all(np.isnan(matrixForKnnImp), axis=1)
-
-    # Use the mask to filter out rows with all NaNs
-    samples_to_remove = np.where(mask)[0]
-
     #DEBUG LINES
     message("columns_to_remove_indices: " + str(columns_to_remove_indices))
     message("samples_to_remove: " + str(samples_to_remove))
     ###########
 
-    # Remove samples from the matrix
-    matrixForKnnImp = np.delete(matrixForKnnImp, samples_to_remove, axis=0)
-
     # Remove features from the matrix
     matrixForKnnImp = np.delete(matrixForKnnImp, columns_to_remove_indices, axis=1)
-
-    # Create a boolean mask to keep elements not in the indices_to_remove array
-    mask = np.ones(len(sample_ids), dtype=bool)
-    mask[samples_to_remove] = False
-
-    # Use the mask to filter the array
-    filtered_sample_ids = sample_ids[mask]
 
     features = getFeatureNames()
 
@@ -1714,7 +1718,7 @@ def drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph",bShow = True, bSave = Tru
     if bShow:
         plt.show()
 
-def mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, nfeat=50, bResetGraph=False, stdevFeatSelection=False):
+def mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.8, nfeat=50, bResetGraph=False, stdevFeatSelection=False):
     """
     Plots the distribution of the general graph's edges between start and end thresholds adding by 0.1.
     :param mFeatures_noNaNs: the feature matrix
@@ -1726,7 +1730,7 @@ def mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endTh
     thresholds = []
     edgesNum = []
     nodesNum = []
-    for threshold in np.arange(startThreshold, endThreshold+0.1, 0.1):
+    for threshold in np.arange(startThreshold, endThreshold+0.05, 0.1):
         threshold = round(threshold, 1)
         gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=threshold, nfeat=nfeat, bResetGraph=bResetGraph, stdevFeatSelection=stdevFeatSelection)
         thresholds.append(threshold)
@@ -1966,8 +1970,8 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     message("Total time (sec): %4.2f" % (perf_counter() - dStartTime))
 
     # Plot and save the collected graphs
-    for gMainGraph, sPDFFileName in graphList:
-        drawAndSaveGraph(gMainGraph, sPDFFileName, bShowGraphs, bSaveGraphs)
+    # for gMainGraph, sPDFFileName in graphList:
+    #     drawAndSaveGraph(gMainGraph, sPDFFileName, bShowGraphs, bSaveGraphs)
 
     return dResDict
 
@@ -2561,7 +2565,7 @@ def main(argv):
 
     # Post-processing graph features
     parser.add_argument("-scalDeact", "--scalingDeactivation", action="store_false", default=True)
-    parser.add_argument("-scalCls", "--scalingClass", action="store_true", default=False)
+    # parser.add_argument("-scalCls", "--scalingClass", action="store_true", default=False)
 
     # Exploratory analysis plots
     parser.add_argument("-expan", "--exploratoryAnalysis", action="store_true", default=False)
@@ -2621,7 +2625,7 @@ def main(argv):
     THREADS_TO_USE = args.numberOfThreads
 
     if args.runForAllThresholds:
-        for threshold in np.arange(0.5, 0.85, 0.1):
+        for threshold in np.arange(0.3, 0.85, 0.1):
             threshold = round(threshold, 1)
             # main function
             gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names, vtumorStage = getGraphAndData(bResetGraph=args.resetGraph,
@@ -2642,10 +2646,17 @@ def main(argv):
 
             # TODO: Restore to NOT reset features
             
-            mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
+            if args.graphFeatures:
+                mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
                                             bResetFeatures=args.resetFeatures, dEdgeThreshold=threshold, 
                                             nfeat=args.numberOfFeaturesPerLevel, bShowGraphs=args.showGraphs, 
                                             bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
+                
+            #DEBUG LINES
+            message("mGraphFeatures: ")
+            message(mGraphFeatures)
+            ##############
+
     else:
     # main function
         gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names, vtumorStage = getGraphAndData(bResetGraph=args.resetGraph,
@@ -2666,14 +2677,20 @@ def main(argv):
 
         # TODO: Restore to NOT reset features 
         
-        mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
+        if args.graphFeatures:
+            mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
                                             bResetFeatures=args.resetFeatures, dEdgeThreshold=args.edgeThreshold, 
                                             nfeat=args.numberOfFeaturesPerLevel, bShowGraphs=args.showGraphs, 
                                             bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
+            
+            #DEBUG LINES
+            message("mGraphFeatures: ")
+            message(mGraphFeatures)
+            ##############
         
         #DEBUG LINES 
-        print("sampleIDs: ")
-        print(sampleIDs)
+        # print("sampleIDs: ")
+        # print(sampleIDs)
         ################
     
     if args.exploratoryAnalysis:
@@ -2681,7 +2698,7 @@ def main(argv):
 
         #plotSDdistributions(mFeatures_noNaNs, feat_names)
         
-        mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.9, nfeat=args.numberOfFeaturesPerLevel, bResetGraph=True, stdevFeatSelection = args.selectFeatsBySD)
+        mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.8, nfeat=args.numberOfFeaturesPerLevel, bResetGraph=True, stdevFeatSelection = args.selectFeatsBySD)
 
         #plotExplainedVariance(mFeatures_noNaNs, n_components=100, featSelection = args.stdevFiltering)
 
@@ -2693,10 +2710,7 @@ def main(argv):
     # vGraphFeatures = getSampleGraphFeatureVector(gMainGraph, mSample, saRemainingFeatureNames)
     # print ("Final graph feature vector: %s"%(str(vGraphFeatures)))
 
-    #DEBUG LINES
-    message("mGraphFeatures: ")
-    message(mGraphFeatures)
-    ##############
+    
         # if args.tumorStage:
         #     filteredFeatures, filteredGraphFeatures, filteredTumorStage = filterTumorStage(mFeatures_noNaNs, mGraphFeatures, vSelectedtumorStage, vClass, sampleIDs)
         #     if args.scalingDeactivation:
@@ -2730,8 +2744,8 @@ def main(argv):
         vSelectedSamplesClasses = np.concatenate((vClass[0:int(args.numberOfInstances / 2)][:], vClass[-int(args.numberOfInstances / 2):][:]), axis=0)
         vSelectedtumorStage = np.concatenate((vtumorStage[0:int(args.numberOfInstances / 2)][:], vtumorStage[-int(args.numberOfInstances / 2):][:]), axis=0)
     
-    
-    filteredFeatures, filteredGraphFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, mGraphFeatures, vSelectedtumorStage, vClass, sampleIDs)
+    if args.graphFeatures:
+        filteredFeatures, filteredGraphFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, mGraphFeatures, vSelectedtumorStage, vClass, sampleIDs)
     
     if args.tumorStage and args.scalingDeactivation and args.graphFeatures:
         filteredGraphFeatures = graphVectorPreprocessing(filteredGraphFeatures)
@@ -2742,16 +2756,7 @@ def main(argv):
         message(filteredGraphFeatures)
         ##################
 
-    if args.classes and args.scalingDeactivation and args.scalingClass and args.graphFeatures:
-        mGraphFeatures = scalingPerClass(mGraphFeatures, vSelectedSamplesClasses)
-        #DEBUG LINES
-        message("Graph features for classes with scaling per class")
-        message("Max per column: " + str(mGraphFeatures.max(axis=0)))
-        message("Min per column: " + str(mGraphFeatures.min(axis=0)))
-        message(mGraphFeatures)
-        ##################
-
-    elif args.classes and args.scalingDeactivation and args.graphFeatures:
+    if args.classes and args.scalingDeactivation and args.graphFeatures:
         mGraphFeatures = graphVectorPreprocessing(mGraphFeatures)
         #DEBUG LINES
         message("Graph features for classes with scaling")
@@ -2760,7 +2765,8 @@ def main(argv):
         message(mGraphFeatures)
         ##################
 
-    if args.graphFeatures and not args.scalingDeactivation:
+    if args.graphFeatures and not args.scalingDeactivation and args.classes:
+        message("Graph features for classes without scaling")
         #DEBUG LINES
         message("First sample before filtering: " + str(mGraphFeatures[0, :]))
         ##############
@@ -2772,7 +2778,33 @@ def main(argv):
 
         #DEBUG LINES
         message("First sample after filtering: " + str(mGraphFeatures[0, :]))
+        message("Shape of matrix: " + str(np.shape(mGraphFeatures)))
         ##############
+
+    if args.graphFeatures and not args.scalingDeactivation and args.tumorStage:
+        message("Graph features for tumor stage without scaling")
+        #DEBUG LINES
+        message("First sample before filtering: " + str(filteredGraphFeatures[0, :]))
+        ##############
+        # Identify columns where all values are the same
+        columns_to_keep = ~np.all(filteredGraphFeatures == filteredGraphFeatures[0, :], axis=0)
+
+        # Remove columns with the same value
+        filteredGraphFeatures = filteredGraphFeatures[:, columns_to_keep]
+
+        #DEBUG LINES
+        message("First sample after filtering: " + str(filteredGraphFeatures[0, :]))
+        message("Shape of matrix: " + str(np.shape(filteredGraphFeatures)))
+        ##############
+
+    #DEBUG LINES
+    message("Class") 
+    message("First sample after filtering: " + str(mGraphFeatures[0, :]))
+    message("Shape of matrix: " + str(np.shape(mGraphFeatures)))
+    message("Tumor stage") 
+    message("First sample after filtering: " + str(filteredGraphFeatures[0, :]))
+    message("Shape of matrix: " + str(np.shape(filteredGraphFeatures)))
+    ##############
 
     metricResults =[]
     savedResults = {}
@@ -2967,9 +2999,9 @@ def main(argv):
         new_df = pd.DataFrame.from_dict(savedResults, orient='index').reset_index()
         new_df.rename(columns={'index': 'sfeatClass'}, inplace=True)
 
-        if os.path.exists("saved_resultsDEGs150.csv"):
+        if os.path.exists("saved_results.csv"):
             # Read the existing CSV file into a DataFrame
-            existing_df = pd.read_csv("saved_resultsDEGs150.csv")
+            existing_df = pd.read_csv("saved_results.csv")
         else:
             # Create an empty DataFrame if the CSV file does not exist
             existing_df = pd.DataFrame()
@@ -2981,7 +3013,7 @@ def main(argv):
             combined_df = new_df
 
         # Write the updated DataFrame back to the CSV file
-        combined_df.to_csv("saved_resultsDEGs150.csv", index=False)
+        combined_df.to_csv("saved_results.csv", index=False)
 
     if args.wilcoxonTest:
         wilcoxonTests(savedResults)
