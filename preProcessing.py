@@ -1077,13 +1077,14 @@ def loadTumorStage():
     message(np.shape(clinicalfile))
     return clinicalfile
 
-def filterTumorStage(mFeatures, mgraphsFeatures, vTumorStage, vClass, sampleIDs):    
+def filterTumorStage(mFeatures, vTumorStage, vClass, sampleIDs, mgraphsFeatures=None, useGraphFeatures=False):    
     """
     Filters out the samples that don't have data at tumor stage (tumor stage == 0) and control samples (class = 2) from the feature matrix, graph 
     feature matrix and tumor stage array and returns these objects.
     :param mFeatures: the feature matrix
     :param mgraphsFeatures: the graph feature matrix
     :param vTumorStage: array with tumor stage data
+    :param useGraphFeatures: filter also graph features
     """
     # DEBUG LINES
     message(np.shape(mFeatures))
@@ -1094,7 +1095,8 @@ def filterTumorStage(mFeatures, mgraphsFeatures, vTumorStage, vClass, sampleIDs)
     iNonControlIndex = np.where(vClass == "2")[0]
     combinedIndex = np.unique(np.concatenate((iNonControlIndex, izerosIndex), axis=None))
     mSelectedFeatures = np.delete(mFeatures, combinedIndex, 0)
-    mSelectedGraphFeatures = np.delete(mgraphsFeatures, combinedIndex, 0)
+    if useGraphFeatures:
+        mSelectedGraphFeatures = np.delete(mgraphsFeatures, combinedIndex, 0)
     sselectedTumorStage = np.delete(vTumorStage, combinedIndex, 0)
     selectedvClass = np.delete(vClass, combinedIndex, 0)
 
@@ -1107,12 +1109,16 @@ def filterTumorStage(mFeatures, mgraphsFeatures, vTumorStage, vClass, sampleIDs)
     message(combinedIndex)
     message("Shape of matrix:")
     message(np.shape(mSelectedFeatures))
-    message("Shape of graph matrix:")
-    message(np.shape(mSelectedGraphFeatures))
+    if useGraphFeatures:
+        message("Shape of graph matrix:")
+        message(np.shape(mSelectedGraphFeatures))
     message("Shape of tumor stage:")
     message(np.shape(sselectedTumorStage))
     ###################
-    return mSelectedFeatures, mSelectedGraphFeatures, sselectedTumorStage, selectedvClass
+    if useGraphFeatures:
+        return mSelectedFeatures, mSelectedGraphFeatures, sselectedTumorStage, selectedvClass
+    else:
+        return mSelectedFeatures, sselectedTumorStage, selectedvClass
 
 def kneighbors(X, y, lmetricResults, sfeatClass, savedResults):
     """
@@ -1291,11 +1297,12 @@ def normalizeData(mFeaturesToNormalize, sfeatureNames, logScale=True):
     message("Normalizing based on control set... Done.")
     return mFeaturesToNormalize
 
-def plotDistributions(mFeatures, sfeatureNames):
+def plotDistributions(mFeatures, sfeatureNames, stdfeat, preprocessing):
     """
     Plots the distributions of the values for the three omic levels.
     :param mFeatures: the feature matrix
     :param sfeatureNames: selected feature names
+    :param stdfeat: feature selection by standard deviation 
     """
     #levels_indices = getLevelIndices()
     levels_indices = getOmicLevels(sfeatureNames)
@@ -1322,8 +1329,14 @@ def plotDistributions(mFeatures, sfeatureNames):
         plt.xlabel('Values')
         # frequency label
         plt.ylabel('Counts')
+        if stdfeat:
+            title ="Data distribution of " + omicLevel + " for feature selection after data preprocessing"
+        elif preprocessing: 
+            title ="Data distribution of " + omicLevel + " for full vector after data preprocessing"
+        else:       
+            title ="Data distribution of " + omicLevel + " for full vector"
         # plot title
-        plt.title("Data distribution of " + omicLevel)
+        plt.title(title)
 
         # use savefig() before show().
         plt.savefig(omicLevel + "_distribution.png") 
@@ -2146,7 +2159,7 @@ def mlpClassifier(X, y, lmetricResults, sfeatClass, savedResults):
     :param sfeatClass: string/information about the ML model, the features and data labels 
     :param savedResults: dictionary for the F1-macro results for wilcoxon test
     """
-    clf = MLPClassifier(max_iter=300)
+    clf = MLPClassifier(max_iter=2000)
 
     cv = StratifiedKFold(n_splits=10)
     crossValidation(X, y, cv, clf, lmetricResults, sfeatClass, savedResults)
@@ -2694,11 +2707,11 @@ def main(argv):
         ################
     
     if args.exploratoryAnalysis:
-        #plotDistributions(mFeatures_noNaNs, feat_names)
+        plotDistributions(mFeatures_noNaNs, feat_names, stdfeat=args.stdevFiltering, preprocessing=args.postProcessing)
 
         #plotSDdistributions(mFeatures_noNaNs, feat_names)
         
-        mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.8, nfeat=args.numberOfFeaturesPerLevel, bResetGraph=True, stdevFeatSelection = args.selectFeatsBySD)
+        #mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.8, nfeat=args.numberOfFeaturesPerLevel, bResetGraph=True, stdevFeatSelection = args.selectFeatsBySD)
 
         #plotExplainedVariance(mFeatures_noNaNs, n_components=100, featSelection = args.stdevFiltering)
 
@@ -2745,8 +2758,13 @@ def main(argv):
         vSelectedtumorStage = np.concatenate((vtumorStage[0:int(args.numberOfInstances / 2)][:], vtumorStage[-int(args.numberOfInstances / 2):][:]), axis=0)
     
     if args.graphFeatures:
-        filteredFeatures, filteredGraphFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, mGraphFeatures, vSelectedtumorStage, vClass, sampleIDs)
-    
+        filteredFeatures, filteredGraphFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, mGraphFeatures, useGraphFeatures=args.graphFeatures)
+    if args.graphFeatures and args.featurevectors:
+        filteredFeatures, filteredGraphFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, mGraphFeatures, useGraphFeatures=args.graphFeatures)
+    elif args.featurevectors:
+        filteredFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, useGraphFeatures=args.graphFeatures)
+
+
     if args.tumorStage and args.scalingDeactivation and args.graphFeatures:
         filteredGraphFeatures = graphVectorPreprocessing(filteredGraphFeatures)
         #DEBUG LINES
@@ -2797,14 +2815,15 @@ def main(argv):
         message("Shape of matrix: " + str(np.shape(filteredGraphFeatures)))
         ##############
 
-    #DEBUG LINES
-    message("Class") 
-    message("First sample after filtering: " + str(mGraphFeatures[0, :]))
-    message("Shape of matrix: " + str(np.shape(mGraphFeatures)))
-    message("Tumor stage") 
-    message("First sample after filtering: " + str(filteredGraphFeatures[0, :]))
-    message("Shape of matrix: " + str(np.shape(filteredGraphFeatures)))
-    ##############
+    if args.graphFeatures:
+        #DEBUG LINES
+        message("Class") 
+        message("First sample after filtering: " + str(mGraphFeatures[0, :]))
+        message("Shape of matrix: " + str(np.shape(mGraphFeatures)))
+        message("Tumor stage") 
+        message("First sample after filtering: " + str(filteredGraphFeatures[0, :]))
+        message("Shape of matrix: " + str(np.shape(filteredGraphFeatures)))
+        ##############
 
     metricResults =[]
     savedResults = {}
@@ -2828,9 +2847,12 @@ def main(argv):
         graphLabels = ''
         if args.scalingDeactivation:
             graphLabels += '_Scaling'
+        if not args.selectFeatsBySD and not args.selectFeatsBySD:
+            graphLabels += '_degs'
         
         graphLabels += '_' + str(args.edgeThreshold) + '_' + str(args.numberOfFeaturesPerLevel)
 
+    
     if args.classes and args.graphFeatures:
         # Extract class vector for colors
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
