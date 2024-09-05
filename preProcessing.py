@@ -1129,7 +1129,7 @@ def kneighbors(X, y, lmetricResults, sfeatClass, savedResults):
     :param sfeatClass: string/information about the ML model, the features and data labels 
     :param savedResults: dictionary for the F1-macro results for wilcoxon test
     """
-    neigh = KNeighborsClassifier(n_neighbors=1)
+    neigh = KNeighborsClassifier(n_neighbors=3)
     
     # scoring = {
     # 'accuracy': make_scorer(accuracy_score),
@@ -2757,263 +2757,283 @@ def main(argv):
         vSelectedSamplesClasses = np.concatenate((vClass[0:int(args.numberOfInstances / 2)][:], vClass[-int(args.numberOfInstances / 2):][:]), axis=0)
         vSelectedtumorStage = np.concatenate((vtumorStage[0:int(args.numberOfInstances / 2)][:], vtumorStage[-int(args.numberOfInstances / 2):][:]), axis=0)
     
-    if args.graphFeatures:
-        filteredFeatures, filteredGraphFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, mGraphFeatures, useGraphFeatures=args.graphFeatures)
-    if args.graphFeatures and args.featurevectors:
-        filteredFeatures, filteredGraphFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, mGraphFeatures, useGraphFeatures=args.graphFeatures)
-    elif args.featurevectors:
-        filteredFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, useGraphFeatures=args.graphFeatures)
-
-
-    if args.tumorStage and args.scalingDeactivation and args.graphFeatures:
-        filteredGraphFeatures = graphVectorPreprocessing(filteredGraphFeatures)
-        #DEBUG LINES
-        message("Graph features for tumor stage with scaling")
-        message("Max per column: " + str(filteredGraphFeatures.max(axis=0)))
-        message("Min per column: " + str(filteredGraphFeatures.min(axis=0)))
-        message(filteredGraphFeatures)
-        ##################
-
-    if args.classes and args.scalingDeactivation and args.graphFeatures:
-        mGraphFeatures = graphVectorPreprocessing(mGraphFeatures)
-        #DEBUG LINES
-        message("Graph features for classes with scaling")
-        message("Max per column: " + str(mGraphFeatures.max(axis=0)))
-        message("Min per column: " + str(mGraphFeatures.min(axis=0)))
-        message(mGraphFeatures)
-        ##################
-
-    if args.graphFeatures and not args.scalingDeactivation and args.classes:
-        message("Graph features for classes without scaling")
-        #DEBUG LINES
-        message("First sample before filtering: " + str(mGraphFeatures[0, :]))
-        ##############
-        # Identify columns where all values are the same
-        columns_to_keep = ~np.all(mGraphFeatures == mGraphFeatures[0, :], axis=0)
-
-        # Remove columns with the same value
-        mGraphFeatures = mGraphFeatures[:, columns_to_keep]
-
-        #DEBUG LINES
-        message("First sample after filtering: " + str(mGraphFeatures[0, :]))
-        message("Shape of matrix: " + str(np.shape(mGraphFeatures)))
-        ##############
-
-    if args.graphFeatures and not args.scalingDeactivation and args.tumorStage:
-        message("Graph features for tumor stage without scaling")
-        #DEBUG LINES
-        message("First sample before filtering: " + str(filteredGraphFeatures[0, :]))
-        ##############
-        # Identify columns where all values are the same
-        columns_to_keep = ~np.all(filteredGraphFeatures == filteredGraphFeatures[0, :], axis=0)
-
-        # Remove columns with the same value
-        filteredGraphFeatures = filteredGraphFeatures[:, columns_to_keep]
-
-        #DEBUG LINES
-        message("First sample after filtering: " + str(filteredGraphFeatures[0, :]))
-        message("Shape of matrix: " + str(np.shape(filteredGraphFeatures)))
-        ##############
-
-    if args.graphFeatures:
-        #DEBUG LINES
-        message("Class") 
-        message("First sample after filtering: " + str(mGraphFeatures[0, :]))
-        message("Shape of matrix: " + str(np.shape(mGraphFeatures)))
-        message("Tumor stage") 
-        message("First sample after filtering: " + str(filteredGraphFeatures[0, :]))
-        message("Shape of matrix: " + str(np.shape(filteredGraphFeatures)))
-        ##############
-
     metricResults =[]
     savedResults = {}
 
-    # if args.resetWilcoxonResults:
-    #     savedResults = {}
-    #     message("Loading results for wilcoxon...Failed.")
-    
-    # else:   
-    #     if os.path.exists("wilcoxon_results.pkl"):
-    #         # Load file with the F1-macro results
-    #         with open("wilcoxon_results.pkl", 'rb') as f:
-    #             savedResults = pickle.load(f)
-    #             message("Loading results for wilcoxon...Done.")
-    #     else:
-    #         savedResults = {}
-    #         message("Loading results for wilcoxon...Failed.")
-    
+    for numberOfFeatures in range(50,151,50):
+        for threshold in np.arange(0.3, 0.85, 0.1):
+            threshold = round(threshold, 1)
 
-    if args.graphFeatures:
-        graphLabels = ''
-        if args.scalingDeactivation:
-            graphLabels += '_Scaling'
-        if not args.selectFeatsBySD and not args.selectFeatsBySD:
-            graphLabels += '_degs'
-        
-        graphLabels += '_' + str(args.edgeThreshold) + '_' + str(args.numberOfFeaturesPerLevel)
+            if args.graphFeatures:
+                mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
+                                                bResetFeatures=args.resetFeatures, dEdgeThreshold=threshold, 
+                                                nfeat=numberOfFeatures, bShowGraphs=args.showGraphs, 
+                                                bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
+                
+                #DEBUG LINES
+                message("Number of features: " + str(numberOfFeatures) + ", Edge threshold: " + str(threshold))
+                message("\n\n")
+                message("mGraphFeatures: ")
+                message(mGraphFeatures)
+                ##############
 
-    
-    if args.classes and args.graphFeatures:
-        # Extract class vector for colors
-        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-        
-        if args.decisionTree:
-            message("Decision tree on graph feature vectors and classes")
-            classify(mGraphFeatures, y, metricResults, "DT_GFeatures_Class" + graphLabels, savedResults)
-        
-        if args.kneighbors:
-            message("KNN on graph feature vectors and classes")
-            kneighbors(mGraphFeatures, y, metricResults, "kNN_GFeatures_Class" + graphLabels, savedResults)
-
-        if args.xgboost:
-            message("XGBoost on graph feature vectors and classes")
-            xgboost(mGraphFeatures, y, metricResults, "XGB_GFeatures_Class" + graphLabels, savedResults)
-
-        if args.randomforest:
-            message("Random Forest on graph feature vectors and classes")
-            RandomForest(mGraphFeatures, y, metricResults, "RF_GFeatures_Class" + graphLabels, savedResults)
-
-        if args.naivebayes:
-            message("Naive Bayes on graph feature vectors and classes")
-            NBayes(mGraphFeatures, y, metricResults, "NV_GFeatures_Class" + graphLabels, savedResults)
-
-        if args.stratifieddummyclf: 
-            message("Stratified Dummy Classifier on graph feature vectors and classes")
-            stratifiedDummyClf(mGraphFeatures, y, metricResults, "StratDummy_GFeatures_Class" + graphLabels, savedResults) 
-        
-        if args.mostfrequentdummyclf:
-            message("Most frequent Dummy Classifier on graph feature vectors and classes")
-            mostFrequentDummyClf(mGraphFeatures, y, metricResults, "MFDummy_GFeatures_Class" + graphLabels, savedResults)
-        
-        if args.mlpClassifier:
-            message("MLP Classifier on graph feature vectors and classes")
-            mlpClassifier(mGraphFeatures, y, metricResults, "MLP_GFeatures_Class" + graphLabels, savedResults)
+            if args.graphFeatures:
+                filteredFeatures, filteredGraphFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, mGraphFeatures, useGraphFeatures=args.graphFeatures)
+            if args.graphFeatures and args.featurevectors:
+                filteredFeatures, filteredGraphFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, mGraphFeatures, useGraphFeatures=args.graphFeatures)
+            elif args.featurevectors:
+                filteredFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, useGraphFeatures=args.graphFeatures)
 
 
-    if args.classes and args.featurevectors:
-        # Extract class vector for colors
-        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-        X, pca3D = getPCA(mFeatures_noNaNs, 100)
-        fig = draw3DPCA(X, pca3D, c=y)
+            if args.tumorStage and args.scalingDeactivation and args.graphFeatures:
+                filteredGraphFeatures = graphVectorPreprocessing(filteredGraphFeatures)
+                #DEBUG LINES
+                message("Graph features for tumor stage with scaling")
+                message("Max per column: " + str(filteredGraphFeatures.max(axis=0)))
+                message("Min per column: " + str(filteredGraphFeatures.min(axis=0)))
+                message(filteredGraphFeatures)
+                ##################
 
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+            if args.classes and args.scalingDeactivation and args.graphFeatures:
+                mGraphFeatures = graphVectorPreprocessing(mGraphFeatures)
+                #DEBUG LINES
+                message("Graph features for classes with scaling")
+                message("Max per column: " + str(mGraphFeatures.max(axis=0)))
+                message("Min per column: " + str(mGraphFeatures.min(axis=0)))
+                message(mGraphFeatures)
+                ##################
 
-        if args.selectFeatsBySD or args.stdevFiltering:
-            label = '_featureSelection'
-        else:
-            label = ''
-        if args.decisionTree:
-            message("Decision tree on feature vectors and classes")
-            classify(X, y, metricResults, "DT_FeatureV_Class" + label, savedResults)
+            if args.graphFeatures and not args.scalingDeactivation and args.classes:
+                message("Graph features for classes without scaling")
+                #DEBUG LINES
+                message("First sample before filtering: " + str(mGraphFeatures[0, :]))
+                ##############
+                # Identify columns where all values are the same
+                columns_to_keep = ~np.all(mGraphFeatures == mGraphFeatures[0, :], axis=0)
 
-        if args.kneighbors:
-            message("KNN on feature vectors and classes")
-            kneighbors(X, y, metricResults, "kNN_FeatureV_Class" + label, savedResults)
+                # Remove columns with the same value
+                mGraphFeatures = mGraphFeatures[:, columns_to_keep]
 
-        if args.xgboost:
-            message("XGBoost on feature vectors and classes")
-            xgboost(X, y, metricResults, "XGB_FeatureV_Class" + label, savedResults)
+                #DEBUG LINES
+                message("First sample after filtering: " + str(mGraphFeatures[0, :]))
+                message("Shape of matrix: " + str(np.shape(mGraphFeatures)))
+                ##############
 
-        if args.randomforest:
-            message("Random Forest on feature vectors and classes")
-            RandomForest(X, y, metricResults, "RF_FeatureV_Class" + label, savedResults)
+            if args.graphFeatures and not args.scalingDeactivation and args.tumorStage:
+                message("Graph features for tumor stage without scaling")
+                #DEBUG LINES
+                message("First sample before filtering: " + str(filteredGraphFeatures[0, :]))
+                ##############
+                # Identify columns where all values are the same
+                columns_to_keep = ~np.all(filteredGraphFeatures == filteredGraphFeatures[0, :], axis=0)
 
-        if args.naivebayes:
-            message("Naive Bayes on feature vectors and classes")
-            NBayes(X, y, metricResults, "NV_FeatureV_Class" + label, savedResults)
+                # Remove columns with the same value
+                filteredGraphFeatures = filteredGraphFeatures[:, columns_to_keep]
 
-        if args.stratifieddummyclf:  
-            message("Stratified Dummy Classifier on feature vectors and classes")
-            stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_Class" + label, savedResults)
+                #DEBUG LINES
+                message("First sample after filtering: " + str(filteredGraphFeatures[0, :]))
+                message("Shape of matrix: " + str(np.shape(filteredGraphFeatures)))
+                ##############
 
-        if args.mostfrequentdummyclf:
-            message("Most frequent Dummy Classifier on feature vectors and classes")
-            mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_Class" + label, savedResults)
-        
-        if args.mlpClassifier:
-            message("MLP Classifier on feature vectors and classes")
-            mlpClassifier(X, y, metricResults, "MLP_FeatureV_Class" + label, savedResults)
+            if args.graphFeatures:
+                #DEBUG LINES
+                message("Class") 
+                message("First sample after filtering: " + str(mGraphFeatures[0, :]))
+                message("Shape of matrix: " + str(np.shape(mGraphFeatures)))
+                message("Tumor stage") 
+                message("First sample after filtering: " + str(filteredGraphFeatures[0, :]))
+                message("Shape of matrix: " + str(np.shape(filteredGraphFeatures)))
+                ##############
 
-    if args.tumorStage and args.graphFeatures:
-        # Extract tumor stages vector for colors
-        aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
-        if args.decisionTree:
-            message("Decision tree on graph feature vectors and tumor stages")
-            classify(filteredGraphFeatures, y, metricResults, "DT_GFeatures_TumorStage" + graphLabels, savedResults)
-        
-        if args.kneighbors:
-            message("KNN on graph feature vectors and tumor stages")
-            kneighbors(filteredGraphFeatures, y, metricResults, "kNN_GFeatures_TumorStage" + graphLabels, savedResults)
+            
 
-        if args.xgboost:
-            message("XGBoost on graph feature vectors and tumor stages")
-            xgboost(filteredGraphFeatures, y, metricResults, "XGB_GFeatures_TumorStage" + graphLabels, savedResults)
+            # if args.resetWilcoxonResults:
+            #     savedResults = {}
+            #     message("Loading results for wilcoxon...Failed.")
+            
+            # else:   
+            #     if os.path.exists("wilcoxon_results.pkl"):
+            #         # Load file with the F1-macro results
+            #         with open("wilcoxon_results.pkl", 'rb') as f:
+            #             savedResults = pickle.load(f)
+            #             message("Loading results for wilcoxon...Done.")
+            #     else:
+            #         savedResults = {}
+            #         message("Loading results for wilcoxon...Failed.")
+            
 
-        if args.randomforest:
-            message("Random Forest on graph feature vectors and tumor stages")
-            RandomForest(filteredGraphFeatures, y, metricResults, "RF_GFeatures_TumorStage" + graphLabels, savedResults)
-        
-        if args.naivebayes:
-            message("Naive Bayes on graph feature vectors and tumor stages")
-            NBayes(filteredGraphFeatures, y, metricResults, "NV_GFeatures_TumorStage" + graphLabels, savedResults)
+            if args.graphFeatures:
+                graphLabels = ''
+                if args.scalingDeactivation:
+                    graphLabels += '_Scaling'
+                if not args.selectFeatsBySD and not args.selectFeatsBySD:
+                    graphLabels += '_degs'
+                
+                # graphLabels += '_' + str(args.edgeThreshold) + '_' + str(args.numberOfFeaturesPerLevel)
+                graphLabels += '_' + str(threshold) + '_' + str(numberOfFeatures)
 
-        if args.stratifieddummyclf:  
-            message("Stratified Dummy Classifier on graph feature vectors and tumor stages")
-            stratifiedDummyClf(filteredGraphFeatures, y, metricResults, "StratDummy_GFeatures_TumorStage" + graphLabels, savedResults)
+            
+            if args.classes and args.graphFeatures:
+                # Extract class vector for colors
+                aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+                
+                if args.decisionTree:
+                    message("Decision tree on graph feature vectors and classes")
+                    classify(mGraphFeatures, y, metricResults, "DT_GFeatures_Class" + graphLabels, savedResults)
+                
+                if args.kneighbors:
+                    message("KNN on graph feature vectors and classes")
+                    kneighbors(mGraphFeatures, y, metricResults, "kNN_GFeatures_Class" + graphLabels, savedResults)
 
-        if args.mostfrequentdummyclf:
-            message("Most frequent Dummy Classifier on graph feature vectors and tumor stages")
-            mostFrequentDummyClf(filteredGraphFeatures, y, metricResults, "MFDummy_GFeatures_TumorStage" + graphLabels, savedResults)
-        
-        if args.mlpClassifier:
-            message("MLP Classifier on graph feature vectors and tumor stages")
-            mlpClassifier(filteredGraphFeatures, y, metricResults, "MLP_GFeatures_TumorStage" + graphLabels, savedResults)
+                if args.xgboost:
+                    message("XGBoost on graph feature vectors and classes")
+                    xgboost(mGraphFeatures, y, metricResults, "XGB_GFeatures_Class" + graphLabels, savedResults)
 
-        
-    if args.tumorStage and args.featurevectors:
-        # Extract tumor stages vector for colors
-        aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
-        X, pca3D = getPCA(filteredFeatures, 100)
-        fig = draw3DPCA(X, pca3D, c=y)
+                if args.randomforest:
+                    message("Random Forest on graph feature vectors and classes")
+                    RandomForest(mGraphFeatures, y, metricResults, "RF_GFeatures_Class" + graphLabels, savedResults)
 
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+                if args.naivebayes:
+                    message("Naive Bayes on graph feature vectors and classes")
+                    NBayes(mGraphFeatures, y, metricResults, "NV_GFeatures_Class" + graphLabels, savedResults)
 
-        if args.selectFeatsBySD or args.stdevFiltering:
-            label = '_featureSelection'
-        else:
-            label = ''
+                if args.stratifieddummyclf: 
+                    message("Stratified Dummy Classifier on graph feature vectors and classes")
+                    stratifiedDummyClf(mGraphFeatures, y, metricResults, "StratDummy_GFeatures_Class" + graphLabels, savedResults) 
+                
+                if args.mostfrequentdummyclf:
+                    message("Most frequent Dummy Classifier on graph feature vectors and classes")
+                    mostFrequentDummyClf(mGraphFeatures, y, metricResults, "MFDummy_GFeatures_Class" + graphLabels, savedResults)
+                
+                if args.mlpClassifier:
+                    message("MLP Classifier on graph feature vectors and classes")
+                    mlpClassifier(mGraphFeatures, y, metricResults, "MLP_GFeatures_Class" + graphLabels, savedResults)
 
-        if args.decisionTree:
-            message("Decision tree on feature vectors and tumor stages")
-            classify(X, y, metricResults, "DT_FeatureV_TumorStage" + label, savedResults)
 
-        if args.kneighbors:
-            message("KNN on feature vectors and tumor stages")
-            kneighbors(X, y, metricResults, "kNN_FeatureV_TumorStage" + label, savedResults)
+            if args.classes and args.featurevectors:
+                # Extract class vector for colors
+                aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+                X, pca3D = getPCA(mFeatures_noNaNs, 100)
+                fig = draw3DPCA(X, pca3D, c=y)
 
-        if args.xgboost:
-            message("XGBoost on feature vectors and tumor stages")
-            xgboost(X, y, metricResults, "XGB_FeatureV_TumorStage" + label, savedResults)
+                fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-        if args.randomforest:
-            message("Random Forest on feature vectors and tumor stages")
-            RandomForest(X, y, metricResults, "RF_FeatureV_TumorStage" + label, savedResults)
+                if args.selectFeatsBySD or args.stdevFiltering:
+                    label = '_featureSelection'
+                else:
+                    label = ''
+                if args.decisionTree:
+                    message("Decision tree on feature vectors and classes")
+                    classify(X, y, metricResults, "DT_FeatureV_Class" + label, savedResults)
 
-        if args.naivebayes:
-            message("Naive Bayes on feature vectors and tumor stages")
-            NBayes(X, y, metricResults, "NV_FeatureV_TumorStage" + label, savedResults)  
+                if args.kneighbors:
+                    message("KNN on feature vectors and classes")
+                    kneighbors(X, y, metricResults, "kNN_FeatureV_Class" + label, savedResults)
 
-        if args.stratifieddummyclf:  
-            message("Stratified Dummy Classifier on feature vectors and tumor stages")
-            stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_TumorStage" + label, savedResults)
-        
-        if args.mostfrequentdummyclf:
-            message("Most frequent Dummy Classifier on feature vectors and tumor stages")
-            mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_TumorStage" + label, savedResults)
-    
-        if args.mlpClassifier:
-            message("MLP Classifier on feature vectors and tumor stages")
-            mlpClassifier(X, y, metricResults, "MLP_FeatureV_TumorStage" + label, savedResults)
+                if args.xgboost:
+                    message("XGBoost on feature vectors and classes")
+                    xgboost(X, y, metricResults, "XGB_FeatureV_Class" + label, savedResults)
+
+                if args.randomforest:
+                    message("Random Forest on feature vectors and classes")
+                    RandomForest(X, y, metricResults, "RF_FeatureV_Class" + label, savedResults)
+
+                if args.naivebayes:
+                    message("Naive Bayes on feature vectors and classes")
+                    NBayes(X, y, metricResults, "NV_FeatureV_Class" + label, savedResults)
+
+                if args.stratifieddummyclf:  
+                    message("Stratified Dummy Classifier on feature vectors and classes")
+                    stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_Class" + label, savedResults)
+
+                if args.mostfrequentdummyclf:
+                    message("Most frequent Dummy Classifier on feature vectors and classes")
+                    mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_Class" + label, savedResults)
+                
+                if args.mlpClassifier:
+                    message("MLP Classifier on feature vectors and classes")
+                    mlpClassifier(X, y, metricResults, "MLP_FeatureV_Class" + label, savedResults)
+
+            if args.tumorStage and args.graphFeatures:
+                # Extract tumor stages vector for colors
+                aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
+                if args.decisionTree:
+                    message("Decision tree on graph feature vectors and tumor stages")
+                    classify(filteredGraphFeatures, y, metricResults, "DT_GFeatures_TumorStage" + graphLabels, savedResults)
+                
+                if args.kneighbors:
+                    message("KNN on graph feature vectors and tumor stages")
+                    kneighbors(filteredGraphFeatures, y, metricResults, "kNN_GFeatures_TumorStage" + graphLabels, savedResults)
+
+                if args.xgboost:
+                    message("XGBoost on graph feature vectors and tumor stages")
+                    xgboost(filteredGraphFeatures, y, metricResults, "XGB_GFeatures_TumorStage" + graphLabels, savedResults)
+
+                if args.randomforest:
+                    message("Random Forest on graph feature vectors and tumor stages")
+                    RandomForest(filteredGraphFeatures, y, metricResults, "RF_GFeatures_TumorStage" + graphLabels, savedResults)
+                
+                if args.naivebayes:
+                    message("Naive Bayes on graph feature vectors and tumor stages")
+                    NBayes(filteredGraphFeatures, y, metricResults, "NV_GFeatures_TumorStage" + graphLabels, savedResults)
+
+                if args.stratifieddummyclf:  
+                    message("Stratified Dummy Classifier on graph feature vectors and tumor stages")
+                    stratifiedDummyClf(filteredGraphFeatures, y, metricResults, "StratDummy_GFeatures_TumorStage" + graphLabels, savedResults)
+
+                if args.mostfrequentdummyclf:
+                    message("Most frequent Dummy Classifier on graph feature vectors and tumor stages")
+                    mostFrequentDummyClf(filteredGraphFeatures, y, metricResults, "MFDummy_GFeatures_TumorStage" + graphLabels, savedResults)
+                
+                if args.mlpClassifier:
+                    message("MLP Classifier on graph feature vectors and tumor stages")
+                    mlpClassifier(filteredGraphFeatures, y, metricResults, "MLP_GFeatures_TumorStage" + graphLabels, savedResults)
+
+                
+            if args.tumorStage and args.featurevectors:
+                # Extract tumor stages vector for colors
+                aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
+                X, pca3D = getPCA(filteredFeatures, 100)
+                fig = draw3DPCA(X, pca3D, c=y)
+
+                fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+                if args.selectFeatsBySD or args.stdevFiltering:
+                    label = '_featureSelection'
+                else:
+                    label = ''
+
+                if args.decisionTree:
+                    message("Decision tree on feature vectors and tumor stages")
+                    classify(X, y, metricResults, "DT_FeatureV_TumorStage" + label, savedResults)
+
+                if args.kneighbors:
+                    message("KNN on feature vectors and tumor stages")
+                    kneighbors(X, y, metricResults, "kNN_FeatureV_TumorStage" + label, savedResults)
+
+                if args.xgboost:
+                    message("XGBoost on feature vectors and tumor stages")
+                    xgboost(X, y, metricResults, "XGB_FeatureV_TumorStage" + label, savedResults)
+
+                if args.randomforest:
+                    message("Random Forest on feature vectors and tumor stages")
+                    RandomForest(X, y, metricResults, "RF_FeatureV_TumorStage" + label, savedResults)
+
+                if args.naivebayes:
+                    message("Naive Bayes on feature vectors and tumor stages")
+                    NBayes(X, y, metricResults, "NV_FeatureV_TumorStage" + label, savedResults)  
+
+                if args.stratifieddummyclf:  
+                    message("Stratified Dummy Classifier on feature vectors and tumor stages")
+                    stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_TumorStage" + label, savedResults)
+                
+                if args.mostfrequentdummyclf:
+                    message("Most frequent Dummy Classifier on feature vectors and tumor stages")
+                    mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_TumorStage" + label, savedResults)
+            
+                if args.mlpClassifier:
+                    message("MLP Classifier on feature vectors and tumor stages")
+                    mlpClassifier(X, y, metricResults, "MLP_FeatureV_TumorStage" + label, savedResults)
     
     
     if args.saveResults:
