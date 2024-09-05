@@ -3,6 +3,7 @@ import sys
 import numpy as np
 import pickle
 import argparse
+import ast
 # import pydot
 import os
 import time
@@ -2500,25 +2501,176 @@ def getDegs():
     fUsefulFeatureNames.close()
     return saUsefulFeatureNames
 
-def wilcoxonTests(metricsResults):
+def statisticalTest(algorithmsDf, comparisonAlgorithmsDf, results):
     """
-    Function that performs wilcoxon test for each pair of ML models F1-macro results
-    :param metricsResults: dictionary with the F1-macro results
+    Apply wilcoxon statistical test to the metric results of the ml algorithms
+    :param algorithmsDf: df with the results that we want to see if they are greater
+    :param comparisonAlgorithmsDf: df with the results that we want to compare
+    :param results: list to save results of test
+    :return: a df with the algorithms that have p-value<0.05  
     """
-    keys = list(metricsResults.keys())
-    n = len(keys)
+    for graphResult in algorithmsDf['sfeatClass']:
+        # Perform the Wilcoxon test for DT with alternative hypothesis 'greater'
+        for compareResults in comparisonAlgorithmsDf['sfeatClass']:
+            if not ast.literal_eval( algorithmsDf.loc[algorithmsDf['sfeatClass'] == graphResult, 'accuracy_per_fold'].values[0]) == ast.literal_eval( comparisonAlgorithmsDf.loc[comparisonAlgorithmsDf['sfeatClass'] == compareResults, 'accuracy_per_fold'].values[0]):
+
+                w_stat_accuracy, p_value_accuracy = wilcoxon(
+                    ast.literal_eval( algorithmsDf.loc[algorithmsDf['sfeatClass'] == graphResult, 'accuracy_per_fold'].values[0]), 
+                    ast.literal_eval( comparisonAlgorithmsDf.loc[comparisonAlgorithmsDf['sfeatClass'] == compareResults, 'accuracy_per_fold'].values[0]),
+                    alternative="greater"
+                )
+
+                w_stat_f1macro, p_value_f1macro = wilcoxon(
+                    ast.literal_eval( algorithmsDf.loc[algorithmsDf['sfeatClass'] == graphResult, 'f1_macro_per_fold'].values[0]), 
+                    ast.literal_eval( comparisonAlgorithmsDf.loc[comparisonAlgorithmsDf['sfeatClass'] == compareResults, 'f1_macro_per_fold'].values[0]),
+                    alternative="greater"
+                )
+
+                w_stat_f1micro, p_value_f1micro = wilcoxon(
+                    ast.literal_eval( algorithmsDf.loc[algorithmsDf['sfeatClass'] == graphResult, 'f1_micro_per_fold'].values[0]), 
+                    ast.literal_eval( comparisonAlgorithmsDf.loc[comparisonAlgorithmsDf['sfeatClass'] == compareResults, 'f1_micro_per_fold'].values[0]),
+                    alternative="greater"
+                )
+
+                # Append the results to the list as a dictionary
+                results.append({ 'Algorithm': graphResult, 'CompareAlgorithm': compareResults, 
+                                'wilcoxon_stat_accuracy': w_stat_accuracy, 'wilcoxon_p_value_accuracy': p_value_accuracy, 
+                                'wilcoxon_stat_f1macro': w_stat_f1macro, 'wilcoxon_p_value_f1macro': p_value_f1macro, 
+                                'wilcoxon_stat_f1micro': w_stat_f1micro, 'wilcoxon_p_value_f1micro': p_value_f1micro,
+
+                })
+
+    # Convert the results list into a DataFrame
+    results_df = pd.DataFrame(results)
+
+    best_results = results_df[
+        (results_df['wilcoxon_p_value_f1micro'] < 0.05) & 
+        (results_df['wilcoxon_p_value_f1macro'] < 0.05) & 
+        (results_df['wilcoxon_p_value_accuracy'] < 0.05)]
+
+    return best_results
     
-    for i in range(n):
-        for j in range(i + 1, n):
-            key1 = keys[i]
-            key2 = keys[j]
-            data1 = metricsResults[key1]
-            data2 = metricsResults[key2]
-            
-            stat, p = wilcoxon(data1, data2)
-            
-            print(f"Wilcoxon test between {key1} and {key2}:")
-            print(f"Statistic: {stat}, p-value: {p}\n")
+def  plotPreparation(df, best_results):
+    """
+    Takes the results of metrics and from statistical test, keeps only algorithms with signifficant statistical results and prepare data for plotting  
+    :param df: df with the results of metrics
+    :param best_results: df with the results from statistical test
+    :return: a df with the metrics of signifficant algorithms ready to plot with sns
+    """
+    algorithms = best_results['Algorithm']
+    compareAlgorithms = best_results['CompareAlgorithm']
+    algorithms = algorithms.tolist()
+    algorithms = list(set(algorithms))
+    compareAlgorithms = compareAlgorithms.tolist()
+    compareAlgorithms = list(set(compareAlgorithms))
+    finalAlgorithms = algorithms + compareAlgorithms
+    finalAlgorithms
+
+    best_results = df[df['sfeatClass'].isin(finalAlgorithms)]
+
+    df_melted_sem = best_results.melt(id_vars='sfeatClass', 
+                        value_vars=['sem_accuracy', 'sem_F1_micro', 'sem_F1_macro'],var_name='Sem', 
+                        value_name='Sem_mean')
+
+    df_melted = best_results.melt(id_vars='sfeatClass', 
+                        value_vars=['mean_accuracy', 'mean_F1_micro', 'mean_F1_macro'],var_name='Metric', 
+                        value_name='Mean')
+
+    concatDf = pd.concat([df_melted.set_index('sfeatClass'), df_melted_sem.set_index('sfeatClass')], axis=1).reset_index()
+    concatDf
+
+    concatDf['sfeatClass'] = concatDf['sfeatClass'].str.replace('DT_GFeatures_TumorStage_', '', regex=False)
+    concatDf['Metric'] = concatDf['Metric'].str.replace('mean_accuracy', 'Mean_accuracy', regex=False)
+    concatDf['Metric'] = concatDf['Metric'].str.replace('mean_F1_micro', 'Mean_F1_micro', regex=False)
+    concatDf['Metric'] = concatDf['Metric'].str.replace('mean_F1_macro', 'Mean_F1_macro', regex=False)
+    concatDf['sfeatClass'] = concatDf['sfeatClass'].str.replace('DT_FeatureV_TumorStage', 'Feature_vector', regex=False)
+
+    return concatDf
+
+def graphFeatureVectorsComparison(df):   
+    """
+    Compares graph vectors with expression feature vectors, plots the metrics of signifficant metrics and save results to csv 
+    :param df: df with the results of metrics
+    """ 
+    # Graphs vs feature vectors
+    results = []
+    for classificationType in ['Class', 'TumorStage']:
+        for algorithm in ['DT', 'kNN', 'XGB', 'RF', 'NV', 'MLP']:
+
+            salgorithm=algorithm+'_GFeatures_'
+            algorithmsDf = df[df['sfeatClass'].str.startswith(salgorithm) & df['sfeatClass'].str.contains(classificationType)]
+
+            salgorithmForComparison=algorithm+'_FeatureV_'
+            comparisonAlgorithmsDf = df[df['sfeatClass'].str.startswith(salgorithmForComparison) & df['sfeatClass'].str.contains(classificationType)]
+
+            best_results = statisticalTest(algorithmsDf, comparisonAlgorithmsDf, results)
+
+    concatDf = plotPreparation(df, best_results)
+    message("Results from statistical test for graphs and feature vectors")
+    message(best_results)
+    concatDf.to_csv('graphFeatureVectorsComparison.csv', index=False)
+
+    plt.clf()
+    plt.figure(figsize=(8, 5))
+    ax = sns.barplot(x='sfeatClass', y='Mean', data=concatDf, hue='Metric')
+    x_coords = [p.get_x() + 0.5 * p.get_width() for p in ax.patches]
+    x_coords = x_coords[0:len(concatDf["Sem_mean"])]
+    y_coords = [p.get_height() for p in ax.patches]
+    y_coords = y_coords[0:len(concatDf["Sem_mean"])]
+    ax.errorbar(x=x_coords, y=y_coords, yerr=concatDf["Sem_mean"], fmt="none", c="k")
+    # Move the legend outside the plot
+    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0)
+    plt.title("Mean values of metrics with standard error for Decision Tree")
+    plt.xlabel("Types of feature represenations")
+    plt.ylabel("Mean value of metric")
+    plt.savefig("graphFeatureVectorsComparison.png", bbox_inches='tight')
+    
+
+def graphBaselineComparison(df):  
+    """
+    Compares graph vectors with baseline and save results to csv 
+    :param df: df with the results of metrics
+    """   
+    # Graphs vs baselines
+    results = []
+    for classificationType in ['Class', 'TumorStage']:
+        for algorithm in ['DT', 'kNN', 'XGB', 'RF', 'NV', 'MLP']:
+
+            salgorithm = algorithm + '_GFeatures_'
+            algorithmsDf = df[df['sfeatClass'].str.startswith(salgorithm) & df['sfeatClass'].str.contains(classificationType)]
+
+            salgorithmForComparison = algorithm+'_FeatureV_'
+            comparisonAlgorithmsDf = df[df['sfeatClass'].str.startswith(('StratDummy', 'MFDummy')) & df['sfeatClass'].str.contains(classificationType)]
+
+            bestResultsBaselines = statisticalTest(algorithmsDf, comparisonAlgorithmsDf, results)
+
+    # concatDf = plotPreparation(df, best_results)
+    bestResultsBaselines.to_csv('graphBaselineComparison.csv', index=False)
+    message("Results from statistical test for graphs and baselines")
+    message(bestResultsBaselines)
+
+def featureVectorsComparison(df):
+    """
+    Compares the expression feature vectors and save results to csv 
+    :param df: df with the results of metrics
+    """ 
+    # Graphs vs baselines
+    results = []
+    for classificationType in ['Class', 'TumorStage']:
+        for algorithm in ['DT', 'kNN', 'XGB', 'RF', 'NV', 'MLP']:
+
+            salgorithm=algorithm+'_FeatureV_'
+            algorithmsDf = df[df['sfeatClass'].str.startswith(salgorithm) & df['sfeatClass'].str.contains(classificationType) & df['sfeatClass'].str.endswith("featureSelection")]
+
+            comparisonAlgorithmsDf = df[df['sfeatClass'].str.startswith(salgorithm) & df['sfeatClass'].str.contains(classificationType) & ~df['sfeatClass'].str.endswith("featureSelection")]
+
+            bestResultsBaselines = statisticalTest(algorithmsDf, comparisonAlgorithmsDf, results)
+
+    # concatDf = plotPreparation(df, bestResultsBaselines)
+    bestResultsBaselines.to_csv('featureVectorsComparison.csv', index=False)
+    message("Results from statistical test for feature vectors")
+    message(bestResultsBaselines)
+
 
 def scalingPerClass(matrix, classes):
     # Separate the matrix into two sub-matrices based on class labels
@@ -3057,8 +3209,12 @@ def main(argv):
         # Write the updated DataFrame back to the CSV file
         combined_df.to_csv("saved_results.csv", index=False)
 
-    if args.wilcoxonTest:
-        wilcoxonTests(savedResults)
+    if args.wilcoxonTest and os.path.exists("saved_results.csv"):
+        # Read the existing CSV file into a DataFrame
+        existing_df = pd.read_csv("saved_results.csv")
+        graphFeatureVectorsComparison(existing_df)
+        graphBaselineComparison(existing_df)
+        featureVectorsComparison(existing_df)
 
     # end of main function
     metricsdf = pd.DataFrame(metricResults, columns=['Method', 'Mean_Accuracy', "SEM_Accuracy", 'Mean_F1_micro', "SEM_F1_micro", 'Mean_F1_macro', "SEM_F1_macro"])
