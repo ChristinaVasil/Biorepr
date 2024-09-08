@@ -1986,8 +1986,8 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     message("Total time (sec): %4.2f" % (perf_counter() - dStartTime))
 
     #Plot and save the collected graphs
-    # for gMainGraph, sPDFFileName in graphList:
-    #     drawAndSaveGraph(gMainGraph, sPDFFileName, bShowGraphs, bSaveGraphs)
+    for gMainGraph, sPDFFileName in graphList:
+        drawAndSaveGraph(gMainGraph, sPDFFileName, bShowGraphs, bSaveGraphs)
 
     return dResDict
 
@@ -2041,12 +2041,15 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
         vGraphFeatures = getGraphVector(gMainGraph)
         
         # Save or show the graph if required
-        if sampleID.endswith("01A") or sampleID.endswith("11A"):
-            suffix = sampleID[-3:]  # Extract the suffix (last 3 characters)
-            if saveCounter[suffix] < 1:
-                saveCounter[suffix] += 1
-                with lock:
-                    graphList.append((gMainGraph, "graph_" + sampleID))
+        # if sampleID.endswith("01A") or sampleID.endswith("11A"):
+        #     suffix = sampleID[-3:]  # Extract the suffix (last 3 characters)
+        #     if saveCounter[suffix] < 1:
+        #         saveCounter[suffix] += 1
+        #         with lock:
+        #             graphList.append((gMainGraph, "graph_" + sampleID))
+        # if sampleID=='TCGA-BL-A13J-11A' or sampleID=='TCGA-BL-A13J-01A':
+        #     with lock:
+        #         graphList.append((gMainGraph, "graph_" + sampleID))
                     
         #DEBUGLINES
         #message("Calling drawAndSaveGraph for graph %s..."%(str(sampleID)))
@@ -2584,7 +2587,7 @@ def  plotPreparation(df, best_results):
     concatDf['Metric'] = concatDf['Metric'].str.replace('mean_accuracy', 'Mean_accuracy', regex=False)
     concatDf['Metric'] = concatDf['Metric'].str.replace('mean_F1_micro', 'Mean_F1_micro', regex=False)
     concatDf['Metric'] = concatDf['Metric'].str.replace('mean_F1_macro', 'Mean_F1_macro', regex=False)
-    concatDf['sfeatClass'] = concatDf['sfeatClass'].str.replace('DT_FeatureV_TumorStage', 'Feature_vector', regex=False)
+    concatDf['sfeatClass'] = concatDf['sfeatClass'].str.replace('DT_FeatureV_TumorStage', 'Full_feature_vector', regex=False)
 
     return concatDf
 
@@ -2613,7 +2616,7 @@ def graphFeatureVectorsComparison(df):
     concatDf.to_csv('graphFeatureVectorsComparison.csv', index=False)
 
     plt.clf()
-    plt.figure(figsize=(8, 5))
+    plt.figure(figsize=(10, 5))
     ax = sns.barplot(x='sfeatClass', y='Mean', data=concatDf, hue='Metric')
     x_coords = [p.get_x() + 0.5 * p.get_width() for p in ax.patches]
     x_coords = x_coords[0:len(concatDf["Sem_mean"])]
@@ -2623,8 +2626,8 @@ def graphFeatureVectorsComparison(df):
     # Move the legend outside the plot
     ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0)
     plt.title("Mean values of metrics with standard error for Decision Tree")
-    plt.xlabel("Types of feature represenations")
-    plt.ylabel("Mean value of metric")
+    plt.xlabel("Types of feature represenations", fontsize=12)
+    plt.ylabel("Mean value of metric", fontsize=12)
     plt.savefig("graphFeatureVectorsComparison.png", bbox_inches='tight')
     
 
@@ -2747,7 +2750,91 @@ def featureVectorsComparison(df):
     bestResultsBaselines.to_csv('featureVectorsComparison.csv', index=False)
     message("Results from statistical test for feature vectors")
     message(bestResultsBaselines)
+    if bestResultsBaselines.empty:
+        plotFeatureVectors(df)
 
+def plotFeatureVectors(df):
+    for classification in ['TumorStage', 'Class']:
+        
+        
+        metricsDf = df[df['sfeatClass'].str.startswith(('kNN', 'DT', 'RF', 'XGB', 'NV', 'MLP')) & df['sfeatClass'].str.contains(classification) & df['sfeatClass'].str.contains('FeatureV')]
+
+
+        df_melted_sem = metricsDf.melt(id_vars='sfeatClass', 
+                            value_vars=['sem_accuracy', 'sem_F1_micro', 'sem_F1_macro'],var_name='Sem', 
+                            value_name='Sem_mean')
+
+        df_melted = metricsDf.melt(id_vars='sfeatClass', 
+                            value_vars=['mean_accuracy', 'mean_F1_micro', 'mean_F1_macro'],var_name='Metric', 
+                            value_name='Mean')
+
+        concatDf = pd.concat([df_melted.set_index('sfeatClass'), df_melted_sem.set_index('sfeatClass')], axis=1).reset_index()
+
+        # Create a new column based on conditions
+        concatDf['Algorithms'] = concatDf['sfeatClass'].apply(
+        lambda x: 'DT' if x.startswith('DT') else
+                  'GNB' if x.startswith('NV') else
+                  'RF' if x.startswith('RF') else
+                  'MLP' if x.startswith('MLP') else
+                  'kNN' if x.startswith('kNN') else
+                  'XGB' if x.startswith('XGB') else ''
+        )
+
+        concatDf['Feature representation'] = concatDf['sfeatClass'].apply(
+        lambda x: 'Feature selection' if x.endswith('featureSelection') else 'No feature selection'
+        )
+
+        concatDf['Metric'] = concatDf['Metric'].str.replace('mean_accuracy', 'Mean_accuracy', regex=False)
+        concatDf['Metric'] = concatDf['Metric'].str.replace('mean_F1_micro', 'Mean_F1_micro', regex=False)
+        concatDf['Metric'] = concatDf['Metric'].str.replace('mean_F1_macro', 'Mean_F1_macro', regex=False)
+
+        
+        
+        # Clear previous plots
+        plt.clf()
+        # Create subplots
+        fig, ax = plt.subplots(1, 3, figsize=(12, 8))
+        
+        # Define the metrics to plot and titles for each subplot
+        metrics = ['Mean_accuracy', 'Mean_F1_micro', 'Mean_F1_macro']
+        titles = ['Mean Accuracy', 'Mean F1 Micro', 'Mean F1 Macro']
+
+        # Loop through the axes and create individual barplots for each metric
+        for i, metric in enumerate(metrics):
+            subset = concatDf[concatDf['Metric'] == metric]
+            
+            subplotPos = i+1
+            plt.subplot(1, 3, subplotPos)
+            
+            ax[i] = sns.barplot(x='Algorithms', y='Mean', data=subset, hue='Feature representation')
+            if i < 2:
+                ax[i].legend_.remove()
+            ax[i].set(ylabel=None)
+            x_coords = [p.get_x() + 0.5 * p.get_width() for p in ax[i].patches]
+            x_coords = x_coords[0:len(subset["Sem_mean"])]
+            y_coords = [p.get_height() for p in ax[i].patches]
+            y_coords = y_coords[0:len(subset["Sem_mean"])]
+            ax[i].errorbar(x=x_coords, y=y_coords, yerr=subset["Sem_mean"], fmt="none", c="k")
+            plt.title(titles[i])
+            plt.xlabel("Algorithms", fontsize = 12)
+            if i==0:
+                plt.ylabel("Mean value of metric", fontsize = 12)
+                
+            # Move the legend outside the second subplot
+            ax[2].legend(loc='upper left', bbox_to_anchor=(1, 1))
+            
+        
+        if classification == 'TumorStage':
+            # Add a general title for the entire figure
+            fig.suptitle('Metrics of feature vectors with expression values for tumor stage classification', fontsize=16, x=0.6)
+            plt.savefig("plotFeatureVectorsTumorStage.png", bbox_inches='tight') 
+        else:
+            fig.suptitle('Metrics of feature vectors with expression values for state classification', fontsize=16, x=0.6)
+            plt.savefig("plotFeatureVectorsClass.png", bbox_inches='tight') 
+      
+        
+
+    
 
 def scalingPerClass(matrix, classes):
     # Separate the matrix into two sub-matrices based on class labels
@@ -2944,7 +3031,7 @@ def main(argv):
         #mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.8, nfeat=args.numberOfFeaturesPerLevel, bResetGraph=True, stdevFeatSelection = args.selectFeatsBySD)
 
         #plotExplainedVariance(mFeatures_noNaNs, n_components=100, featSelection = args.stdevFiltering)
-
+        
     # vGraphFeatures = getGraphVector(gMainGraph)
     # print ("Graph feature vector: %s"%(str(vGraphFeatures)))
     
