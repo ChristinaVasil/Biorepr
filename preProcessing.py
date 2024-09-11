@@ -8,6 +8,7 @@ import ast
 import os
 import time
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 import pandas as pd
 import graphviz
 from os.path import exists
@@ -200,17 +201,36 @@ def draw3DPCA(X, pca3DRes, c=None, cmap=plt.cm.gnuplot, spread=False):
    
     if spread:
         X = QuantileTransformer(output_distribution='uniform').fit_transform(X)
-       
-    fig = plt.figure(figsize =(15, 15))
+    
+    unique_classes = np.unique(c)
+    if len(np.unique(c)) == 2:
+        # Define colors and labels that correspond to the classes in your plot
+        legend_elements = [
+            Line2D([0], [0], marker='o', color='w', label='Tumor sample', markerfacecolor='black', markersize=18),
+            Line2D([0], [0], marker='o', color='w', label='Normal sample', markerfacecolor='yellow', markersize=18)
+        ]
+    else:
+        legend_elements = [
+            Line2D([0], [0], marker='o', color='w', label='Stage I', markerfacecolor='black', markersize=18),
+            Line2D([0], [0], marker='o', color='w', label='Stage II', markerfacecolor='purple', markersize=18),
+            Line2D([0], [0], marker='o', color='w', label='Stage III', markerfacecolor='darkorange', markersize=18),
+            Line2D([0], [0], marker='o', color='w', label='Stage IV', markerfacecolor='yellow', markersize=18)
+        ]
+
+    fig = plt.figure(figsize =(20, 20))
     plt.clf()
     ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(X[:, 0], X[:, 1], X[:, 2], edgecolor='k', c=c, cmap=cmap, depthshade=False, s=100)
-    ax.set_xlabel("X coordinate (%4.2f)" % (pca3DRes.explained_variance_ratio_[0]), fontsize=20) 
-    ax.set_ylabel("Y coordinate (%4.2f)" % (pca3DRes.explained_variance_ratio_[1]), fontsize=20)
-    ax.set_zlabel("Z coordinate (%4.2f)" % (pca3DRes.explained_variance_ratio_[2]), fontsize=20)
+    sc = ax.scatter(X[:, 0], X[:, 1], X[:, 2], edgecolor='k', c=c, cmap=cmap, depthshade=False, s=100)
+    ax.set_xlabel("X coordinate (%4.2f)" % (pca3DRes.explained_variance_ratio_[0]), fontsize=18) 
+    ax.set_ylabel("Y coordinate (%4.2f)" % (pca3DRes.explained_variance_ratio_[1]), fontsize=18)
+    ax.set_zlabel("Z coordinate (%4.2f)" % (pca3DRes.explained_variance_ratio_[2]), fontsize=18)
     ax.set_xticklabels([])
     ax.set_yticklabels([])
     ax.set_zticklabels([])
+    ax.set_title('3D PCA Plot for topological feature vector for sample states', fontsize = 20)
+    
+    ax.legend(handles=legend_elements, loc='upper right', fontsize=18)
+      
 
     fig.show()
     return fig
@@ -3024,13 +3044,13 @@ def main(argv):
         ################
     
     if args.exploratoryAnalysis:
-        plotDistributions(mFeatures_noNaNs, feat_names, stdfeat=args.stdevFiltering, preprocessing=args.postProcessing)
+        #plotDistributions(mFeatures_noNaNs, feat_names, stdfeat=args.stdevFiltering, preprocessing=args.postProcessing)
 
         #plotSDdistributions(mFeatures_noNaNs, feat_names)
         
         #mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.8, nfeat=args.numberOfFeaturesPerLevel, bResetGraph=True, stdevFeatSelection = args.selectFeatsBySD)
 
-        #plotExplainedVariance(mFeatures_noNaNs, n_components=100, featSelection = args.stdevFiltering)
+        plotExplainedVariance(mFeatures_noNaNs, n_components=100, featSelection = args.stdevFiltering)
         
     # vGraphFeatures = getGraphVector(gMainGraph)
     # print ("Graph feature vector: %s"%(str(vGraphFeatures)))
@@ -3163,7 +3183,7 @@ def main(argv):
                     message("Shape of matrix: " + str(np.shape(filteredGraphFeatures)))
                     ##############
 
-                
+        
 
                 # if args.resetWilcoxonResults:
                 #     savedResults = {}
