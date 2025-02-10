@@ -10,7 +10,7 @@ import time
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import pandas as pd
-import graphviz
+#import graphviz
 from os.path import exists
 import csv
 import copy
@@ -49,10 +49,10 @@ from sklearn.metrics import make_scorer, accuracy_score, f1_score, confusion_mat
 from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit, cross_val_score, cross_validate, LeaveOneOut
 from sklearn.neural_network import MLPClassifier
 import xgboost as xgb
-import tensorflow as tf  
-from tensorflow import keras
-from keras.models import load_model
-from keras.callbacks import ModelCheckpoint
+# import tensorflow as tf  
+# from tensorflow import keras
+# from keras.models import load_model
+# from keras.callbacks import ModelCheckpoint
 
 
 
@@ -60,8 +60,8 @@ from keras.callbacks import ModelCheckpoint
 # Prefix for intermediate files
 Prefix = ""
 THREADS_TO_USE = mp.cpu_count()  # Init to all CPUs
-FEATURE_VECTOR_FILENAME = "/home/thlamp/tcga/bladder_results/normalized_data_integrated_matrix.txt"
-os.chdir("/home/thlamp/scripts")
+FEATURE_VECTOR_FILENAME = "/home/thlamp/tcga/data/normalized_data_integrated_matrix.txt"
+os.chdir("/home/thlamp/tcga/data")
 lock = Lock()
 mpl_lock = Lock()
 
@@ -227,7 +227,7 @@ def draw3DPCA(X, pca3DRes, c=None, cmap=plt.cm.gnuplot, spread=False):
     ax.set_xticklabels([])
     ax.set_yticklabels([])
     ax.set_zticklabels([])
-    ax.set_title('3D PCA Plot for topological feature vector for sample states', fontsize = 20)
+    ax.set_title('3D PCA Plot for full feature vector for tumor stages', fontsize = 20)
     
     ax.legend(handles=legend_elements, loc='upper right', fontsize=18)
       
@@ -335,50 +335,50 @@ def PCAOnAllData(bResetFiles = False):
     ####################
     message("Plotting PCA graph... Done.")
 
-def aencoder(x_train, epochs=200):
-    """
-    Create the autoencoder model.
-    :param x_train: the matrix with the training data
-    :param epochs: the number of epochs
-    :oaram gfeat: variable about the use of graph features or not
-    """
-    # Define input layer
-    encoder_input = keras.Input(shape=(np.shape(x_train)[1], ))
-    # Define encoder layers
-    encoded  = keras.layers.Dense(2500, activation="relu")(encoder_input)
-    encoded  = keras.layers.Dense(500, activation="relu")(encoded)
-    encoded  = keras.layers.Dense(100, activation="relu")(encoded)
+# def aencoder(x_train, epochs=200):
+#     """
+#     Create the autoencoder model.
+#     :param x_train: the matrix with the training data
+#     :param epochs: the number of epochs
+#     :oaram gfeat: variable about the use of graph features or not
+#     """
+#     # Define input layer
+#     encoder_input = keras.Input(shape=(np.shape(x_train)[1], ))
+#     # Define encoder layers
+#     encoded  = keras.layers.Dense(2500, activation="relu")(encoder_input)
+#     encoded  = keras.layers.Dense(500, activation="relu")(encoded)
+#     encoded  = keras.layers.Dense(100, activation="relu")(encoded)
 
-    # Define encoder layers
-    decoded  = keras.layers.Dense(500, activation="relu")(encoded)
-    decoded  = keras.layers.Dense(2500, activation="relu")(decoded)
-    decoder_output  = keras.layers.Dense(np.shape(x_train)[1], activation="sigmoid")(decoded)
+#     # Define encoder layers
+#     decoded  = keras.layers.Dense(500, activation="relu")(encoded)
+#     decoded  = keras.layers.Dense(2500, activation="relu")(decoded)
+#     decoder_output  = keras.layers.Dense(np.shape(x_train)[1], activation="sigmoid")(decoded)
 
-    # Define autoencoder model
-    autoencoder = keras.Model(encoder_input, decoder_output)
+#     # Define autoencoder model
+#     autoencoder = keras.Model(encoder_input, decoder_output)
 
-    autoencoder.summary()
+#     autoencoder.summary()
 
-    opt = tf.keras.optimizers.Adam()
+#     opt = tf.keras.optimizers.Adam()
 
-    autoencoder.compile(opt, loss='mse')
+#     autoencoder.compile(opt, loss='mse')
 
-    # Define ModelCheckpoint callback to save the best model with .keras extension
-    checkpoint = ModelCheckpoint('best_model.keras', monitor='val_loss', verbose=1, save_best_only=True, mode='min')
+#     # Define ModelCheckpoint callback to save the best model with .keras extension
+#     checkpoint = ModelCheckpoint('best_model.keras', monitor='val_loss', verbose=1, save_best_only=True, mode='min')
 
-    # Train the autoencoder with ModelCheckpoint callback
-    history = autoencoder.fit(x_train, x_train, epochs=epochs, batch_size=24, validation_split=0.10, callbacks=[checkpoint])
+#     # Train the autoencoder with ModelCheckpoint callback
+#     history = autoencoder.fit(x_train, x_train, epochs=epochs, batch_size=24, validation_split=0.10, callbacks=[checkpoint])
 
-def useAencoder(mFeatures):
-      # Load the saved model
-    loaded_model = load_model('best_model.keras')
+# def useAencoder(mFeatures):
+#       # Load the saved model
+#     loaded_model = load_model('best_model.keras')
 
-    # Create a new model that outputs the encoder part of the loaded model, the 4th layer is the encoder
-    encoder_model = keras.Model(inputs=loaded_model.input, outputs=loaded_model.layers[3].output) 
+#     # Create a new model that outputs the encoder part of the loaded model, the 4th layer is the encoder
+#     encoder_model = keras.Model(inputs=loaded_model.input, outputs=loaded_model.layers[3].output) 
 
-    # Use the encoder model to obtain the compressed representation (100 features) of the input data
-    X_encoded = encoder_model.predict(mFeatures)
-    return X_encoded
+#     # Use the encoder model to obtain the compressed representation (100 features) of the input data
+#     X_encoded = encoder_model.predict(mFeatures)
+#     return X_encoded
 
 def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bstdevFiltering=False, bNormalize=True, bNormalizeLog2Scale=True, nfeat=50, expSelectedFeats=False, bExportImpMat=False):
     """
@@ -710,7 +710,7 @@ def exportImputatedMatrix (mFeatures, sample_ids, feat_names):
 
     imputedDf = pd.DataFrame(matrixForKnnImp, index= filtered_features, columns=filtered_sample_ids)
 
-    imputedDf.to_csv('/home/thlamp/tcga/bladder_results/imputedMethylationMatrix.txt')  
+    imputedDf.to_csv('/home/thlamp/tcga/data/imputedMethylationMatrix.txt')  
 
 def graphVectorPreprocessing(mGraphFeatures):
     """
@@ -1491,13 +1491,13 @@ def addEdgeAboveThreshold(i, qQueue):
         
         # Add edge, if above threshold
         if fCurCorr > dEdgeThreshold:
-            g.add_edge(saFeatures[iFirstFeatIdx], saFeatures[iSecondFeatIdx], weight=round(fCurCorr * 100) / 100)## dtrogg se 2 dekadika psifia
+            g.add_edge(saFeatures[iFirstFeatIdx], saFeatures[iSecondFeatIdx], weight=round(fCurCorr * 100) / 100)
 
         qQueue.task_done()
 
 
 # Is this the step where we make the generalised graph? The output is one Graph?
-def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, nfeat=50, bResetGraph=True, stdevFeatSelection=True):
+def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, nfeat=50, bResetGraph=True, stdevFeatSelection=True, degsFile=''):
     """
     Returns the overall feature graph, indicating interconnections between features.
 
@@ -1555,7 +1555,9 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, nfeat=50, bResetG
                                 dtype=np.dtype("object"), delimiter=',').astype(str)
 
     else:
-        fUsefulFeatureNames = open("/home/thlamp/tcga/bladder_results/DEGs" +str(nfeat) + ".csv", "r")
+        # fUsefulFeatureNames = open("/home/thlamp/tcga/data/DEGs" +str(nfeat) + ".csv", "r")
+        fUsefulFeatureNames = open("/home/thlamp/tcga/data/" + degsFile, "r")
+
 
         # labelfile, should have stored tumor_stage or labels?       
 
@@ -1676,7 +1678,7 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, nfeat=50, bResetG
 
 
 def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bPostProcessing=True, bstdevFiltering=False, bNormalize=True, bNormalizeLog2Scale=True, bShow = False, 
-                    bSave = False, stdevFeatSelection=True, nfeat=50, expSelectedFeats=False, bExportImpMat=False): 
+                    bSave = False, stdevFeatSelection=True, nfeat=50, expSelectedFeats=False, bExportImpMat=False, degsFile=''): 
     # TODO: dMinDivergenceToKeep: Add as parameter
     """
     Loads the feature correlation graph and all feature data.
@@ -1696,10 +1698,10 @@ def getGraphAndData(bResetGraph=False, dEdgeThreshold=0.3, bResetFiles=False, bP
     # Do mFeatures_noNaNs has all features? Have we applied a threshold to get here?
     mFeatures_noNaNs, vClass, sampleIDs, feat_names, tumor_stage = initializeFeatureMatrices(bResetFiles=bResetFiles, bPostProcessing=bPostProcessing, bstdevFiltering=bstdevFiltering,
                                                          bNormalize=bNormalize, bNormalizeLog2Scale=bNormalizeLog2Scale, nfeat=nfeat, expSelectedFeats=expSelectedFeats, bExportImpMat=bExportImpMat)
-    gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=dEdgeThreshold, nfeat=nfeat, bResetGraph=bResetGraph, stdevFeatSelection=stdevFeatSelection)
+    gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=dEdgeThreshold, nfeat=nfeat, bResetGraph=bResetGraph, stdevFeatSelection=stdevFeatSelection, degsFile=degsFile)
     
-    # if bShow or bSave:
-    #     drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = bShow, bSave = bSave)
+    if bShow or bSave:
+        drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph.pdf",bShow = bShow, bSave = bSave)
 
     return gToDraw, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names, tumor_stage
 
@@ -1754,7 +1756,7 @@ def drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph",bShow = True, bSave = Tru
     if bShow:
         plt.show()
 
-def mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.8, nfeat=50, bResetGraph=False, stdevFeatSelection=False):
+def mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.8, nfeat=50, bResetGraph=False, stdevFeatSelection=False, degsFile=''):
     """
     Plots the distribution of the general graph's edges between start and end thresholds adding by 0.1.
     :param mFeatures_noNaNs: the feature matrix
@@ -1768,7 +1770,7 @@ def mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endTh
     nodesNum = []
     for threshold in np.arange(startThreshold, endThreshold+0.05, 0.1):
         threshold = round(threshold, 1)
-        gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=threshold, nfeat=nfeat, bResetGraph=bResetGraph, stdevFeatSelection=stdevFeatSelection)
+        gToDraw, saRemainingFeatureNames = getFeatureGraph(mFeatures_noNaNs, feat_names, dEdgeThreshold=threshold, nfeat=nfeat, bResetGraph=bResetGraph, stdevFeatSelection=stdevFeatSelection, degsFile=degsFile)
         thresholds.append(threshold)
         edgesNum.append(gToDraw.number_of_edges())
         nodesNum.append(gToDraw.number_of_nodes())
@@ -2067,9 +2069,9 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
         #         saveCounter[suffix] += 1
         #         with lock:
         #             graphList.append((gMainGraph, "graph_" + sampleID))
-        # if sampleID=='TCGA-BL-A13J-11A' or sampleID=='TCGA-BL-A13J-01A':
-        #     with lock:
-        #         graphList.append((gMainGraph, "graph_" + sampleID))
+        if sampleID=='TCGA-BL-A13J-11A' or sampleID=='TCGA-BL-A13J-01A':
+            with lock:
+                graphList.append((gMainGraph, "graph_" + sampleID))
                     
         #DEBUGLINES
         #message("Calling drawAndSaveGraph for graph %s..."%(str(sampleID)))
@@ -2287,6 +2289,16 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass, savedResults):
         f1_micro = f1_score(y_test, y_pred, average='micro')
 
         final_y_pred.extend(y_pred)
+
+        #DEBUG LINES
+        print(y_test)
+        print(y_pred)
+        print("accuracy: "+str(accuracy))
+        print("f1_macro: "+str(f1_macro))
+        print("f1_micro: "+str(f1_micro))
+        cm = confusion_matrix(y_test,y_pred)
+        print(cm)
+        ################3
 
         # Append metrics to lists
         accuracy_per_fold.append(accuracy)
@@ -2509,7 +2521,7 @@ def getDegs():
     Reads the csv file with the DEGs from R script.
     :return: an array with the name of the DEGs 
     """
-    fUsefulFeatureNames = open("/home/thlamp/tcga/bladder_results/DEGs.csv", "r")
+    fUsefulFeatureNames = open("/home/thlamp/tcga/data/DEGs.csv", "r")
 
     # labelfile, should have stored tumor_stage or labels?       
 
@@ -2683,28 +2695,29 @@ def graphBaselineComparison(df):
     message("Results from statistical test for graphs and baselines")
     message(bestResultsBaselines)
 
+
+# Function to modify model names
+def modify_model_names(model_name):
+    # Remove 'GFeatures'
+    model_name = model_name.replace('GFeatures', '')
+
+    # Replace 'degs' with 'DEGs/DMGs'
+    model_name = model_name.replace('degs', 'DEGs/DMGs')
+
+    model_name = model_name.replace('NV', 'GNB')
+    model_name = model_name.replace('150', '450')
+    model_name = model_name.replace('_50', '_150')
+    model_name = model_name.replace('100', '300')
+    
+
+    # Remove float numbers (e.g., '_0.5_', '_0.6_')
+    model_name = re.sub(r'_\d\.\d_', '_', model_name)
+
+    return model_name
+
 def plotResultsFromBaselineComparison(representations, baseline=None):
     # X-axis values (range of numbers from 0.3 to 0.8)
     x_values = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
-
-    # Function to modify model names
-    def modify_model_names(model_name):
-        # Remove 'GFeatures'
-        model_name = model_name.replace('GFeatures', '')
-
-        # Replace 'degs' with 'DEGs/DMGs'
-        model_name = model_name.replace('degs', 'DEGs/DMGs')
-
-        model_name = model_name.replace('NV', 'GNB')
-        model_name = model_name.replace('150', '450')
-        model_name = model_name.replace('_50', '_150')
-        model_name = model_name.replace('100', '300')
-        
-
-        # Remove float numbers (e.g., '_0.5_', '_0.6_')
-        model_name = re.sub(r'_\d\.\d_', '_', model_name)
-
-        return model_name
 
     # Apply the function to modify the model names
     modified_model_names = [modify_model_names(name) for name in representations]
@@ -2717,6 +2730,9 @@ def plotResultsFromBaselineComparison(representations, baseline=None):
         for value in x_values:
             if f'_{value}_' in original_name:
                 heatmap_data.loc[modified_name, value] = 1
+
+    # Drop duplicates based on the index
+    heatmap_data = heatmap_data[~heatmap_data.index.duplicated(keep='first')]
 
     plt.clf()
     # Plot the heatmap
@@ -2911,13 +2927,17 @@ def main(argv):
     parser.add_argument("-ls", "--logScale", action="store_true", default=False)
     parser.add_argument("-stdf", "--stdevFiltering", action="store_true", default=False)
     parser.add_argument("-nfeat", "--numberOfFeaturesPerLevel", type=int, default=50)
+    parser.add_argument("-degsfn", "--degsFilename", type=str, default='')
 
     # Post-processing graph features
     parser.add_argument("-scalDeact", "--scalingDeactivation", action="store_false", default=True)
     # parser.add_argument("-scalCls", "--scalingClass", action="store_true", default=False)
 
     # Exploratory analysis plots
-    parser.add_argument("-expan", "--exploratoryAnalysis", action="store_true", default=False)
+    parser.add_argument("-sdist", "--plotSDdistributions", action="store_true", default=False)
+    parser.add_argument("-dist", "--plotDistributions", action="store_true", default=False)
+    parser.add_argument("-gdist", "--graphDdistributions", action="store_true", default=False)
+    parser.add_argument("-expvar", "--plotExplainedVariance", action="store_true", default=False)
 
     # Classification model 
     parser.add_argument("-dect", "--decisionTree", action="store_true", default=False)
@@ -2967,6 +2987,9 @@ def main(argv):
 
     message("Run setup: " + (str(args)))
 
+    # change working directory
+    os.chdir('/home/thlamp/tcga/data')
+
     # Update global prefix variable
     global Prefix
     Prefix = args.prefixForIntermediateFiles
@@ -2989,7 +3012,8 @@ def main(argv):
                                                                                             stdevFeatSelection = args.selectFeatsBySD,
                                                                                             nfeat=args.numberOfFeaturesPerLevel, 
                                                                                             expSelectedFeats=args.exportSelectedFeats,
-                                                                                            bExportImpMat=args.exportImputatedMatrix)
+                                                                                            bExportImpMat=args.exportImputatedMatrix, 
+                                                                                            degsFile=args.degsFilename)
             #DEBUG LINES 
             print(sampleIDs)
             ################
@@ -3020,7 +3044,8 @@ def main(argv):
                                                                                         stdevFeatSelection = args.selectFeatsBySD,
                                                                                         nfeat=args.numberOfFeaturesPerLevel, 
                                                                                         expSelectedFeats=args.exportSelectedFeats,
-                                                                                        bExportImpMat=args.exportImputatedMatrix)
+                                                                                        bExportImpMat=args.exportImputatedMatrix,
+                                                                                        degsFile=args.degsFilename)
         #DEBUG LINES 
         print(sampleIDs)
         ################
@@ -3043,13 +3068,14 @@ def main(argv):
         # print(sampleIDs)
         ################
     
-    if args.exploratoryAnalysis:
-        #plotDistributions(mFeatures_noNaNs, feat_names, stdfeat=args.stdevFiltering, preprocessing=args.postProcessing)
-
-        #plotSDdistributions(mFeatures_noNaNs, feat_names)
-        
-        #mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.8, nfeat=args.numberOfFeaturesPerLevel, bResetGraph=True, stdevFeatSelection = args.selectFeatsBySD)
-
+    
+    if args.plotDistributions:
+        plotDistributions(mFeatures_noNaNs, feat_names, stdfeat=args.stdevFiltering, preprocessing=args.postProcessing)
+    if args.plotSDdistributions:
+        plotSDdistributions(mFeatures_noNaNs, feat_names)
+    if args.graphDdistributions:
+        mGraphDistribution(mFeatures_noNaNs, feat_names, startThreshold = 0.3, endThreshold = 0.8, nfeat=args.numberOfFeaturesPerLevel, bResetGraph=True, stdevFeatSelection = args.selectFeatsBySD)
+    if args.plotExplainedVariance:
         plotExplainedVariance(mFeatures_noNaNs, n_components=100, featSelection = args.stdevFiltering)
         
     # vGraphFeatures = getGraphVector(gMainGraph)
@@ -3077,15 +3103,15 @@ def main(argv):
         # ##################
 
         # Get selected instance classes
-    if args.autoencoder:
-        aencoder(mFeatures_noNaNs)
+    # if args.autoencoder:
+    #     aencoder(mFeatures_noNaNs)
 
     
-    if args.useAutoencoder:
-        mFeatures_noNaNs = useAencoder(mFeatures_noNaNs)
-        #DEBUG LINES
-        message("Matrix shape after autoencoder: " + str(np.shape(mFeatures_noNaNs)))
-        #########
+    # if args.useAutoencoder:
+    #     mFeatures_noNaNs = useAencoder(mFeatures_noNaNs)
+    #     #DEBUG LINES
+    #     message("Matrix shape after autoencoder: " + str(np.shape(mFeatures_noNaNs)))
+    #     #########
 
     if args.numberOfInstances < 0:
         vSelectedSamplesClasses = vClass
