@@ -1155,28 +1155,11 @@ def kneighbors(X, y, lmetricResults, sfeatClass, savedResults):
     """
     neigh = KNeighborsClassifier(n_neighbors=3)
     
-    # scoring = {
-    # 'accuracy': make_scorer(accuracy_score),
-    # 'f1_micro': make_scorer(f1_score, average="micro"),
-    # 'f1_macro': make_scorer(f1_score, average="macro")}
-    
-    cv = StratifiedKFold(n_splits=10)
+    #cv = StratifiedKFold(n_splits=10)
+    cv = LeaveOneOut()
     crossValidation(X, y, cv, neigh, lmetricResults, sfeatClass, savedResults)
-    # Calculate cross-validation scores for both accuracy and F1
-    # scores = cross_validate(neigh, X, y, cv=cv, scoring=scoring)
     
-    # Calculate SEM 
-    # sem_accuracy = np.std(scores['test_accuracy']) / np.sqrt(len(scores['test_accuracy']))
-    # sem_f1_micro = np.std(scores['test_f1_micro']) / np.sqrt(len(scores['test_f1_micro']))
-    # sem_f1_macro = np.std(scores['test_f1_macro']) / np.sqrt(len(scores['test_f1_macro']))
-
-    # message("Avg. Performanace: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_accuracy']), np.std(scores['test_accuracy']), sem_accuracy, str(scores['test_accuracy'])))
-    # message("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_micro']), np.std(scores['test_f1_micro']), sem_f1_micro, str(scores['test_f1_micro'])))
-    # message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_macro']), np.std(scores['test_f1_macro']), sem_f1_macro, str(scores['test_f1_macro'])))
     
-    # lmetricResults.append([sfeatClass, np.mean(scores['test_accuracy']), sem_accuracy, np.mean(scores['test_f1_micro']), sem_f1_micro, 
-    #                   np.mean(scores['test_f1_macro']), sem_f1_macro])
-
 def plotAccuracy(df):
     """
     Save the plot with the accuracies from machine learning algorithms with the standard error.
@@ -2097,42 +2080,6 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
             message("%d (Estimated remaining (sec): %4.2f - Working at a rate of %4.2f samples/sec)\n" % (
                 iCnt, dRemaining, 1.0 / dRate))
 
-# def classify(X, y, lmetricResults, sfeatClass):
-#     """
-#     Calculates and outputs the performance of classification, through Leave-One-Out cross-valuation, given a set of feature vectors and a set of labels.
-#     :param X: The feature vector matrix.
-#     :param y: The labels.
-#     :param lmetricResults: list for the results of performance metrics.
-#     :param sfeatClass: string/information about the ML model, the features and data labels 
-#     """
-#     scoring = {
-#     'accuracy': make_scorer(accuracy_score),
-#     'f1_micro': make_scorer(f1_score, average="micro"),
-#     'f1_macro': make_scorer(f1_score, average="macro")}
-
-#     classifier = DecisionTreeClassifier()
-    
-#     cv = LeaveOneOut() 
-
-#     # Calculate cross-validation scores for both accuracy and F1
-#     scores = cross_validate(classifier, X, y, cv=cv, scoring=scoring)
-    
-#     # Calculate SEM 
-#     sem_accuracy = np.std(scores['test_accuracy']) / np.sqrt(len(scores['test_accuracy']))
-#     sem_f1_micro = np.std(scores['test_f1_micro']) / np.sqrt(len(scores['test_f1_micro']))
-#     sem_f1_macro = np.std(scores['test_f1_macro']) / np.sqrt(len(scores['test_f1_macro']))
-
-#     message("Avg. Performanace: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_accuracy']), np.std(scores['test_accuracy']), sem_accuracy, str(scores['test_accuracy'])))
-#     message("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_micro']), np.std(scores['test_f1_micro']), sem_f1_micro, str(scores['test_f1_micro'])))
-#     message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_macro']), np.std(scores['test_f1_macro']), sem_f1_macro, str(scores['test_f1_macro'])))
-    
-#     lmetricResults.append([sfeatClass, np.mean(scores['test_accuracy']), sem_accuracy, np.mean(scores['test_f1_micro']), sem_f1_micro, 
-#                       np.mean(scores['test_f1_macro']), sem_f1_macro])
-#     # Output model
-#     classifier.fit(X, y)
-#     dot_data = tree.export_graphviz(classifier, out_file=None)
-#     graph = graphviz.Source(dot_data)
-#     graph.render("Rules")
 
 def classify(X, y, lmetricResults, sfeatClass, savedResults):
     """
@@ -2146,7 +2093,9 @@ def classify(X, y, lmetricResults, sfeatClass, savedResults):
 
     classifier = DecisionTreeClassifier(class_weight="balanced")
     
-    cv = StratifiedKFold(n_splits=10)
+    # cv = StratifiedKFold(n_splits=10)
+    cv = LeaveOneOut()
+
     crossValidation(X, y, cv, classifier, lmetricResults, sfeatClass, savedResults)
 
 
@@ -2161,7 +2110,8 @@ def stratifiedDummyClf(X, y, lmetricResults, sfeatClass, savedResults):
     """
     dummy_clf = DummyClassifier(strategy="stratified")
     
-    cv = StratifiedKFold(n_splits=10)
+    # cv = StratifiedKFold(n_splits=10)
+    cv = LeaveOneOut()
     crossValidation(X, y, cv, dummy_clf, lmetricResults, sfeatClass, savedResults)
 
 def mostFrequentDummyClf(X, y, lmetricResults, sfeatClass, savedResults):
@@ -2175,7 +2125,8 @@ def mostFrequentDummyClf(X, y, lmetricResults, sfeatClass, savedResults):
     """
     dummy_clf = DummyClassifier(strategy="most_frequent")
     
-    cv = StratifiedKFold(n_splits=10)
+    # cv = StratifiedKFold(n_splits=10)
+    cv = LeaveOneOut()
     crossValidation(X, y, cv, dummy_clf, lmetricResults, sfeatClass, savedResults)
 
 def mlpClassifier(X, y, lmetricResults, sfeatClass, savedResults):
@@ -2187,73 +2138,12 @@ def mlpClassifier(X, y, lmetricResults, sfeatClass, savedResults):
     :param sfeatClass: string/information about the ML model, the features and data labels 
     :param savedResults: dictionary for the F1-macro results for wilcoxon test
     """
-    clf = MLPClassifier(max_iter=2000)
+    clf = MLPClassifier()
 
-    cv = StratifiedKFold(n_splits=10)
+    #cv = StratifiedKFold(n_splits=10)
+    cv = LeaveOneOut()
     crossValidation(X, y, cv, clf, lmetricResults, sfeatClass, savedResults)
     
-
-# def crossValidation(X, y, cv, model, lmetricResults, sfeatClass):
-#     """
-#     Performs the cross validation and save the metrics per iteration, computes the overall matrics and plot the confusion matrix
-#     :param X: The feature vector matrix.
-#     :param y: The labels.
-#     :param cv: the fold that were created from cross validation
-#     :param lmetricResults: list for the results of performance metrics.
-#     :param sfeatClass: string/information about the ML model, the features and data labels 
-#     """
-#     # Initialize lists to store metrics per fold
-#     accuracy_per_fold = []
-#     f1_macro_per_fold = []
-#     f1_micro_per_fold = []
-#     final_y_pred = []
-
-#     #DEBUG LINES
-#     #test = 0
-#     ##########
-
-#     # Perform cross-validation
-#     for train_index, test_index in cv.split(X):
-#         X_train, X_test = X[train_index], X[test_index]
-#         y_train, y_test = y[train_index], y[test_index]
-    
-#         # Fit the classifier on the training data
-#         model.fit(X_train, y_train)
-
-#         # Predict label for the test data
-#         y_pred = model.predict(X_test)
-
-#         # Calculate metrics for this fold
-#         accuracy = accuracy_score(y_test, y_pred)
-#         f1_macro = f1_score(y_test, y_pred, average='macro')
-#         f1_micro = f1_score(y_test, y_pred, average='micro')
-#         print(f1_macro)
-#         final_y_pred.append(y_pred[0])
-
-#         # Append metrics to lists
-#         accuracy_per_fold.append(accuracy)
-#         f1_macro_per_fold.append(f1_macro)
-#         f1_micro_per_fold.append(f1_micro)
-    
-    # accuracy = accuracy_score(y, final_y_pred)
-    # f1_micro = f1_score(y, final_y_pred, average='micro')
-    # f1_macro = f1_score(y, final_y_pred, average='macro')
-    
-    #DEBUG LINES
-    # message(accuracy)
-    # message(f1_micro)
-    # message(f1_macro)
-    # message(f1_macro_per_fold)
-    ###############
-    
-    # Calculate SEM 
-    # sem_accuracy = np.std(accuracy_per_fold) / np.sqrt(len(accuracy_per_fold))
-    # sem_f1_micro = np.std(f1_micro_per_fold) / np.sqrt(len(f1_micro_per_fold))
-    # sem_f1_macro = np.std(f1_macro_per_fold) / np.sqrt(len(f1_macro_per_fold))
-
-    # message("Avg. Performanace: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(accuracy_per_fold), np.std(accuracy_per_fold), sem_accuracy, str(accuracy_per_fold)))
-    # message("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (f1_micro, np.std(f1_micro_per_fold), sem_f1_micro, str(f1_micro_per_fold)))
-    # message("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (f1_macro, np.std(f1_macro_per_fold), sem_f1_macro, str(f1_macro_per_fold)))
 
 def crossValidation(X, y, cv, model, lmetricResults, sfeatClass, savedResults): 
     """
@@ -2272,7 +2162,8 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass, savedResults):
     final_y_pred = []
     final_y = []    
     # Perform cross-validation
-    for train_index, test_index in cv.split(X, y):
+    # for train_index, test_index in cv.split(X, y):
+    for train_index, test_index in cv.split(X):
         X_train, X_test = X[train_index], X[test_index]
         y_train, y_test = y[train_index], y[test_index]
        
@@ -2343,28 +2234,9 @@ def xgboost(X, y, lmetricResults, sfeatClass, savedResults):
     """
     model = xgb.XGBClassifier()
     
-    # scoring = {
-    # 'accuracy': make_scorer(accuracy_score),
-    # 'f1_micro': make_scorer(f1_score, average="micro"),
-    # 'f1_macro': make_scorer(f1_score, average="macro")}
-    
-    cv = StratifiedKFold(n_splits=10)
+    #cv = StratifiedKFold(n_splits=10)
+    cv = LeaveOneOut()
     crossValidation(X, y, cv, model, lmetricResults, sfeatClass, savedResults)
-
-    # # Calculate cross-validation scores for both accuracy and F1
-    # scores = cross_validate(model, X, y, cv=cv, scoring=scoring)
-    
-    # # Calculate SEM 
-    # sem_accuracy = np.std(scores['test_accuracy']) / np.sqrt(len(scores['test_accuracy']))
-    # sem_f1_micro = np.std(scores['test_f1_micro']) / np.sqrt(len(scores['test_f1_micro']))
-    # sem_f1_macro = np.std(scores['test_f1_macro']) / np.sqrt(len(scores['test_f1_macro']))
-
-    # print("Avg. Performanace: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_accuracy']), np.std(scores['test_accuracy']), sem_accuracy, str(scores['test_accuracy'])))
-    # print("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_micro']), np.std(scores['test_f1_micro']), sem_f1_micro, str(scores['test_f1_micro'])))
-    # print("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_macro']), np.std(scores['test_f1_macro']), sem_f1_macro, str(scores['test_f1_macro'])))
-    
-    # lmetricResults.append([sfeatClass, np.mean(scores['test_accuracy']), sem_accuracy, np.mean(scores['test_f1_micro']), sem_f1_micro, 
-    #                   np.mean(scores['test_f1_macro']), sem_f1_macro])
 
 
 def RandomForest(X, y, lmetricResults, sfeatClass, savedResults):
@@ -2378,27 +2250,10 @@ def RandomForest(X, y, lmetricResults, sfeatClass, savedResults):
     """
     clf = RandomForestClassifier(class_weight = "balanced")
     
-    # scoring = {
-    # 'accuracy': make_scorer(accuracy_score),
-    # 'f1_micro': make_scorer(f1_score, average="micro"),
-    # 'f1_macro': make_scorer(f1_score, average="macro")}
-    
-    cv = StratifiedKFold(n_splits=10) 
+    #cv = StratifiedKFold(n_splits=10) 
+    cv = LeaveOneOut()
     crossValidation(X, y, cv, clf, lmetricResults, sfeatClass, savedResults)
-    # Calculate cross-validation scores for both accuracy and F1
-    # scores = cross_validate(clf, X, y, cv=cv, scoring=scoring)
-    
-    # Calculate SEM 
-    # sem_accuracy = np.std(scores['test_accuracy']) / np.sqrt(len(scores['test_accuracy']))
-    # sem_f1_micro = np.std(scores['test_f1_micro']) / np.sqrt(len(scores['test_f1_micro']))
-    # sem_f1_macro = np.std(scores['test_f1_macro']) / np.sqrt(len(scores['test_f1_macro']))
-
-    # print("Avg. Performanace: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_accuracy']), np.std(scores['test_accuracy']), sem_accuracy, str(scores['test_accuracy'])))
-    # print("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_micro']), np.std(scores['test_f1_micro']), sem_f1_micro, str(scores['test_f1_micro'])))
-    # print("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_macro']), np.std(scores['test_f1_macro']), sem_f1_macro, str(scores['test_f1_macro'])))
-    
-    # lmetricResults.append([sfeatClass, np.mean(scores['test_accuracy']), sem_accuracy, np.mean(scores['test_f1_micro']), sem_f1_micro, 
-    #                   np.mean(scores['test_f1_macro']), sem_f1_macro])
+ 
 
 def NBayes(X, y, lmetricResults, sfeatClass, savedResults):
     """
@@ -2411,27 +2266,10 @@ def NBayes(X, y, lmetricResults, sfeatClass, savedResults):
     """
     gnb = GaussianNB()
     
-    # scoring = {
-    # 'accuracy': make_scorer(accuracy_score),
-    # 'f1_micro': make_scorer(f1_score, average="micro"),
-    # 'f1_macro': make_scorer(f1_score, average="macro")}
-    
-    cv = StratifiedKFold(n_splits=10)
+    #cv = StratifiedKFold(n_splits=10)
+    cv = LeaveOneOut()
     crossValidation(X, y, cv, gnb, lmetricResults, sfeatClass, savedResults)
-    # Calculate cross-validation scores for both accuracy and F1
-    # scores = cross_validate(gnb, X, y, cv=cv, scoring=scoring)
-    
-    # Calculate SEM 
-    # sem_accuracy = np.std(scores['test_accuracy']) / np.sqrt(len(scores['test_accuracy']))
-    # sem_f1_micro = np.std(scores['test_f1_micro']) / np.sqrt(len(scores['test_f1_micro']))
-    # sem_f1_macro = np.std(scores['test_f1_macro']) / np.sqrt(len(scores['test_f1_macro']))
 
-    # print("Avg. Performanace: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_accuracy']), np.std(scores['test_accuracy']), sem_accuracy, str(scores['test_accuracy'])))
-    # print("Avg. F1-micro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_micro']), np.std(scores['test_f1_micro']), sem_f1_micro, str(scores['test_f1_micro'])))
-    # print("Avg. F1-macro: %4.2f (st. dev. %4.2f, sem %4.2f) \n %s" % (np.mean(scores['test_f1_macro']), np.std(scores['test_f1_macro']), sem_f1_macro, str(scores['test_f1_macro'])))
-    
-    # lmetricResults.append([sfeatClass, np.mean(scores['test_accuracy']), sem_accuracy, np.mean(scores['test_f1_micro']), sem_f1_micro, 
-    #                   np.mean(scores['test_f1_macro']), sem_f1_macro])
 
 
 def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names, bResetFeatures=True, dEdgeThreshold=0.3, nfeat=50,
