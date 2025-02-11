@@ -244,6 +244,7 @@ def getPCA(mFeatures_noNaNs, n_components=3):
     :param n_components: The target number of components.
     :return: The PCA transformation result as a matrix.
     """
+    
     pca = decomposition.PCA(n_components)
     pca.fit(mFeatures_noNaNs)
     X = pca.transform(mFeatures_noNaNs)
@@ -775,13 +776,13 @@ def getOmicLevels(sfeatureNames):
     :return a list with the first and the last columns corresponding to each omic level, by checking the feature ids.
     """
     # Search for elements that start with "ENSG" and contain "."
-    indices_of_mrna = np.where(np.core.defchararray.startswith(sfeatureNames, "ENSG") & (np.core.defchararray.find(sfeatureNames, ".") != -1))[0]
+    indices_of_mrna = np.where(np.char.startswith(sfeatureNames, "ENSG") & (np.char.find(sfeatureNames, ".") != -1))[0]
 
     # Search for elements that start with "hsa"
-    indices_of_mirna = np.where(np.core.defchararray.startswith(sfeatureNames, "hsa"))[0]
+    indices_of_mirna = np.where(np.char.startswith(sfeatureNames, "hsa"))[0]
 
     # Search for elements that start with "ENSG" and do not contain "."
-    indices_of_methylation = np.where(np.core.defchararray.startswith(sfeatureNames, "ENSG") & (np.core.defchararray.find(sfeatureNames, ".") == -1))[0]
+    indices_of_methylation = np.where(np.char.startswith(sfeatureNames, "ENSG") & (np.char.find(sfeatureNames, ".") == -1))[0]
 
     mrna = []
     mirna = []
@@ -1927,7 +1928,7 @@ def assignSampleValuesToGraphNodes(gGraph, mSample, saSampleFeatureNames, feat_n
         # Assign value of feature as node weight
         dVal = mSample[iFeatIdx]
         # Handle missing values as zero (i.e. non-important)
-        if dVal == np.NAN:
+        if dVal == np.nan:
             dVal = 0
 
         gGraph.nodes[nNode]['weight'] = dVal
@@ -2289,16 +2290,6 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass, savedResults):
         f1_micro = f1_score(y_test, y_pred, average='micro')
 
         final_y_pred.extend(y_pred)
-
-        #DEBUG LINES
-        print(y_test)
-        print(y_pred)
-        print("accuracy: "+str(accuracy))
-        print("f1_macro: "+str(f1_macro))
-        print("f1_micro: "+str(f1_micro))
-        cm = confusion_matrix(y_test,y_pred)
-        print(cm)
-        ################3
 
         # Append metrics to lists
         accuracy_per_fold.append(accuracy)
@@ -2968,6 +2959,8 @@ def main(argv):
     
     # Graph generation parameters
     parser.add_argument("-e", "--edgeThreshold", type=float, default=0.3)
+    parser.add_argument("-stre", "--startEdgeThreshold", type=float, default=0.3)
+    parser.add_argument("-ende", "--endEdgeThreshold", type=float, default=None)
     parser.add_argument("-rfat", "--runForAllThresholds", action="store_true", default=False)
     #parser.add_argument("-d", "--minDivergenceToKeep", type=float, default=6)
 
@@ -2997,71 +2990,101 @@ def main(argv):
     # Update global threads to use
     THREADS_TO_USE = args.numberOfThreads
 
-    if args.runForAllThresholds:
-        for threshold in np.arange(0.3, 0.85, 0.1):
-            threshold = round(threshold, 1)
-            # main function
-            gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names, vtumorStage = getGraphAndData(bResetGraph=args.resetGraph,
-                                                                                            dEdgeThreshold=threshold,
-                                                                                            bResetFiles=args.resetCSVCacheFiles,
-                                                                                            bPostProcessing=args.postProcessing,
-                                                                                            bstdevFiltering=args.stdevFiltering,
-                                                                                            bNormalize=args.normalization,
-                                                                                            bNormalizeLog2Scale=args.logScale,
-                                                                                            bShow = args.showGraphs, bSave = args.saveGraphs, 
-                                                                                            stdevFeatSelection = args.selectFeatsBySD,
-                                                                                            nfeat=args.numberOfFeaturesPerLevel, 
-                                                                                            expSelectedFeats=args.exportSelectedFeats,
-                                                                                            bExportImpMat=args.exportImputatedMatrix, 
-                                                                                            degsFile=args.degsFilename)
-            #DEBUG LINES 
-            print(sampleIDs)
-            ################
-
-            # TODO: Restore to NOT reset features
-            
-            if args.graphFeatures:
-                mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
-                                            bResetFeatures=args.resetFeatures, dEdgeThreshold=threshold, 
-                                            nfeat=args.numberOfFeaturesPerLevel, bShowGraphs=args.showGraphs, 
-                                            bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
-                
-            #DEBUG LINES
-            message("mGraphFeatures: ")
-            message(mGraphFeatures)
-            ##############
-
+    
+    if args.endEdgeThreshold is not None and args.resetGraph:
+        startThreshold=args.startEdgeThreshold
+        endThreshold=args.endEdgeThreshold
     else:
-    # main function
+        startThreshold=args.startEdgeThreshold
+        endThreshold=args.startEdgeThreshold
+
+    for threshold in np.arange(startThreshold, endThreshold+0.01, 0.1):
+        threshold = round(threshold, 1)
+        # main function
         gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names, vtumorStage = getGraphAndData(bResetGraph=args.resetGraph,
-                                                                                        dEdgeThreshold=args.edgeThreshold,
-                                                                                        bResetFiles=args.resetCSVCacheFiles,
-                                                                                        bPostProcessing=args.postProcessing,
-                                                                                        bstdevFiltering=args.stdevFiltering,
-                                                                                        bNormalize=args.normalization,
-                                                                                        bNormalizeLog2Scale=args.logScale,
+                                                                                        dEdgeThreshold=threshold, bResetFiles=args.resetCSVCacheFiles,
+                                                                                        bPostProcessing=args.postProcessing, bstdevFiltering=args.stdevFiltering,
+                                                                                        bNormalize=args.normalization, bNormalizeLog2Scale=args.logScale,
                                                                                         bShow = args.showGraphs, bSave = args.saveGraphs, 
                                                                                         stdevFeatSelection = args.selectFeatsBySD,
-                                                                                        nfeat=args.numberOfFeaturesPerLevel, 
-                                                                                        expSelectedFeats=args.exportSelectedFeats,
-                                                                                        bExportImpMat=args.exportImputatedMatrix,
-                                                                                        degsFile=args.degsFilename)
+                                                                                        nfeat=args.numberOfFeaturesPerLevel, expSelectedFeats=args.exportSelectedFeats,
+                                                                                        bExportImpMat=args.exportImputatedMatrix, degsFile=args.degsFilename)
         #DEBUG LINES 
         print(sampleIDs)
         ################
-
-        # TODO: Restore to NOT reset features 
         
         if args.graphFeatures:
+        # TODO: Restore to NOT reset features
             mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
-                                            bResetFeatures=args.resetFeatures, dEdgeThreshold=args.edgeThreshold, 
+                                            bResetFeatures=args.resetFeatures, dEdgeThreshold=threshold, 
                                             nfeat=args.numberOfFeaturesPerLevel, bShowGraphs=args.showGraphs, 
                                             bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
+
+    # if args.runForAllThresholds:
+    #     for threshold in np.arange(0.7, 0.85, 0.1):
+    #         threshold = round(threshold, 1)
+    #         # main function
+    #         gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names, vtumorStage = getGraphAndData(bResetGraph=args.resetGraph,
+    #                                                                                         dEdgeThreshold=threshold,
+    #                                                                                         bResetFiles=args.resetCSVCacheFiles,
+    #                                                                                         bPostProcessing=args.postProcessing,
+    #                                                                                         bstdevFiltering=args.stdevFiltering,
+    #                                                                                         bNormalize=args.normalization,
+    #                                                                                         bNormalizeLog2Scale=args.logScale,
+    #                                                                                         bShow = args.showGraphs, bSave = args.saveGraphs, 
+    #                                                                                         stdevFeatSelection = args.selectFeatsBySD,
+    #                                                                                         nfeat=args.numberOfFeaturesPerLevel, 
+    #                                                                                         expSelectedFeats=args.exportSelectedFeats,
+    #                                                                                         bExportImpMat=args.exportImputatedMatrix, 
+    #                                                                                         degsFile=args.degsFilename)
+    #         #DEBUG LINES 
+    #         print(sampleIDs)
+    #         ################
+
+    #         # TODO: Restore to NOT reset features
             
-            #DEBUG LINES
-            message("mGraphFeatures: ")
-            message(mGraphFeatures)
-            ##############
+    #         if args.graphFeatures:
+    #             mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
+    #                                         bResetFeatures=args.resetFeatures, dEdgeThreshold=threshold, 
+    #                                         nfeat=args.numberOfFeaturesPerLevel, bShowGraphs=args.showGraphs, 
+    #                                         bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
+                
+    #         #DEBUG LINES
+    #         message("mGraphFeatures: ")
+    #         message(mGraphFeatures)
+    #         ##############
+
+    # else:
+    # # main function
+    #     gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names, vtumorStage = getGraphAndData(bResetGraph=args.resetGraph,
+    #                                                                                     dEdgeThreshold=args.edgeThreshold,
+    #                                                                                     bResetFiles=args.resetCSVCacheFiles,
+    #                                                                                     bPostProcessing=args.postProcessing,
+    #                                                                                     bstdevFiltering=args.stdevFiltering,
+    #                                                                                     bNormalize=args.normalization,
+    #                                                                                     bNormalizeLog2Scale=args.logScale,
+    #                                                                                     bShow = args.showGraphs, bSave = args.saveGraphs, 
+    #                                                                                     stdevFeatSelection = args.selectFeatsBySD,
+    #                                                                                     nfeat=args.numberOfFeaturesPerLevel, 
+    #                                                                                     expSelectedFeats=args.exportSelectedFeats,
+    #                                                                                     bExportImpMat=args.exportImputatedMatrix,
+    #                                                                                     degsFile=args.degsFilename)
+    #     #DEBUG LINES 
+    #     print(sampleIDs)
+    #     ################
+
+    #     # TODO: Restore to NOT reset features 
+        
+    #     if args.graphFeatures:
+    #         mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
+    #                                         bResetFeatures=args.resetFeatures, dEdgeThreshold=args.edgeThreshold, 
+    #                                         nfeat=args.numberOfFeaturesPerLevel, bShowGraphs=args.showGraphs, 
+    #                                         bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
+            
+    #         #DEBUG LINES
+    #         message("mGraphFeatures: ")
+    #         message(mGraphFeatures)
+    #         ##############
         
         #DEBUG LINES 
         # print("sampleIDs: ")
@@ -3123,93 +3146,38 @@ def main(argv):
     metricResults =[]
     savedResults = {}
 
-    if args.fullAlgRun:
-        for numberOfFeatures in range(50,151,50):
-            for threshold in np.arange(0.3, 0.85, 0.1):
+    if args.graphFeatures:
+        if args.endEdgeThreshold is None:
+            startThreshold=args.startEdgeThreshold
+            endThreshold=args.startEdgeThreshold
+        else:
+            startThreshold=args.startEdgeThreshold
+            endThreshold=args.endEdgeThreshold
+
+        for numberOfFeatures in range(50,51,50):
+            for threshold in np.arange(startThreshold, endThreshold+0.01, 0.1):
                 threshold = round(threshold, 1)
 
-                if args.graphFeatures:
-                    mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
-                                                    bResetFeatures=args.resetFeatures, dEdgeThreshold=threshold, 
-                                                    nfeat=numberOfFeatures, bShowGraphs=args.showGraphs, 
-                                                    bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
-                    
-                    #DEBUG LINES
-                    message("Number of features: " + str(numberOfFeatures) + ", Edge threshold: " + str(threshold))
-                    message("\n\n")
-                    message("mGraphFeatures: ")
-                    message(mGraphFeatures)
-                    ##############
-
-                if args.graphFeatures:
-                    filteredFeatures, filteredGraphFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, mGraphFeatures, useGraphFeatures=args.graphFeatures)
-                if args.graphFeatures and args.featurevectors:
-                    filteredFeatures, filteredGraphFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, mGraphFeatures, useGraphFeatures=args.graphFeatures)
-                elif args.featurevectors:
-                    filteredFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, useGraphFeatures=args.graphFeatures)
-
-
-                if args.tumorStage and args.scalingDeactivation and args.graphFeatures:
-                    filteredGraphFeatures = graphVectorPreprocessing(filteredGraphFeatures)
-                    #DEBUG LINES
-                    message("Graph features for tumor stage with scaling")
-                    message("Max per column: " + str(filteredGraphFeatures.max(axis=0)))
-                    message("Min per column: " + str(filteredGraphFeatures.min(axis=0)))
-                    message(filteredGraphFeatures)
-                    ##################
-
-                if args.classes and args.scalingDeactivation and args.graphFeatures:
-                    mGraphFeatures = graphVectorPreprocessing(mGraphFeatures)
-                    #DEBUG LINES
-                    message("Graph features for classes with scaling")
-                    message("Max per column: " + str(mGraphFeatures.max(axis=0)))
-                    message("Min per column: " + str(mGraphFeatures.min(axis=0)))
-                    message(mGraphFeatures)
-                    ##################
-
-                if args.graphFeatures and not args.scalingDeactivation and args.classes:
-                    message("Graph features for classes without scaling")
-                    #DEBUG LINES
-                    message("First sample before filtering: " + str(mGraphFeatures[0, :]))
-                    ##############
-                    # Identify columns where all values are the same
-                    columns_to_keep = ~np.all(mGraphFeatures == mGraphFeatures[0, :], axis=0)
-
-                    # Remove columns with the same value
-                    mGraphFeatures = mGraphFeatures[:, columns_to_keep]
-
-                    #DEBUG LINES
-                    message("First sample after filtering: " + str(mGraphFeatures[0, :]))
-                    message("Shape of matrix: " + str(np.shape(mGraphFeatures)))
-                    ##############
-
-                if args.graphFeatures and not args.scalingDeactivation and args.tumorStage:
-                    message("Graph features for tumor stage without scaling")
-                    #DEBUG LINES
-                    message("First sample before filtering: " + str(filteredGraphFeatures[0, :]))
-                    ##############
-                    # Identify columns where all values are the same
-                    columns_to_keep = ~np.all(filteredGraphFeatures == filteredGraphFeatures[0, :], axis=0)
-
-                    # Remove columns with the same value
-                    filteredGraphFeatures = filteredGraphFeatures[:, columns_to_keep]
-
-                    #DEBUG LINES
-                    message("First sample after filtering: " + str(filteredGraphFeatures[0, :]))
-                    message("Shape of matrix: " + str(np.shape(filteredGraphFeatures)))
-                    ##############
-
-                if args.graphFeatures:
-                    #DEBUG LINES
-                    message("Class") 
-                    message("First sample after filtering: " + str(mGraphFeatures[0, :]))
-                    message("Shape of matrix: " + str(np.shape(mGraphFeatures)))
-                    message("Tumor stage") 
-                    message("First sample after filtering: " + str(filteredGraphFeatures[0, :]))
-                    message("Shape of matrix: " + str(np.shape(filteredGraphFeatures)))
-                    ##############
-
-        
+            
+                mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
+                                                bResetFeatures=False, dEdgeThreshold=threshold, 
+                                                nfeat=numberOfFeatures, bShowGraphs=args.showGraphs, 
+                                                bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
+                
+                #DEBUG LINES
+                message("Number of features: " + str(numberOfFeatures) + ", Edge threshold: " + str(threshold))
+                message("\n\n")
+                message("mGraphFeatures: ")
+                message(mGraphFeatures)
+                ##############
+                
+                filteredFeatures, filteredGraphFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, mGraphFeatures, useGraphFeatures=args.graphFeatures)
+                # if args.graphFeatures:
+                #     filteredFeatures, filteredGraphFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, mGraphFeatures, useGraphFeatures=args.graphFeatures)
+                # if args.graphFeatures and args.featurevectors:
+                #     filteredFeatures, filteredGraphFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, mGraphFeatures, useGraphFeatures=args.graphFeatures)
+                # elif args.featurevectors:
+                #     filteredFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, useGraphFeatures=args.graphFeatures)        
 
                 # if args.resetWilcoxonResults:
                 #     savedResults = {}
@@ -3238,6 +3206,33 @@ def main(argv):
 
                 
                 if args.classes and args.graphFeatures:
+                    
+                    if args.scalingDeactivation:
+                        mGraphFeatures = graphVectorPreprocessing(mGraphFeatures)
+                        #DEBUG LINES
+                        message("Graph features for classes with scaling")
+                        message("Max per column: " + str(mGraphFeatures.max(axis=0)))
+                        message("Min per column: " + str(mGraphFeatures.min(axis=0)))
+                        message(mGraphFeatures)
+                        ##################
+
+                    else:
+                        message("Graph features for classes without scaling")
+                        #DEBUG LINES
+                        message("First sample before filtering: " + str(mGraphFeatures[0, :]))
+                        ##############
+                        # Identify columns where all values are the same
+                        columns_to_keep = ~np.all(mGraphFeatures == mGraphFeatures[0, :], axis=0)
+
+                        # Remove columns with the same value
+                        mGraphFeatures = mGraphFeatures[:, columns_to_keep]
+
+                        #DEBUG LINES
+                        message("First sample after filtering: " + str(mGraphFeatures[0, :]))
+                        message("Shape of matrix: " + str(np.shape(mGraphFeatures)))
+                        ##############
+
+
                     # Extract class vector for colors
                     aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
                     
@@ -3274,51 +3269,78 @@ def main(argv):
                         mlpClassifier(mGraphFeatures, y, metricResults, "MLP_GFeatures_Class" + graphLabels, savedResults)
 
 
-                if args.classes and args.featurevectors:
-                    # Extract class vector for colors
-                    aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-                    X, pca3D = getPCA(mFeatures_noNaNs, 100)
-                    fig = draw3DPCA(X, pca3D, c=y)
+                # if args.classes and args.featurevectors:
+                #     # Extract class vector for colors
+                #     aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+                #     X, pca3D = getPCA(mFeatures_noNaNs, 100)
+                #     fig = draw3DPCA(X, pca3D, c=y)
 
-                    fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+                #     fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-                    if args.selectFeatsBySD or args.stdevFiltering:
-                        label = '_featureSelection'
-                    else:
-                        label = ''
-                    if args.decisionTree:
-                        message("Decision tree on feature vectors and classes")
-                        classify(X, y, metricResults, "DT_FeatureV_Class" + label, savedResults)
+                #     if args.selectFeatsBySD or args.stdevFiltering:
+                #         label = '_featureSelection'
+                #     else:
+                #         label = ''
+                #     if args.decisionTree:
+                #         message("Decision tree on feature vectors and classes")
+                #         classify(X, y, metricResults, "DT_FeatureV_Class" + label, savedResults)
 
-                    if args.kneighbors:
-                        message("KNN on feature vectors and classes")
-                        kneighbors(X, y, metricResults, "kNN_FeatureV_Class" + label, savedResults)
+                #     if args.kneighbors:
+                #         message("KNN on feature vectors and classes")
+                #         kneighbors(X, y, metricResults, "kNN_FeatureV_Class" + label, savedResults)
 
-                    if args.xgboost:
-                        message("XGBoost on feature vectors and classes")
-                        xgboost(X, y, metricResults, "XGB_FeatureV_Class" + label, savedResults)
+                #     if args.xgboost:
+                #         message("XGBoost on feature vectors and classes")
+                #         xgboost(X, y, metricResults, "XGB_FeatureV_Class" + label, savedResults)
 
-                    if args.randomforest:
-                        message("Random Forest on feature vectors and classes")
-                        RandomForest(X, y, metricResults, "RF_FeatureV_Class" + label, savedResults)
+                #     if args.randomforest:
+                #         message("Random Forest on feature vectors and classes")
+                #         RandomForest(X, y, metricResults, "RF_FeatureV_Class" + label, savedResults)
 
-                    if args.naivebayes:
-                        message("Naive Bayes on feature vectors and classes")
-                        NBayes(X, y, metricResults, "NV_FeatureV_Class" + label, savedResults)
+                #     if args.naivebayes:
+                #         message("Naive Bayes on feature vectors and classes")
+                #         NBayes(X, y, metricResults, "NV_FeatureV_Class" + label, savedResults)
 
-                    if args.stratifieddummyclf:  
-                        message("Stratified Dummy Classifier on feature vectors and classes")
-                        stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_Class" + label, savedResults)
+                #     if args.stratifieddummyclf:  
+                #         message("Stratified Dummy Classifier on feature vectors and classes")
+                #         stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_Class" + label, savedResults)
 
-                    if args.mostfrequentdummyclf:
-                        message("Most frequent Dummy Classifier on feature vectors and classes")
-                        mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_Class" + label, savedResults)
+                #     if args.mostfrequentdummyclf:
+                #         message("Most frequent Dummy Classifier on feature vectors and classes")
+                #         mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_Class" + label, savedResults)
                     
-                    if args.mlpClassifier:
-                        message("MLP Classifier on feature vectors and classes")
-                        mlpClassifier(X, y, metricResults, "MLP_FeatureV_Class" + label, savedResults)
+                #     if args.mlpClassifier:
+                #         message("MLP Classifier on feature vectors and classes")
+                #         mlpClassifier(X, y, metricResults, "MLP_FeatureV_Class" + label, savedResults)
 
                 if args.tumorStage and args.graphFeatures:
+                    if args.scalingDeactivation:
+                        filteredGraphFeatures = graphVectorPreprocessing(filteredGraphFeatures)
+                        #DEBUG LINES
+                        message("Graph features for tumor stage with scaling")
+                        message("Max per column: " + str(filteredGraphFeatures.max(axis=0)))
+                        message("Min per column: " + str(filteredGraphFeatures.min(axis=0)))
+                        message(filteredGraphFeatures)
+                        ##################
+
+                    else:
+                        message("Graph features for tumor stage without scaling")
+                        #DEBUG LINES
+                        message("First sample before filtering: " + str(filteredGraphFeatures[0, :]))
+                        ##############
+                        # Identify columns where all values are the same
+                        columns_to_keep = ~np.all(filteredGraphFeatures == filteredGraphFeatures[0, :], axis=0)
+
+                        # Remove columns with the same value
+                        filteredGraphFeatures = filteredGraphFeatures[:, columns_to_keep]
+
+                        #DEBUG LINES
+                        message("First sample after filtering: " + str(filteredGraphFeatures[0, :]))
+                        message("Shape of matrix: " + str(np.shape(filteredGraphFeatures)))
+                        ##############
+
+                    
+
                     # Extract tumor stages vector for colors
                     aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
                     if args.decisionTree:
@@ -3354,51 +3376,143 @@ def main(argv):
                         mlpClassifier(filteredGraphFeatures, y, metricResults, "MLP_GFeatures_TumorStage" + graphLabels, savedResults)
 
                     
-                if args.tumorStage and args.featurevectors:
-                    # Extract tumor stages vector for colors
-                    aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
-                    X, pca3D = getPCA(filteredFeatures, 100)
-                    fig = draw3DPCA(X, pca3D, c=y)
+                # if args.tumorStage and args.featurevectors:
+                #     # Extract tumor stages vector for colors
+                #     aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
+                #     X, pca3D = getPCA(filteredFeatures, 100)
+                #     fig = draw3DPCA(X, pca3D, c=y)
 
-                    fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+                #     fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
-                    if args.selectFeatsBySD or args.stdevFiltering:
-                        label = '_featureSelection'
-                    else:
-                        label = ''
+                #     if args.selectFeatsBySD or args.stdevFiltering:
+                #         label = '_featureSelection'
+                #     else:
+                #         label = ''
 
-                    if args.decisionTree:
-                        message("Decision tree on feature vectors and tumor stages")
-                        classify(X, y, metricResults, "DT_FeatureV_TumorStage" + label, savedResults)
+                #     if args.decisionTree:
+                #         message("Decision tree on feature vectors and tumor stages")
+                #         classify(X, y, metricResults, "DT_FeatureV_TumorStage" + label, savedResults)
 
-                    if args.kneighbors:
-                        message("KNN on feature vectors and tumor stages")
-                        kneighbors(X, y, metricResults, "kNN_FeatureV_TumorStage" + label, savedResults)
+                #     if args.kneighbors:
+                #         message("KNN on feature vectors and tumor stages")
+                #         kneighbors(X, y, metricResults, "kNN_FeatureV_TumorStage" + label, savedResults)
 
-                    if args.xgboost:
-                        message("XGBoost on feature vectors and tumor stages")
-                        xgboost(X, y, metricResults, "XGB_FeatureV_TumorStage" + label, savedResults)
+                #     if args.xgboost:
+                #         message("XGBoost on feature vectors and tumor stages")
+                #         xgboost(X, y, metricResults, "XGB_FeatureV_TumorStage" + label, savedResults)
 
-                    if args.randomforest:
-                        message("Random Forest on feature vectors and tumor stages")
-                        RandomForest(X, y, metricResults, "RF_FeatureV_TumorStage" + label, savedResults)
+                #     if args.randomforest:
+                #         message("Random Forest on feature vectors and tumor stages")
+                #         RandomForest(X, y, metricResults, "RF_FeatureV_TumorStage" + label, savedResults)
 
-                    if args.naivebayes:
-                        message("Naive Bayes on feature vectors and tumor stages")
-                        NBayes(X, y, metricResults, "NV_FeatureV_TumorStage" + label, savedResults)  
+                #     if args.naivebayes:
+                #         message("Naive Bayes on feature vectors and tumor stages")
+                #         NBayes(X, y, metricResults, "NV_FeatureV_TumorStage" + label, savedResults)  
 
-                    if args.stratifieddummyclf:  
-                        message("Stratified Dummy Classifier on feature vectors and tumor stages")
-                        stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_TumorStage" + label, savedResults)
+                #     if args.stratifieddummyclf:  
+                #         message("Stratified Dummy Classifier on feature vectors and tumor stages")
+                #         stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_TumorStage" + label, savedResults)
                     
-                    if args.mostfrequentdummyclf:
-                        message("Most frequent Dummy Classifier on feature vectors and tumor stages")
-                        mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_TumorStage" + label, savedResults)
+                #     if args.mostfrequentdummyclf:
+                #         message("Most frequent Dummy Classifier on feature vectors and tumor stages")
+                #         mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_TumorStage" + label, savedResults)
                 
-                    if args.mlpClassifier:
-                        message("MLP Classifier on feature vectors and tumor stages")
-                        mlpClassifier(X, y, metricResults, "MLP_FeatureV_TumorStage" + label, savedResults)
+                #     if args.mlpClassifier:
+                #         message("MLP Classifier on feature vectors and tumor stages")
+                #         mlpClassifier(X, y, metricResults, "MLP_FeatureV_TumorStage" + label, savedResults)
     
+    if args.featurevectors:
+        if args.classes:
+            # Extract class vector for colors
+            aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+            X, pca3D = getPCA(mFeatures_noNaNs, 100)
+            fig = draw3DPCA(X, pca3D, c=y)
+
+            fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+            if args.selectFeatsBySD or args.stdevFiltering:
+                label = '_featureSelection'
+            else:
+                label = ''
+            if args.decisionTree:
+                message("Decision tree on feature vectors and classes")
+                classify(X, y, metricResults, "DT_FeatureV_Class" + label, savedResults)
+
+            if args.kneighbors:
+                message("KNN on feature vectors and classes")
+                kneighbors(X, y, metricResults, "kNN_FeatureV_Class" + label, savedResults)
+
+            if args.xgboost:
+                message("XGBoost on feature vectors and classes")
+                xgboost(X, y, metricResults, "XGB_FeatureV_Class" + label, savedResults)
+
+            if args.randomforest:
+                message("Random Forest on feature vectors and classes")
+                RandomForest(X, y, metricResults, "RF_FeatureV_Class" + label, savedResults)
+
+            if args.naivebayes:
+                message("Naive Bayes on feature vectors and classes")
+                NBayes(X, y, metricResults, "NV_FeatureV_Class" + label, savedResults)
+
+            if args.stratifieddummyclf:  
+                message("Stratified Dummy Classifier on feature vectors and classes")
+                stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_Class" + label, savedResults)
+
+            if args.mostfrequentdummyclf:
+                message("Most frequent Dummy Classifier on feature vectors and classes")
+                mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_Class" + label, savedResults)
+            
+            if args.mlpClassifier:
+                message("MLP Classifier on feature vectors and classes")
+                mlpClassifier(X, y, metricResults, "MLP_FeatureV_Class" + label, savedResults)
+
+        
+        if args.tumorStage:
+            filteredFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, useGraphFeatures=False)
+        
+            # Extract tumor stages vector for colors
+            aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
+            
+            X, pca3D = getPCA(filteredFeatures, 100)
+            fig = draw3DPCA(X, pca3D, c=y)
+            fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+
+            if args.selectFeatsBySD or args.stdevFiltering:
+                label = '_featureSelection'
+            else:
+                label = ''
+
+            if args.decisionTree:
+                message("Decision tree on feature vectors and tumor stages")
+                classify(X, y, metricResults, "DT_FeatureV_TumorStage" + label, savedResults)
+
+            if args.kneighbors:
+                message("KNN on feature vectors and tumor stages")
+                kneighbors(X, y, metricResults, "kNN_FeatureV_TumorStage" + label, savedResults)
+
+            if args.xgboost:
+                message("XGBoost on feature vectors and tumor stages")
+                xgboost(X, y, metricResults, "XGB_FeatureV_TumorStage" + label, savedResults)
+
+            if args.randomforest:
+                message("Random Forest on feature vectors and tumor stages")
+                RandomForest(X, y, metricResults, "RF_FeatureV_TumorStage" + label, savedResults)
+
+            if args.naivebayes:
+                message("Naive Bayes on feature vectors and tumor stages")
+                NBayes(X, y, metricResults, "NV_FeatureV_TumorStage" + label, savedResults)  
+
+            if args.stratifieddummyclf:  
+                message("Stratified Dummy Classifier on feature vectors and tumor stages")
+                stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_TumorStage" + label, savedResults)
+            
+            if args.mostfrequentdummyclf:
+                message("Most frequent Dummy Classifier on feature vectors and tumor stages")
+                mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_TumorStage" + label, savedResults)
+        
+            if args.mlpClassifier:
+                message("MLP Classifier on feature vectors and tumor stages")
+                mlpClassifier(X, y, metricResults, "MLP_FeatureV_TumorStage" + label, savedResults)
     
     if args.saveResults:
         # Convert the nested dictionary to a DataFrame
@@ -3430,15 +3544,6 @@ def main(argv):
 
     # end of main function
     
-    # MAYBE WILL BE REMOVED
-    # metricsdf = pd.DataFrame(metricResults, columns=['Method', 'Mean_Accuracy', "SEM_Accuracy", 'Mean_F1_micro', "SEM_F1_micro", 'Mean_F1_macro', "SEM_F1_macro"])
-    
-    # if len(metricResults) > 1:
-    #     plotAccuracy(metricsdf)
-    #     plotF1micro(metricsdf)
-    #     plotF1macro(metricsdf)
-
-
 # test()
 if __name__ == "__main__":
     main(sys.argv[1:])
