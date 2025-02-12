@@ -55,8 +55,6 @@ import xgboost as xgb
 # from keras.callbacks import ModelCheckpoint
 
 
-
-
 # Prefix for intermediate files
 Prefix = ""
 THREADS_TO_USE = mp.cpu_count()  # Init to all CPUs
@@ -788,12 +786,12 @@ def getOmicLevels(sfeatureNames):
     mirna = []
     methylation = []
 
-    mrna.append(indices_of_mrna[0])
-    mrna.append(indices_of_mrna[0] + indices_of_mrna.shape[0])
-    mirna.append(indices_of_mirna[0])
-    mirna.append(indices_of_mirna[0] + indices_of_mirna.shape[0])
-    methylation.append(indices_of_methylation[0])
-    methylation.append(indices_of_methylation[0] + indices_of_methylation.shape[0])
+    mrna.append(int(indices_of_mrna[0]))
+    mrna.append(int(indices_of_mrna[0] + indices_of_mrna.shape[0]))
+    mirna.append(int(indices_of_mirna[0]))
+    mirna.append(int(indices_of_mirna[0] + indices_of_mirna.shape[0]))
+    methylation.append(int(indices_of_methylation[0]))
+    methylation.append(int(indices_of_methylation[0] + indices_of_methylation.shape[0]))
     
     omicLevels = {}
     omicLevels["mRNA"] = mrna
@@ -1530,7 +1528,7 @@ def getFeatureGraph(mAllData, saFeatures, dEdgeThreshold=0.30, nfeat=50, bResetG
     #!print(str(dMeanDescribe.describe()))
     #############
     if stdevFeatSelection:
-        fUsefulFeatureNames = open("/home/thlamp/scripts/graphSelectedSDFeats.csv", "r")
+        fUsefulFeatureNames = open("graphSelectedSDFeats.csv", "r")
 
         # labelfile, should have stored tumor_stage or labels?       
 
@@ -2183,9 +2181,9 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass, savedResults):
         final_y_pred.extend(y_pred)
 
         # Append metrics to lists
-        accuracy_per_fold.append(accuracy)
-        f1_macro_per_fold.append(f1_macro)
-        f1_micro_per_fold.append(f1_micro)
+        accuracy_per_fold.append(float(accuracy))
+        f1_macro_per_fold.append(float(f1_macro))
+        f1_micro_per_fold.append(float(f1_micro))
 
     # Calculate SEM 
     sem_accuracy = np.std(accuracy_per_fold) / np.sqrt(len(accuracy_per_fold))
@@ -2273,7 +2271,7 @@ def NBayes(X, y, lmetricResults, sfeatClass, savedResults):
 
 
 def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names, bResetFeatures=True, dEdgeThreshold=0.3, nfeat=50,
-                          numOfSelectedSamples=-1, bShowGraphs=True, bSaveGraphs=True, stdevFeatSelection=True):
+                          numOfSelectedSamples=-1, bShowGraphs=True, bSaveGraphs=True, stdevFeatSelection=True, degsFile=''):
     """
     Extracts the graph feature vectors of a given set of instances/cases.
     :param gMainGraph: The overall feature correlation graph.
@@ -2292,10 +2290,10 @@ def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames,
         if bResetFeatures:
             raise Exception("User requested rebuild of features.")
         if stdevFeatSelection:
-            with open(Prefix + "SDgraphFeatures_" + str(dEdgeThreshold) + "_" + str(nfeat) + ".pickle", "rb") as fIn:
+            with open(Prefix + "SDgraphFeatures_" + str(nfeat) + "_" + str(dEdgeThreshold) + ".pickle", "rb") as fIn:
                 mGraphFeatures = pickle.load(fIn)
         else:
-            with open(Prefix + "graphFeatures_" + str(dEdgeThreshold) + "_" + str(nfeat) + ".pickle", "rb") as fIn:
+            with open(Prefix + os.path.splitext(degsFile)[0] + "_" + str(dEdgeThreshold) + ".pickle", "rb") as fIn:
                 mGraphFeatures = pickle.load(fIn)
         message("Trying to load graph feature matrix... Done.")
     except Exception as e:
@@ -2337,34 +2335,14 @@ def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames,
 
         message("Saving graph feature matrix...")
         if stdevFeatSelection:
-            with open(Prefix + "SDgraphFeatures_" + str(dEdgeThreshold) + "_" + str(nfeat) + ".pickle", "wb") as fOut:
+            with open(Prefix + "SDgraphFeatures_" + str(nfeat) + "_" + str(dEdgeThreshold) + ".pickle", "wb") as fOut:
                 pickle.dump(mGraphFeatures, fOut)  
         else:
-            with open(Prefix + "graphFeatures_" + str(dEdgeThreshold) + "_" + str(nfeat) + ".pickle", "wb") as fOut:
+            with open(Prefix + os.path.splitext(degsFile)[0] + "_" + str(dEdgeThreshold) + ".pickle", "wb") as fOut:
                 pickle.dump(mGraphFeatures, fOut) 
         message("Saving graph feature matrix... Done.")
     return mGraphFeatures
 
-def getDegs():
-    """
-    Reads the csv file with the DEGs from R script.
-    :return: an array with the name of the DEGs 
-    """
-    fUsefulFeatureNames = open("/home/thlamp/tcga/data/DEGs.csv", "r")
-
-    # labelfile, should have stored tumor_stage or labels?       
-
-    saUsefulFeatureNames = np.genfromtxt(fUsefulFeatureNames, skip_header=1, usecols=(0),
-                                    missing_values=['NA', "na", '-', '--', 'n/a'],
-                                    dtype=np.dtype("object"), delimiter=',').astype(str)
-    ##numpy.genfromtxt function to read data from a file. This function is commonly used to load data from text files into a NumPy array.
-    ##dtype=np.dtype("object"): This sets the data type for the resulting NumPy array to "object," which is a generic data type that can hold any type of data
-
-    #+ removes " from first column 
-    saUsefulFeatureNames[:] = np.char.replace(saUsefulFeatureNames[:], '"', '')
-
-    fUsefulFeatureNames.close()
-    return saUsefulFeatureNames
 
 def statisticalTest(algorithmsDf, comparisonAlgorithmsDf, results):
     """
@@ -2777,12 +2755,12 @@ def main(argv):
     parser.add_argument("-strdum", "--stratifieddummyclf", action="store_true", default=False)
     parser.add_argument("-mfdum", "--mostfrequentdummyclf", action="store_true", default=False)
     parser.add_argument("-mlp", "--mlpClassifier", action="store_true", default=False)
-    parser.add_argument("-far", "--fullAlgRun", action="store_true", default=False)
+    # parser.add_argument("-far", "--fullAlgRun", action="store_true", default=False)
 
     # Autoencoder
-    parser.add_argument("-ae", "--autoencoder", action="store_true", default=False)
-    parser.add_argument("-fvae", "--fullVectorAutoencoder", action="store_true", default=False)
-    parser.add_argument("-useae", "--useAutoencoder", action="store_true", default=False)
+    # parser.add_argument("-ae", "--autoencoder", action="store_true", default=False)
+    # parser.add_argument("-fvae", "--fullVectorAutoencoder", action="store_true", default=False)
+    # parser.add_argument("-useae", "--useAutoencoder", action="store_true", default=False)
 
     # Features
     parser.add_argument("-gfeat", "--graphFeatures", action="store_true", default=False)
@@ -2799,7 +2777,7 @@ def main(argv):
     parser.add_argument("-e", "--edgeThreshold", type=float, default=0.3)
     parser.add_argument("-stre", "--startEdgeThreshold", type=float, default=0.3)
     parser.add_argument("-ende", "--endEdgeThreshold", type=float, default=None)
-    parser.add_argument("-rfat", "--runForAllThresholds", action="store_true", default=False)
+    #parser.add_argument("-rfat", "--runForAllThresholds", action="store_true", default=False)
     #parser.add_argument("-d", "--minDivergenceToKeep", type=float, default=6)
 
     # Model building parameters
@@ -2856,78 +2834,9 @@ def main(argv):
             mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
                                             bResetFeatures=args.resetFeatures, dEdgeThreshold=threshold, 
                                             nfeat=args.numberOfFeaturesPerLevel, bShowGraphs=args.showGraphs, 
-                                            bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
+                                            bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD, degsFile=args.degsFilename)
 
-    # if args.runForAllThresholds:
-    #     for threshold in np.arange(0.7, 0.85, 0.1):
-    #         threshold = round(threshold, 1)
-    #         # main function
-    #         gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names, vtumorStage = getGraphAndData(bResetGraph=args.resetGraph,
-    #                                                                                         dEdgeThreshold=threshold,
-    #                                                                                         bResetFiles=args.resetCSVCacheFiles,
-    #                                                                                         bPostProcessing=args.postProcessing,
-    #                                                                                         bstdevFiltering=args.stdevFiltering,
-    #                                                                                         bNormalize=args.normalization,
-    #                                                                                         bNormalizeLog2Scale=args.logScale,
-    #                                                                                         bShow = args.showGraphs, bSave = args.saveGraphs, 
-    #                                                                                         stdevFeatSelection = args.selectFeatsBySD,
-    #                                                                                         nfeat=args.numberOfFeaturesPerLevel, 
-    #                                                                                         expSelectedFeats=args.exportSelectedFeats,
-    #                                                                                         bExportImpMat=args.exportImputatedMatrix, 
-    #                                                                                         degsFile=args.degsFilename)
-    #         #DEBUG LINES 
-    #         print(sampleIDs)
-    #         ################
-
-    #         # TODO: Restore to NOT reset features
-            
-    #         if args.graphFeatures:
-    #             mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
-    #                                         bResetFeatures=args.resetFeatures, dEdgeThreshold=threshold, 
-    #                                         nfeat=args.numberOfFeaturesPerLevel, bShowGraphs=args.showGraphs, 
-    #                                         bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
-                
-    #         #DEBUG LINES
-    #         message("mGraphFeatures: ")
-    #         message(mGraphFeatures)
-    #         ##############
-
-    # else:
-    # # main function
-    #     gMainGraph, mFeatures_noNaNs, vClass, saRemainingFeatureNames, sampleIDs, feat_names, vtumorStage = getGraphAndData(bResetGraph=args.resetGraph,
-    #                                                                                     dEdgeThreshold=args.edgeThreshold,
-    #                                                                                     bResetFiles=args.resetCSVCacheFiles,
-    #                                                                                     bPostProcessing=args.postProcessing,
-    #                                                                                     bstdevFiltering=args.stdevFiltering,
-    #                                                                                     bNormalize=args.normalization,
-    #                                                                                     bNormalizeLog2Scale=args.logScale,
-    #                                                                                     bShow = args.showGraphs, bSave = args.saveGraphs, 
-    #                                                                                     stdevFeatSelection = args.selectFeatsBySD,
-    #                                                                                     nfeat=args.numberOfFeaturesPerLevel, 
-    #                                                                                     expSelectedFeats=args.exportSelectedFeats,
-    #                                                                                     bExportImpMat=args.exportImputatedMatrix,
-    #                                                                                     degsFile=args.degsFilename)
-    #     #DEBUG LINES 
-    #     print(sampleIDs)
-    #     ################
-
-    #     # TODO: Restore to NOT reset features 
-        
-    #     if args.graphFeatures:
-    #         mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
-    #                                         bResetFeatures=args.resetFeatures, dEdgeThreshold=args.edgeThreshold, 
-    #                                         nfeat=args.numberOfFeaturesPerLevel, bShowGraphs=args.showGraphs, 
-    #                                         bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
-            
-    #         #DEBUG LINES
-    #         message("mGraphFeatures: ")
-    #         message(mGraphFeatures)
-    #         ##############
-        
-        #DEBUG LINES 
-        # print("sampleIDs: ")
-        # print(sampleIDs)
-        ################
+    
     
     
     if args.plotDistributions:
@@ -2939,40 +2848,6 @@ def main(argv):
     if args.plotExplainedVariance:
         plotExplainedVariance(mFeatures_noNaNs, n_components=100, featSelection = args.stdevFiltering)
         
-    # vGraphFeatures = getGraphVector(gMainGraph)
-    # print ("Graph feature vector: %s"%(str(vGraphFeatures)))
-    
-    # Select a sample
-    # mSample = mFeatures_noNaNs[1]
-    # vGraphFeatures = getSampleGraphFeatureVector(gMainGraph, mSample, saRemainingFeatureNames)
-    # print ("Final graph feature vector: %s"%(str(vGraphFeatures)))
-
-    
-        # if args.tumorStage:
-        #     filteredFeatures, filteredGraphFeatures, filteredTumorStage = filterTumorStage(mFeatures_noNaNs, mGraphFeatures, vSelectedtumorStage, vClass, sampleIDs)
-        #     if args.scalingDeactivation:
-        #         filteredGraphFeatures = graphVectorPreprocessing(filteredGraphFeatures)
-
-        # if args.scalingDeactivation:
-        #     mGraphFeatures = graphVectorPreprocessing(mGraphFeatures)
-        
-
-        # #DEBUG LINES
-        # message("Max per column: " + str(mGraphFeatures.max(axis=0)))
-        # message("Min per column: " + str(mGraphFeatures.min(axis=0)))
-        # message(mGraphFeatures)
-        # ##################
-
-        # Get selected instance classes
-    # if args.autoencoder:
-    #     aencoder(mFeatures_noNaNs)
-
-    
-    # if args.useAutoencoder:
-    #     mFeatures_noNaNs = useAencoder(mFeatures_noNaNs)
-    #     #DEBUG LINES
-    #     message("Matrix shape after autoencoder: " + str(np.shape(mFeatures_noNaNs)))
-    #     #########
 
     if args.numberOfInstances < 0:
         vSelectedSamplesClasses = vClass
@@ -2992,7 +2867,7 @@ def main(argv):
             startThreshold=args.startEdgeThreshold
             endThreshold=args.endEdgeThreshold
 
-        for numberOfFeatures in range(50,51,50):
+        for numberOfFeatures in range(150,151,150):
             for threshold in np.arange(startThreshold, endThreshold+0.01, 0.1):
                 threshold = round(threshold, 1)
 
@@ -3000,7 +2875,7 @@ def main(argv):
                 mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
                                                 bResetFeatures=False, dEdgeThreshold=threshold, 
                                                 nfeat=numberOfFeatures, bShowGraphs=args.showGraphs, 
-                                                bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD)
+                                                bSaveGraphs=args.saveGraphs, stdevFeatSelection = args.selectFeatsBySD, degsFile=args.degsFilename)
                 
                 #DEBUG LINES
                 message("Number of features: " + str(numberOfFeatures) + ", Edge threshold: " + str(threshold))
@@ -3010,26 +2885,6 @@ def main(argv):
                 ##############
                 
                 filteredFeatures, filteredGraphFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, mGraphFeatures, useGraphFeatures=args.graphFeatures)
-                # if args.graphFeatures:
-                #     filteredFeatures, filteredGraphFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, mGraphFeatures, useGraphFeatures=args.graphFeatures)
-                # if args.graphFeatures and args.featurevectors:
-                #     filteredFeatures, filteredGraphFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, mGraphFeatures, useGraphFeatures=args.graphFeatures)
-                # elif args.featurevectors:
-                #     filteredFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, useGraphFeatures=args.graphFeatures)        
-
-                # if args.resetWilcoxonResults:
-                #     savedResults = {}
-                #     message("Loading results for wilcoxon...Failed.")
-                
-                # else:   
-                #     if os.path.exists("wilcoxon_results.pkl"):
-                #         # Load file with the F1-macro results
-                #         with open("wilcoxon_results.pkl", 'rb') as f:
-                #             savedResults = pickle.load(f)
-                #             message("Loading results for wilcoxon...Done.")
-                #     else:
-                #         savedResults = {}
-                #         message("Loading results for wilcoxon...Failed.")
                 
 
                 if args.graphFeatures:
@@ -3037,10 +2892,11 @@ def main(argv):
                     if args.scalingDeactivation:
                         graphLabels += '_Scaling'
                     if not args.selectFeatsBySD and not args.selectFeatsBySD:
-                        graphLabels += '_degs'
+                        graphLabels += '_' + os.path.splitext(args.degsFilename)[0]
                     
                     # graphLabels += '_' + str(args.edgeThreshold) + '_' + str(args.numberOfFeaturesPerLevel)
-                    graphLabels += '_' + str(threshold) + '_' + str(numberOfFeatures)
+                    # graphLabels += '_' + str(threshold) + '_' + str(numberOfFeatures)
+                    graphLabels += '_' + str(threshold)
 
                 
                 if args.classes and args.graphFeatures:
@@ -3106,51 +2962,6 @@ def main(argv):
                         message("MLP Classifier on graph feature vectors and classes")
                         mlpClassifier(mGraphFeatures, y, metricResults, "MLP_GFeatures_Class" + graphLabels, savedResults)
 
-
-                # if args.classes and args.featurevectors:
-                #     # Extract class vector for colors
-                #     aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
-                #     X, pca3D = getPCA(mFeatures_noNaNs, 100)
-                #     fig = draw3DPCA(X, pca3D, c=y)
-
-                #     fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-                #     if args.selectFeatsBySD or args.stdevFiltering:
-                #         label = '_featureSelection'
-                #     else:
-                #         label = ''
-                #     if args.decisionTree:
-                #         message("Decision tree on feature vectors and classes")
-                #         classify(X, y, metricResults, "DT_FeatureV_Class" + label, savedResults)
-
-                #     if args.kneighbors:
-                #         message("KNN on feature vectors and classes")
-                #         kneighbors(X, y, metricResults, "kNN_FeatureV_Class" + label, savedResults)
-
-                #     if args.xgboost:
-                #         message("XGBoost on feature vectors and classes")
-                #         xgboost(X, y, metricResults, "XGB_FeatureV_Class" + label, savedResults)
-
-                #     if args.randomforest:
-                #         message("Random Forest on feature vectors and classes")
-                #         RandomForest(X, y, metricResults, "RF_FeatureV_Class" + label, savedResults)
-
-                #     if args.naivebayes:
-                #         message("Naive Bayes on feature vectors and classes")
-                #         NBayes(X, y, metricResults, "NV_FeatureV_Class" + label, savedResults)
-
-                #     if args.stratifieddummyclf:  
-                #         message("Stratified Dummy Classifier on feature vectors and classes")
-                #         stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_Class" + label, savedResults)
-
-                #     if args.mostfrequentdummyclf:
-                #         message("Most frequent Dummy Classifier on feature vectors and classes")
-                #         mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_Class" + label, savedResults)
-                    
-                #     if args.mlpClassifier:
-                #         message("MLP Classifier on feature vectors and classes")
-                #         mlpClassifier(X, y, metricResults, "MLP_FeatureV_Class" + label, savedResults)
-
                 if args.tumorStage and args.graphFeatures:
                     if args.scalingDeactivation:
                         filteredGraphFeatures = graphVectorPreprocessing(filteredGraphFeatures)
@@ -3213,52 +3024,7 @@ def main(argv):
                         message("MLP Classifier on graph feature vectors and tumor stages")
                         mlpClassifier(filteredGraphFeatures, y, metricResults, "MLP_GFeatures_TumorStage" + graphLabels, savedResults)
 
-                    
-                # if args.tumorStage and args.featurevectors:
-                #     # Extract tumor stages vector for colors
-                #     aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
-                #     X, pca3D = getPCA(filteredFeatures, 100)
-                #     fig = draw3DPCA(X, pca3D, c=y)
-
-                #     fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
-
-                #     if args.selectFeatsBySD or args.stdevFiltering:
-                #         label = '_featureSelection'
-                #     else:
-                #         label = ''
-
-                #     if args.decisionTree:
-                #         message("Decision tree on feature vectors and tumor stages")
-                #         classify(X, y, metricResults, "DT_FeatureV_TumorStage" + label, savedResults)
-
-                #     if args.kneighbors:
-                #         message("KNN on feature vectors and tumor stages")
-                #         kneighbors(X, y, metricResults, "kNN_FeatureV_TumorStage" + label, savedResults)
-
-                #     if args.xgboost:
-                #         message("XGBoost on feature vectors and tumor stages")
-                #         xgboost(X, y, metricResults, "XGB_FeatureV_TumorStage" + label, savedResults)
-
-                #     if args.randomforest:
-                #         message("Random Forest on feature vectors and tumor stages")
-                #         RandomForest(X, y, metricResults, "RF_FeatureV_TumorStage" + label, savedResults)
-
-                #     if args.naivebayes:
-                #         message("Naive Bayes on feature vectors and tumor stages")
-                #         NBayes(X, y, metricResults, "NV_FeatureV_TumorStage" + label, savedResults)  
-
-                #     if args.stratifieddummyclf:  
-                #         message("Stratified Dummy Classifier on feature vectors and tumor stages")
-                #         stratifiedDummyClf(X, y, metricResults, "StratDummy_FeatureV_TumorStage" + label, savedResults)
-                    
-                #     if args.mostfrequentdummyclf:
-                #         message("Most frequent Dummy Classifier on feature vectors and tumor stages")
-                #         mostFrequentDummyClf(X, y, metricResults, "MFDummy_FeatureV_TumorStage" + label, savedResults)
                 
-                #     if args.mlpClassifier:
-                #         message("MLP Classifier on feature vectors and tumor stages")
-                #         mlpClassifier(X, y, metricResults, "MLP_FeatureV_TumorStage" + label, savedResults)
-    
     if args.featurevectors:
         if args.classes:
             # Extract class vector for colors
@@ -3307,7 +3073,7 @@ def main(argv):
         
         if args.tumorStage:
             filteredFeatures, filteredTumorStage, selectedvClass = filterTumorStage(mFeatures_noNaNs, vSelectedtumorStage, vClass, sampleIDs, useGraphFeatures=False)
-        
+
             # Extract tumor stages vector for colors
             aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
             
