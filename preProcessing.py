@@ -434,8 +434,8 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bstdevFil
 
         fControl.close()
         
-        message("This is the label file...")
-        message(labelfile)
+        # message("This is the label file...")
+        # message(labelfile)
         
         message("Splitting features, this is the size of labelfile")
         message(np.shape(labelfile))
@@ -467,7 +467,8 @@ def initializeFeatureMatrices(bResetFiles=False, bPostProcessing=True, bstdevFil
     # the new bPostProcessing removes columns from mFeatures and mControlFeatureMatrix
     if bPostProcessing:
         mFeatures, sampleIDs, vClass, feat_names, tumor_stage = postProcessFeatures(mFeatures, vClass, sampleIDs, tumor_stage, feat_names, bstdevFiltering=bstdevFiltering, nfeat=nfeat)
-        
+            
+
     # Update control matrix, taking into account postprocessed data
     mControlFeatureMatrix = getControlFeatureMatrix(mFeatures, vClass)
 
@@ -560,70 +561,62 @@ def postProcessFeatures(mFeatures, vClass, sample_ids, tumor_stage, featNames, b
     filtered_features = [element for index, element in enumerate(features) if index not in features_to_remove]
     #DEBUG LINES
     message("filtered_features shape: "+str(np.shape(filtered_features)))
+    # message(mFeatures)
     #############
 
-    message(mFeatures)
 
-    #DEBUG LINES 
-    inds = np.where(np.isnan(mFeatures[:, :]))
-    print(mFeatures[inds][0:5])
-    ############
+    if os.path.isfile("imputed_matrix.pkl"):
+        with open("imputed_matrix.pkl", "rb") as f:
+            mFeatures = pickle.load(f)
+            message(f"Loaded the imputed matrix")
+    else:
     
-    # imputation for completing missing values using k-Nearest Neighbors
-    levels_indices = getOmicLevels(filtered_features)
-    
-    #DEBUG LINES
-    message("levels_indices for methylation" + str(np.shape(levels_indices)))
-    ###########
+        # imputation for completing missing values using k-Nearest Neighbors
+        levels_indices = getOmicLevels(filtered_features)
+        
+        #DEBUG LINES
+        message("levels_indices for methylation" + str(np.shape(levels_indices)))
+        ###########
 
-    matrixForKnnImp = mFeatures[:, levels_indices["methylation"][0]:levels_indices["methylation"][1]]
+        matrixForKnnImp = mFeatures[:, levels_indices["methylation"][0]:levels_indices["methylation"][1]]
 
-    #DEBUG LINES
-    with open("matrixForKnnImp.pickle", "wb") as fOut: 
-            pickle.dump(matrixForKnnImp, fOut)
-    ###########
+        #DEBUG LINES
+        message("Matrix shape before transpose: " + str(np.shape(matrixForKnnImp)))
+        ###########
+        
+        matrixForKnnImp = matrixForKnnImp.transpose()
 
-    #DEBUG LINES
-    message("Matrix shape before transpose: " + str(np.shape(matrixForKnnImp)))
-    ###########
-    
-    matrixForKnnImp = matrixForKnnImp.transpose()
+        #DEBUG LINES
+        message("Matrix shape after transpose: " + str(np.shape(matrixForKnnImp)))
+        ###########
+        
+        imputer = KNNImputer()
+        matrixForKnnImp = imputer.fit_transform(matrixForKnnImp)
 
-    #DEBUG LINES
-    message("Matrix shape after transpose: " + str(np.shape(matrixForKnnImp)))
-    ###########
-    
-    imputer = KNNImputer()
-    matrixForKnnImp = imputer.fit_transform(matrixForKnnImp)
+        matrixForKnnImp = matrixForKnnImp.transpose()
 
-    matrixForKnnImp = matrixForKnnImp.transpose()
+        #DEBUG LINES
+        message("Matrix shape after second transpose: " + str(np.shape(matrixForKnnImp)))
+        ###########
 
-    #DEBUG LINES
-    message("Matrix shape after second transpose: " + str(np.shape(matrixForKnnImp)))
-    ###########
+        mFeatures[:, levels_indices["methylation"][0]:levels_indices["methylation"][1]] = matrixForKnnImp
 
-    mFeatures[:, levels_indices["methylation"][0]:levels_indices["methylation"][1]] = matrixForKnnImp
+        with open("imputed_matrix.pkl", "wb") as fOut: 
+                pickle.dump(mFeatures, fOut)
+       
 
-    #DEBUG LINES
-    with open("afterImputationmFeatures.pickle", "wb") as fOut: 
-            pickle.dump(mFeatures, fOut)
-    ###########
+        # TODO: Check below
+        # WARNING: If a control data feature was fully NaN, but the corresponding case data had only SOME NaN,
+        # we would NOT successfully deal with the case data NaN, because there would be no mean to replace them by.
 
-    #DEBUG LINES 
-    print(mFeatures[inds][0:5])
-    ############
-    # TODO: Check below
-    # WARNING: If a control data feature was fully NaN, but the corresponding case data had only SOME NaN,
-    # we would NOT successfully deal with the case data NaN, because there would be no mean to replace them by.
-
-    #############
-    message("Replacing NaNs from feature set... Done.")
+        #############
+        message("Replacing NaNs from feature set... Done.")
 
     message("Are there any NaNs after postProcessing?")
     message(np.any(np.isnan(mFeatures[:, :])))
 
     message("This is mFeatures in postProcessing...")
-    message(mFeatures)
+    #message(mFeatures)
 
     if bstdevFiltering:
         mFeatures, filtered_features = filteringBySD(filtered_features, mFeatures, nfeat=nfeat)
@@ -1019,8 +1012,8 @@ def splitFeatures(clinicalfile, datafile, labelfile):
     """
     message("Splitting features...")
     message("Number of features: %d"%(np.size(datafile, 1)))
-    message("This is the label file:")
-    message(labelfile)
+    # message("This is the label file:")
+    # message(labelfile)
     message("This is the shape of the labelfile: %s" % (str(np.shape(labelfile))))
     mFeatures = datafile[:, :]
     
@@ -1032,15 +1025,15 @@ def splitFeatures(clinicalfile, datafile, labelfile):
     
     vClass = labelfile[:, 1]
     sampleIDs = labelfile[:, 0]
-    print("This is the vClass: ")
-    print(vClass)
+    # print("This is the vClass: ")
+    # print(vClass)
     # DEBUG LINES
-    message("Found classes:\n%s" % (str(vClass)))
-    message("Found sample IDs:\n%s" % (str(sampleIDs)))
+    # message("Found classes:\n%s" % (str(vClass)))
+    # message("Found sample IDs:\n%s" % (str(sampleIDs)))
     #############
 
-    message("Splitfeatures: This is the mFeatures...")
-    message(mFeatures)
+    # message("Splitfeatures: This is the mFeatures...")
+    # message(mFeatures)
     message("Splitting features... Done.")
 
     return mFeatures, vClass, sampleIDs, tumor_stage
@@ -1075,8 +1068,8 @@ def loadPatientAndControlData():
                              )
     fControl.close()
 
-    message("This is the datafile...")
-    message(datafile)
+    # message("This is the datafile...")
+    # message(datafile)
     message("Loading features... Done.")
     return datafile
 
@@ -1097,8 +1090,8 @@ def loadTumorStage():
     clinicalfile[:, 1] = np.char.replace(clinicalfile[:, 1], 'NA', '0')
     fControl.close()
     message("Loading tumor stage... Done.")
-    message("This is the clinical file...")
-    message(clinicalfile)
+    # message("This is the clinical file...")
+    # message(clinicalfile)
     message("These are the dimensions of the clinical file")
     message(np.shape(clinicalfile))
     return clinicalfile
