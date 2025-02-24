@@ -1150,8 +1150,8 @@ def kneighbors(X, y, lmetricResults, sfeatClass, savedResults):
     """
     neigh = KNeighborsClassifier(n_neighbors=3)
     
-    #cv = StratifiedKFold(n_splits=10)
-    cv = LeaveOneOut()
+    cv = StratifiedKFold(n_splits=10)
+    #cv = LeaveOneOut()
     crossValidation(X, y, cv, neigh, lmetricResults, sfeatClass, savedResults)
     
     
@@ -2090,8 +2090,8 @@ def classify(X, y, lmetricResults, sfeatClass, savedResults):
 
     classifier = DecisionTreeClassifier(class_weight="balanced")
     
-    # cv = StratifiedKFold(n_splits=10)
-    cv = LeaveOneOut()
+    cv = StratifiedKFold(n_splits=10)
+    # cv = LeaveOneOut()
 
     crossValidation(X, y, cv, classifier, lmetricResults, sfeatClass, savedResults)
 
@@ -2107,8 +2107,8 @@ def stratifiedDummyClf(X, y, lmetricResults, sfeatClass, savedResults):
     """
     dummy_clf = DummyClassifier(strategy="stratified")
     
-    # cv = StratifiedKFold(n_splits=10)
-    cv = LeaveOneOut()
+    cv = StratifiedKFold(n_splits=10)
+    #cv = LeaveOneOut()
     crossValidation(X, y, cv, dummy_clf, lmetricResults, sfeatClass, savedResults)
 
 def mostFrequentDummyClf(X, y, lmetricResults, sfeatClass, savedResults):
@@ -2122,8 +2122,8 @@ def mostFrequentDummyClf(X, y, lmetricResults, sfeatClass, savedResults):
     """
     dummy_clf = DummyClassifier(strategy="most_frequent")
     
-    # cv = StratifiedKFold(n_splits=10)
-    cv = LeaveOneOut()
+    cv = StratifiedKFold(n_splits=10)
+    #cv = LeaveOneOut()
     crossValidation(X, y, cv, dummy_clf, lmetricResults, sfeatClass, savedResults)
 
 def mlpClassifier(X, y, lmetricResults, sfeatClass, savedResults):
@@ -2137,8 +2137,8 @@ def mlpClassifier(X, y, lmetricResults, sfeatClass, savedResults):
     """
     clf = MLPClassifier()
 
-    #cv = StratifiedKFold(n_splits=10)
-    cv = LeaveOneOut()
+    cv = StratifiedKFold(n_splits=10)
+    #cv = LeaveOneOut()
     crossValidation(X, y, cv, clf, lmetricResults, sfeatClass, savedResults)
     
 
@@ -2159,8 +2159,8 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass, savedResults):
     final_y_pred = []
     final_y = []    
     # Perform cross-validation
-    # for train_index, test_index in cv.split(X, y):
-    for train_index, test_index in cv.split(X):
+    for train_index, test_index in cv.split(X, y):
+    # for train_index, test_index in cv.split(X):
         X_train, X_test = X[train_index], X[test_index]
         y_train, y_test = y[train_index], y[test_index]
        
@@ -2210,12 +2210,11 @@ def crossValidation(X, y, cv, model, lmetricResults, sfeatClass, savedResults):
     savedResults[sfeatClass]["f1_micro_per_fold"]=f1_micro_per_fold
     savedResults[sfeatClass]["f1_macro_per_fold"]=f1_macro_per_fold
 
-
     cm = confusion_matrix(final_y, final_y_pred)
     print(cm)
     disp = ConfusionMatrixDisplay(confusion_matrix=cm)
     disp.plot()
-    plt.savefig("confMat"+ sfeatClass +".png")
+    plt.savefig("confusion_matrices/confMat"+ sfeatClass +".png")
     plt.show()
 
     lmetricResults.append([sfeatClass, np.mean(accuracy_per_fold), sem_accuracy, np.mean(f1_micro_per_fold), sem_f1_micro, np.mean(f1_macro_per_fold), sem_f1_macro])
@@ -2231,8 +2230,8 @@ def xgboost(X, y, lmetricResults, sfeatClass, savedResults):
     """
     model = xgb.XGBClassifier()
     
-    #cv = StratifiedKFold(n_splits=10)
-    cv = LeaveOneOut()
+    cv = StratifiedKFold(n_splits=10)
+    #cv = LeaveOneOut()
     crossValidation(X, y, cv, model, lmetricResults, sfeatClass, savedResults)
 
 
@@ -2247,8 +2246,8 @@ def RandomForest(X, y, lmetricResults, sfeatClass, savedResults):
     """
     clf = RandomForestClassifier(class_weight = "balanced")
     
-    #cv = StratifiedKFold(n_splits=10) 
-    cv = LeaveOneOut()
+    cv = StratifiedKFold(n_splits=10) 
+    #cv = LeaveOneOut()
     crossValidation(X, y, cv, clf, lmetricResults, sfeatClass, savedResults)
  
 
@@ -2263,8 +2262,8 @@ def NBayes(X, y, lmetricResults, sfeatClass, savedResults):
     """
     gnb = GaussianNB()
     
-    #cv = StratifiedKFold(n_splits=10)
-    cv = LeaveOneOut()
+    cv = StratifiedKFold(n_splits=10)
+    #cv = LeaveOneOut()
     crossValidation(X, y, cv, gnb, lmetricResults, sfeatClass, savedResults)
 
 
@@ -2453,20 +2452,20 @@ def graphFeatureVectorsComparison(df):
     message(best_results)
     concatDf.to_csv('graphFeatureVectorsComparison.csv', index=False)
 
-    plt.clf()
-    plt.figure(figsize=(10, 5))
-    ax = sns.barplot(x='sfeatClass', y='Mean', data=concatDf, hue='Metric')
-    x_coords = [p.get_x() + 0.5 * p.get_width() for p in ax.patches]
-    x_coords = x_coords[0:len(concatDf["Sem_mean"])]
-    y_coords = [p.get_height() for p in ax.patches]
-    y_coords = y_coords[0:len(concatDf["Sem_mean"])]
-    ax.errorbar(x=x_coords, y=y_coords, yerr=concatDf["Sem_mean"], fmt="none", c="k")
-    # Move the legend outside the plot
-    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0)
-    plt.title("Mean values of metrics with standard error for Decision Tree")
-    plt.xlabel("Types of feature represenations", fontsize=12)
-    plt.ylabel("Mean value of metric", fontsize=12)
-    plt.savefig("graphFeatureVectorsComparison.png", bbox_inches='tight')
+    # plt.clf()
+    # plt.figure(figsize=(10, 5))
+    # ax = sns.barplot(x='sfeatClass', y='Mean', data=concatDf, hue='Metric')
+    # x_coords = [p.get_x() + 0.5 * p.get_width() for p in ax.patches]
+    # x_coords = x_coords[0:len(concatDf["Sem_mean"])]
+    # y_coords = [p.get_height() for p in ax.patches]
+    # y_coords = y_coords[0:len(concatDf["Sem_mean"])]
+    # ax.errorbar(x=x_coords, y=y_coords, yerr=concatDf["Sem_mean"], fmt="none", c="k")
+    # # Move the legend outside the plot
+    # ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0)
+    # plt.title("Mean values of metrics with standard error for Decision Tree")
+    # plt.xlabel("Types of feature represenations", fontsize=12)
+    # plt.ylabel("Mean value of metric", fontsize=12)
+    # plt.savefig("graphFeatureVectorsComparison.png", bbox_inches='tight')
     
 
 def graphBaselineComparison(df):  
@@ -2890,138 +2889,155 @@ def main(argv):
                 graphLabels = ''
                 if args.scalingDeactivation:
                     graphLabels += '_Scaling'
-                if not args.selectFeatsBySD and not args.selectFeatsBySD:
+                if degFile != '':
                     graphLabels += '_' + os.path.splitext(degFile)[0]
+                elif isinstance(run, int):
+                    graphLabels += '_' + str(run)
                 
                 # graphLabels += '_' + str(args.edgeThreshold) + '_' + str(args.numberOfFeaturesPerLevel)
                 # graphLabels += '_' + str(threshold) + '_' + str(numberOfFeatures)
                 graphLabels += '_' + str(threshold)
 
-                
-                if args.classes:
-                    
-                    if args.scalingDeactivation:
-                        mGraphFeatures = graphVectorPreprocessing(mGraphFeatures)
-                        #DEBUG LINES
-                        message("Graph features for classes with scaling")
-                        message("Max per column: " + str(mGraphFeatures.max(axis=0)))
-                        message("Min per column: " + str(mGraphFeatures.min(axis=0)))
-                        message(mGraphFeatures)
-                        ##################
 
+                if args.classes or args.tumorStage:
+
+                    if isinstance(run, int):
+                        classes=True
+                        stages=True
+                    elif "_stage_" in run:
+                        classes=False
+                        stages=True
                     else:
-                        message("Graph features for classes without scaling")
-                        #DEBUG LINES
-                        message("First sample before filtering: " + str(mGraphFeatures[0, :]))
-                        ##############
-                        # Identify columns where all values are the same
-                        columns_to_keep = ~np.all(mGraphFeatures == mGraphFeatures[0, :], axis=0)
+                        classes=True
+                        stages=False
 
-                        # Remove columns with the same value
-                        mGraphFeatures = mGraphFeatures[:, columns_to_keep]
-
-                        #DEBUG LINES
-                        message("First sample after filtering: " + str(mGraphFeatures[0, :]))
-                        message("Shape of matrix: " + str(np.shape(mGraphFeatures)))
-                        ##############
-
-
-                    # Extract class vector for colors
-                    aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+                    # Create directory if it does not exist
+                    os.makedirs('confusion_matrices', exist_ok=True)
                     
-                    if args.decisionTree:
-                        message("Decision tree on graph feature vectors and classes")
-                        classify(mGraphFeatures, y, metricResults, "DT_GFeatures_Class" + graphLabels, savedResults)
-                    
-                    if args.kneighbors:
-                        message("KNN on graph feature vectors and classes")
-                        kneighbors(mGraphFeatures, y, metricResults, "kNN_GFeatures_Class" + graphLabels, savedResults)
+                    if classes:
+                        
+                        if args.scalingDeactivation:
+                            mGraphFeatures = graphVectorPreprocessing(mGraphFeatures)
+                            #DEBUG LINES
+                            message("Graph features for classes with scaling")
+                            message("Max per column: " + str(mGraphFeatures.max(axis=0)))
+                            message("Min per column: " + str(mGraphFeatures.min(axis=0)))
+                            message(mGraphFeatures)
+                            ##################
 
-                    if args.xgboost:
-                        message("XGBoost on graph feature vectors and classes")
-                        xgboost(mGraphFeatures, y, metricResults, "XGB_GFeatures_Class" + graphLabels, savedResults)
+                        else:
+                            message("Graph features for classes without scaling")
+                            #DEBUG LINES
+                            message("First sample before filtering: " + str(mGraphFeatures[0, :]))
+                            ##############
+                            # Identify columns where all values are the same
+                            columns_to_keep = ~np.all(mGraphFeatures == mGraphFeatures[0, :], axis=0)
 
-                    if args.randomforest:
-                        message("Random Forest on graph feature vectors and classes")
-                        RandomForest(mGraphFeatures, y, metricResults, "RF_GFeatures_Class" + graphLabels, savedResults)
+                            # Remove columns with the same value
+                            mGraphFeatures = mGraphFeatures[:, columns_to_keep]
 
-                    if args.naivebayes:
-                        message("Naive Bayes on graph feature vectors and classes")
-                        NBayes(mGraphFeatures, y, metricResults, "NV_GFeatures_Class" + graphLabels, savedResults)
+                            #DEBUG LINES
+                            message("First sample after filtering: " + str(mGraphFeatures[0, :]))
+                            message("Shape of matrix: " + str(np.shape(mGraphFeatures)))
+                            ##############
 
-                    if args.stratifieddummyclf: 
-                        message("Stratified Dummy Classifier on graph feature vectors and classes")
-                        stratifiedDummyClf(mGraphFeatures, y, metricResults, "StratDummy_GFeatures_Class" + graphLabels, savedResults) 
-                    
-                    if args.mostfrequentdummyclf:
-                        message("Most frequent Dummy Classifier on graph feature vectors and classes")
-                        mostFrequentDummyClf(mGraphFeatures, y, metricResults, "MFDummy_GFeatures_Class" + graphLabels, savedResults)
-                    
-                    if args.mlpClassifier:
-                        message("MLP Classifier on graph feature vectors and classes")
-                        mlpClassifier(mGraphFeatures, y, metricResults, "MLP_GFeatures_Class" + graphLabels, savedResults)
 
-                if args.tumorStage:
-                    if args.scalingDeactivation:
-                        filteredGraphFeatures = graphVectorPreprocessing(filteredGraphFeatures)
-                        #DEBUG LINES
-                        message("Graph features for tumor stage with scaling")
-                        message("Max per column: " + str(filteredGraphFeatures.max(axis=0)))
-                        message("Min per column: " + str(filteredGraphFeatures.min(axis=0)))
-                        message(filteredGraphFeatures)
-                        ##################
+                        # Extract class vector for colors
+                        aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
+                        
+                        if args.decisionTree:
+                            message("Decision tree on graph feature vectors and classes")
+                            classify(mGraphFeatures, y, metricResults, "DT_GFeatures_Class" + graphLabels, savedResults)
+                        
+                        if args.kneighbors:
+                            message("KNN on graph feature vectors and classes")
+                            kneighbors(mGraphFeatures, y, metricResults, "kNN_GFeatures_Class" + graphLabels, savedResults)
 
-                    else:
-                        message("Graph features for tumor stage without scaling")
-                        #DEBUG LINES
-                        message("First sample before filtering: " + str(filteredGraphFeatures[0, :]))
-                        ##############
-                        # Identify columns where all values are the same
-                        columns_to_keep = ~np.all(filteredGraphFeatures == filteredGraphFeatures[0, :], axis=0)
+                        if args.xgboost:
+                            message("XGBoost on graph feature vectors and classes")
+                            xgboost(mGraphFeatures, y, metricResults, "XGB_GFeatures_Class" + graphLabels, savedResults)
 
-                        # Remove columns with the same value
-                        filteredGraphFeatures = filteredGraphFeatures[:, columns_to_keep]
+                        if args.randomforest:
+                            message("Random Forest on graph feature vectors and classes")
+                            RandomForest(mGraphFeatures, y, metricResults, "RF_GFeatures_Class" + graphLabels, savedResults)
 
-                        #DEBUG LINES
-                        message("First sample after filtering: " + str(filteredGraphFeatures[0, :]))
-                        message("Shape of matrix: " + str(np.shape(filteredGraphFeatures)))
-                        ##############
+                        if args.naivebayes:
+                            message("Naive Bayes on graph feature vectors and classes")
+                            NBayes(mGraphFeatures, y, metricResults, "NV_GFeatures_Class" + graphLabels, savedResults)
 
-                    
+                        if args.stratifieddummyclf: 
+                            message("Stratified Dummy Classifier on graph feature vectors and classes")
+                            stratifiedDummyClf(mGraphFeatures, y, metricResults, "StratDummy_GFeatures_Class" + graphLabels, savedResults) 
+                        
+                        if args.mostfrequentdummyclf:
+                            message("Most frequent Dummy Classifier on graph feature vectors and classes")
+                            mostFrequentDummyClf(mGraphFeatures, y, metricResults, "MFDummy_GFeatures_Class" + graphLabels, savedResults)
+                        
+                        if args.mlpClassifier:
+                            message("MLP Classifier on graph feature vectors and classes")
+                            mlpClassifier(mGraphFeatures, y, metricResults, "MLP_GFeatures_Class" + graphLabels, savedResults)
 
-                    # Extract tumor stages vector for colors
-                    aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
-                    if args.decisionTree:
-                        message("Decision tree on graph feature vectors and tumor stages")
-                        classify(filteredGraphFeatures, y, metricResults, "DT_GFeatures_TumorStage" + graphLabels, savedResults)
-                    
-                    if args.kneighbors:
-                        message("KNN on graph feature vectors and tumor stages")
-                        kneighbors(filteredGraphFeatures, y, metricResults, "kNN_GFeatures_TumorStage" + graphLabels, savedResults)
+                    if stages:
+                        if args.scalingDeactivation:
+                            filteredGraphFeatures = graphVectorPreprocessing(filteredGraphFeatures)
+                            #DEBUG LINES
+                            message("Graph features for tumor stage with scaling")
+                            message("Max per column: " + str(filteredGraphFeatures.max(axis=0)))
+                            message("Min per column: " + str(filteredGraphFeatures.min(axis=0)))
+                            message(filteredGraphFeatures)
+                            ##################
 
-                    if args.xgboost:
-                        message("XGBoost on graph feature vectors and tumor stages")
-                        xgboost(filteredGraphFeatures, y, metricResults, "XGB_GFeatures_TumorStage" + graphLabels, savedResults)
+                        else:
+                            message("Graph features for tumor stage without scaling")
+                            #DEBUG LINES
+                            message("First sample before filtering: " + str(filteredGraphFeatures[0, :]))
+                            ##############
+                            # Identify columns where all values are the same
+                            columns_to_keep = ~np.all(filteredGraphFeatures == filteredGraphFeatures[0, :], axis=0)
 
-                    if args.randomforest:
-                        message("Random Forest on graph feature vectors and tumor stages")
-                        RandomForest(filteredGraphFeatures, y, metricResults, "RF_GFeatures_TumorStage" + graphLabels, savedResults)
-                    
-                    if args.naivebayes:
-                        message("Naive Bayes on graph feature vectors and tumor stages")
-                        NBayes(filteredGraphFeatures, y, metricResults, "NV_GFeatures_TumorStage" + graphLabels, savedResults)
+                            # Remove columns with the same value
+                            filteredGraphFeatures = filteredGraphFeatures[:, columns_to_keep]
 
-                    if args.stratifieddummyclf:  
-                        message("Stratified Dummy Classifier on graph feature vectors and tumor stages")
-                        stratifiedDummyClf(filteredGraphFeatures, y, metricResults, "StratDummy_GFeatures_TumorStage" + graphLabels, savedResults)
+                            #DEBUG LINES
+                            message("First sample after filtering: " + str(filteredGraphFeatures[0, :]))
+                            message("Shape of matrix: " + str(np.shape(filteredGraphFeatures)))
+                            ##############
 
-                    if args.mostfrequentdummyclf:
-                        message("Most frequent Dummy Classifier on graph feature vectors and tumor stages")
-                        mostFrequentDummyClf(filteredGraphFeatures, y, metricResults, "MFDummy_GFeatures_TumorStage" + graphLabels, savedResults)
-                    
-                    if args.mlpClassifier:
-                        message("MLP Classifier on graph feature vectors and tumor stages")
-                        mlpClassifier(filteredGraphFeatures, y, metricResults, "MLP_GFeatures_TumorStage" + graphLabels, savedResults)
+                        
+
+                        # Extract tumor stages vector for colors
+                        aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
+                        if args.decisionTree:
+                            message("Decision tree on graph feature vectors and tumor stages")
+                            classify(filteredGraphFeatures, y, metricResults, "DT_GFeatures_TumorStage" + graphLabels, savedResults)
+                        
+                        if args.kneighbors:
+                            message("KNN on graph feature vectors and tumor stages")
+                            kneighbors(filteredGraphFeatures, y, metricResults, "kNN_GFeatures_TumorStage" + graphLabels, savedResults)
+
+                        if args.xgboost:
+                            message("XGBoost on graph feature vectors and tumor stages")
+                            xgboost(filteredGraphFeatures, y, metricResults, "XGB_GFeatures_TumorStage" + graphLabels, savedResults)
+
+                        if args.randomforest:
+                            message("Random Forest on graph feature vectors and tumor stages")
+                            RandomForest(filteredGraphFeatures, y, metricResults, "RF_GFeatures_TumorStage" + graphLabels, savedResults)
+                        
+                        if args.naivebayes:
+                            message("Naive Bayes on graph feature vectors and tumor stages")
+                            NBayes(filteredGraphFeatures, y, metricResults, "NV_GFeatures_TumorStage" + graphLabels, savedResults)
+
+                        if args.stratifieddummyclf:  
+                            message("Stratified Dummy Classifier on graph feature vectors and tumor stages")
+                            stratifiedDummyClf(filteredGraphFeatures, y, metricResults, "StratDummy_GFeatures_TumorStage" + graphLabels, savedResults)
+
+                        if args.mostfrequentdummyclf:
+                            message("Most frequent Dummy Classifier on graph feature vectors and tumor stages")
+                            mostFrequentDummyClf(filteredGraphFeatures, y, metricResults, "MFDummy_GFeatures_TumorStage" + graphLabels, savedResults)
+                        
+                        if args.mlpClassifier:
+                            message("MLP Classifier on graph feature vectors and tumor stages")
+                            mlpClassifier(filteredGraphFeatures, y, metricResults, "MLP_GFeatures_TumorStage" + graphLabels, savedResults)
 
     
     
@@ -3231,6 +3247,9 @@ def main(argv):
             else:
                 vSelectedSamplesClasses = np.concatenate((vClass[0:int(args.numberOfInstances / 2)][:], vClass[-int(args.numberOfInstances / 2):][:]), axis=0)
                 vSelectedtumorStage = np.concatenate((vtumorStage[0:int(args.numberOfInstances / 2)][:], vtumorStage[-int(args.numberOfInstances / 2):][:]), axis=0)
+            # Create directory if it does not exist
+            os.makedirs('confusion_matrices', exist_ok=True)
+                
             if args.classes:
                 # Extract class vector for colors
                 aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
