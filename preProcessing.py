@@ -30,6 +30,7 @@ from networkx.drawing.nx_pydot import write_dot
 import logging
 from threading import Thread, Lock
 from scipy.stats import pearsonr, wilcoxon
+from collections import Counter
 
 # WARNING: This line is important for 3d plotting. DO NOT REMOVE
 from mpl_toolkits.mplot3d import Axes3D
@@ -2466,61 +2467,218 @@ def graphFeatureVectorsComparison(df):
     # plt.xlabel("Types of feature represenations", fontsize=12)
     # plt.ylabel("Mean value of metric", fontsize=12)
     # plt.savefig("graphFeatureVectorsComparison.png", bbox_inches='tight')
-    
 
-def graphBaselineComparison(df):  
+
+def graphBaselineComparison(df, resetResults=False):  
     """
     Compares graph vectors with baseline and save results to csv 
     :param df: df with the results of metrics
     """   
-    # Graphs vs baselines
-    results = []
-    for classificationType in ['Class', 'TumorStage']:
-        for algorithm in ['DT', 'kNN', 'XGB', 'RF', 'NV', 'MLP']:
+    if resetResults or not os.path.isfile("statiticalTestResults.pkl"):
+        message("Applying the statistical tests...")
+        # Graphs vs baselines
+        results = []
+        for classificationType in ['Class', 'TumorStage']:
+            for algorithm in ['DT', 'kNN', 'XGB', 'RF', 'NV', 'MLP']:
 
-            salgorithm = algorithm + '_GFeatures_'
-            algorithmsDf = df[df['sfeatClass'].str.startswith(salgorithm) & df['sfeatClass'].str.contains(classificationType)]
+                salgorithm = algorithm + '_GFeatures_'
+                algorithmsDf = df[df['sfeatClass'].str.startswith(salgorithm) & df['sfeatClass'].str.contains(classificationType)]
 
-            salgorithmForComparison = algorithm+'_FeatureV_'
-            comparisonAlgorithmsDf = df[df['sfeatClass'].str.startswith(('StratDummy', 'MFDummy')) & df['sfeatClass'].str.contains(classificationType)]
+                comparisonAlgorithmsDf = df[df['sfeatClass'].str.startswith(('StratDummy', 'MFDummy')) & df['sfeatClass'].str.contains(classificationType)]
 
-            bestResultsBaselines = statisticalTest(algorithmsDf, comparisonAlgorithmsDf, results)
+                bestResultsBaselines = statisticalTest(algorithmsDf, comparisonAlgorithmsDf, results)
 
-    duplicated_values = bestResultsBaselines[bestResultsBaselines['Algorithm'].duplicated()]['Algorithm'].unique().tolist()
-    plotResultsFromBaselineComparison(duplicated_values)
+        # keep the names of cases that have statistical significant greater results from both baselines
+        # duplicates because there is a cases for each baseline
+        duplicated_values = bestResultsBaselines[bestResultsBaselines['Algorithm'].duplicated()]['Algorithm'].unique().tolist()
     
-    StratDummyCompared = bestResultsBaselines[~bestResultsBaselines['Algorithm'].duplicated(keep=False) & bestResultsBaselines['CompareAlgorithm'].str.contains('StratDummy')]['Algorithm'].tolist()
-    plotResultsFromBaselineComparison(StratDummyCompared, baseline='StratDummy')
+        with open("statiticalTestResults.pkl", "wb") as fOut: 
+            pickle.dump(duplicated_values, fOut)
+        message("Applying the statistical tests...Done")
+    else:
+        with open("statiticalTestResults.pkl", "rb") as f:
+            duplicated_values = pickle.load(f)
+        message("Loaded the results of statistical tests.")
+    
+    plotResultsFromBaselineComparison(duplicated_values, df)
+    
+    
+# def graphBaselineComparison(df):  
+#     """
+#     Compares graph vectors with baseline and save results to csv 
+#     :param df: df with the results of metrics
+#     """   
+#     # Graphs vs baselines
+#     results = []
+#     for classificationType in ['Class', 'TumorStage']:
+#         for algorithm in ['DT', 'kNN', 'XGB', 'RF', 'NV', 'MLP']:
 
-    MFDummyCompared = bestResultsBaselines[~bestResultsBaselines['Algorithm'].duplicated(keep=False) & bestResultsBaselines['CompareAlgorithm'].str.contains('MFDummy')]['Algorithm'].tolist()
-    plotResultsFromBaselineComparison(MFDummyCompared, baseline='MFDummy')
+#             salgorithm = algorithm + '_GFeatures_'
+#             algorithmsDf = df[df['sfeatClass'].str.startswith(salgorithm) & df['sfeatClass'].str.contains(classificationType)]
 
-    # concatDf = plotPreparation(df, best_results)
-    bestResultsBaselines.to_csv('graphBaselineComparison.csv', index=False)
-    message("Results from statistical test for graphs and baselines")
-    message(bestResultsBaselines)
+#             comparisonAlgorithmsDf = df[df['sfeatClass'].str.startswith(('StratDummy', 'MFDummy')) & df['sfeatClass'].str.contains(classificationType)]
+
+#             bestResultsBaselines = statisticalTest(algorithmsDf, comparisonAlgorithmsDf, results)
+
+#     duplicated_values = bestResultsBaselines[bestResultsBaselines['Algorithm'].duplicated()]['Algorithm'].unique().tolist()
+#     plotResultsFromBaselineComparison(duplicated_values, df)
+    
+#     # StratDummyCompared = bestResultsBaselines[~bestResultsBaselines['Algorithm'].duplicated(keep=False) & bestResultsBaselines['CompareAlgorithm'].str.contains('StratDummy')]['Algorithm'].tolist()
+#     # plotResultsFromBaselineComparison(StratDummyCompared, baseline='StratDummy')
+
+#     # MFDummyCompared = bestResultsBaselines[~bestResultsBaselines['Algorithm'].duplicated(keep=False) & bestResultsBaselines['CompareAlgorithm'].str.contains('MFDummy')]['Algorithm'].tolist()
+#     # plotResultsFromBaselineComparison(MFDummyCompared, baseline='MFDummy')
+
+#     # concatDf = plotPreparation(df, best_results)
+#     bestResultsBaselines.to_csv('graphBaselineComparison.csv', index=False)
+#     message("Results from statistical test for graphs and baselines")
+#     message(bestResultsBaselines)
 
 
-# Function to modify model names
+# def graphBaselineComparison(df):  
+#     """
+#     Compares graph vectors with baseline and save results to csv 
+#     :param df: df with the results of metrics
+#     """   
+#     # Graphs vs baselines
+#     results = []
+#     for classificationType in ['Class', 'TumorStage']:
+#         for algorithm in ['DT', 'kNN', 'XGB', 'RF', 'NV', 'MLP']:
+
+#             salgorithm = algorithm + '_GFeatures_'
+#             algorithmsDf = df[df['sfeatClass'].str.startswith(salgorithm) & df['sfeatClass'].str.contains(classificationType)]
+
+#             salgorithmForComparison = algorithm+'_FeatureV_'
+#             comparisonAlgorithmsDf = df[df['sfeatClass'].str.startswith(('StratDummy', 'MFDummy')) & df['sfeatClass'].str.contains(classificationType)]
+
+#             bestResultsBaselines = statisticalTest(algorithmsDf, comparisonAlgorithmsDf, results)
+
+#     duplicated_values = bestResultsBaselines[bestResultsBaselines['Algorithm'].duplicated()]['Algorithm'].unique().tolist()
+#     plotResultsFromBaselineComparison(duplicated_values)
+    
+#     StratDummyCompared = bestResultsBaselines[~bestResultsBaselines['Algorithm'].duplicated(keep=False) & bestResultsBaselines['CompareAlgorithm'].str.contains('StratDummy')]['Algorithm'].tolist()
+#     plotResultsFromBaselineComparison(StratDummyCompared, baseline='StratDummy')
+
+#     MFDummyCompared = bestResultsBaselines[~bestResultsBaselines['Algorithm'].duplicated(keep=False) & bestResultsBaselines['CompareAlgorithm'].str.contains('MFDummy')]['Algorithm'].tolist()
+#     plotResultsFromBaselineComparison(MFDummyCompared, baseline='MFDummy')
+
+#     # concatDf = plotPreparation(df, best_results)
+#     bestResultsBaselines.to_csv('graphBaselineComparison.csv', index=False)
+#     message("Results from statistical test for graphs and baselines")
+#     message(bestResultsBaselines)
+
+
+
 def modify_model_names(model_name):
+    # Function to modify model names
     # Remove 'GFeatures'
     model_name = model_name.replace('GFeatures', '')
 
     # Replace 'degs' with 'DEGs/DMGs'
-    model_name = model_name.replace('degs', 'DEGs/DMGs')
-
-    model_name = model_name.replace('NV', 'GNB')
-    model_name = model_name.replace('150', '450')
-    model_name = model_name.replace('_50', '_150')
-    model_name = model_name.replace('100', '300')
-    
+    model_name = model_name.replace('DEGs', 'DEGs/DMGs')  
 
     # Remove float numbers (e.g., '_0.5_', '_0.6_')
-    model_name = re.sub(r'_\d\.\d_', '_', model_name)
+    model_name = re.sub(r'_\d\.\d', '', model_name)
 
     return model_name
 
-def plotResultsFromBaselineComparison(representations, baseline=None):
+def mostCommoThresholds(representations):
+    """
+    Finds the most common thresholds with statistical significant results more than 1/3 of all positive results
+    :param representations: list with the cases that have statistical significant results in comparison with baselines
+    :return: returns a dictionary with these thresholds as keys
+    """
+    # Extract numbers at the end of each element
+    numbers = [float(re.search(r'[\d\.]+$', item).group()) for item in representations]
+    
+    # Count occurrences
+    numbers = {num: numbers.count(num) for num in set(numbers)}
+    
+    # Count occurrences using Counter
+    count_dict = Counter(numbers)
+    
+    # Calculate threshold (1/3 of the total sum of values)
+    threshold = sum(count_dict.values()) / 3
+    
+    # Filter keys that have values greater than the threshold
+    filtered_keys = {k: v for k, v in count_dict.items() if v > threshold}
+
+    return filtered_keys
+
+def barplotsForBaselineComparison(threshold, df, tumorStageClassification=False):
+    """
+    Creates the barplots of statistical significant cases in comparison with baselines
+    :param threshold: the pearson threshold for the plots
+    :param df: ta df with the results of all algorithms and cases
+    :param tumorStageClassification: boolean to check if it is for tumor stage or classes
+    :return: save the barplots of statistical significant cases in comparison with baselines
+    """
+    if tumorStageClassification:
+        # Filter rows where 'column_name' ends with any value in the tuple
+        filtered_df = df[(df['sfeatClass'].str.endswith(str(threshold)) | df['sfeatClass'].str.startswith(("StratDummy", "MFDummy"))) & 
+                 df['sfeatClass'].str.contains("TumorStage")]
+    else:
+        filtered_df = df[(df['sfeatClass'].str.endswith(str(threshold)) | df['sfeatClass'].str.startswith(("StratDummy", "MFDummy"))) & 
+                 df['sfeatClass'].str.contains("Class")]
+    
+    # Convert string lists to actual lists
+    filtered_df['accuracy_per_fold'] = filtered_df['accuracy_per_fold'].apply(ast.literal_eval)
+    filtered_df['f1_macro_per_fold'] = filtered_df['f1_macro_per_fold'].apply(ast.literal_eval)
+    
+    # Now explode the DataFrame
+    df_exploded = filtered_df.explode(['accuracy_per_fold', 'f1_macro_per_fold']).reset_index(drop=True)
+    
+    # Melt the DataFrame to have one column for values and one for metric type
+    df_melted = df_exploded.melt(id_vars=["sfeatClass"], value_vars=["accuracy_per_fold", "f1_macro_per_fold"], 
+                              var_name="Metric", value_name="Score")
+    
+    # Replace the names of the groups for the plot
+    df_melted=df_melted.replace(["accuracy_per_fold", "f1_macro_per_fold"],['Accuracy','F1_macro'])
+    
+    df_melted["sfeatClass"] = (df_melted["sfeatClass"].str.replace("GFeatures", "G", regex=False).str.replace("Class", "C", regex=False)
+        .str.replace("Scaling", "S", regex=False).str.replace("FeatureV_", "", regex=False).str.replace("TumorStage", "TS", regex=False))
+    
+    # Filter rows where 'column_name' ends with any value in the tuple
+    temp_df = df_melted[df_melted['sfeatClass'].str.startswith(("DT", "RF","kNN", "StratDummy", "MFDummy"))]
+
+    if tumorStageClassification:
+        classificationType = 'for Tumor Stages, Compared to Baselines'
+    else:
+        classificationType = 'Normal and Tumor Samples, Compared to Baselines'
+    
+    # Create a bar plot with two bars per category using hue
+    plt.figure(figsize=(10,5))
+    sns.barplot(data=temp_df, x="sfeatClass", y="Score", hue="Metric", errorbar="se", capsize=0.1)  
+    plt.title(f"Performance of ML Algorithms Across Different Feature Representations (Correlation = {threshold})\nfor {classificationType}")
+    plt.xlabel("Algorithms and Feature Representations")
+    # Rotate x-axis labels
+    plt.xticks(rotation=90)
+    # add legend and set position to upper left
+    plt.legend(loc='lower left')
+    plt.show()
+    if tumorStageClassification:
+        plt.savefig(f"bothBaselines_Stage_{threshold}.png", bbox_inches='tight')
+    else:
+        plt.savefig(f"bothBaselines_Class_{threshold}.png", bbox_inches='tight')
+    
+    # Filter rows where 'column_name' ends with any value in the tuple
+    temp_df = df_melted[df_melted['sfeatClass'].str.startswith(("MLP", "XGB","NV", "StratDummy", "MFDummy"))]
+    
+    # Create a bar plot with two bars per category using hue
+    plt.figure(figsize=(10,5))
+    sns.barplot(data=temp_df, x="sfeatClass", y="Score", hue="Metric", errorbar="se", capsize=0.1)  
+    plt.title(f"Performance of ML Algorithms Across Different Feature Representations (Correlation = {threshold})\nfor {classificationType}")
+    plt.xlabel("Algorithms and Feature Representations")
+    # Rotate x-axis labels
+    plt.xticks(rotation=90)
+    # add legend and set position to upper left
+    plt.legend(loc='lower left')
+    if tumorStageClassification:
+        plt.savefig(f"bothBaselines2_Stage_{threshold}.png", bbox_inches='tight')
+    else:
+        plt.savefig(f"bothBaselines2_Class_{threshold}.png", bbox_inches='tight')
+
+def plotResultsFromBaselineComparison(representations, df):
     # X-axis values (range of numbers from 0.3 to 0.8)
     x_values = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
 
@@ -2533,7 +2691,7 @@ def plotResultsFromBaselineComparison(representations, baseline=None):
     # Populate the DataFrame with 1s if the model name originally contained the corresponding x value
     for original_name, modified_name in zip(representations, modified_model_names):
         for value in x_values:
-            if f'_{value}_' in original_name:
+            if f'_{value}' in original_name:
                 heatmap_data.loc[modified_name, value] = 1
 
     # Drop duplicates based on the index
@@ -2541,10 +2699,7 @@ def plotResultsFromBaselineComparison(representations, baseline=None):
 
     plt.clf()
     # Plot the heatmap
-    if baseline == 'MFDummy':
-        plt.figure(figsize=(9, 15))
-    else:
-        plt.figure(figsize=(8, 8))
+    plt.figure(figsize=(8, 8))
     sns.heatmap(heatmap_data, cmap='Blues', annot=True, cbar=False)
 
     # Custom legend
@@ -2556,19 +2711,100 @@ def plotResultsFromBaselineComparison(representations, baseline=None):
     # Add the custom legend
     plt.legend(handles=legend_labels, loc='upper right', bbox_to_anchor=(1.3, 1))
     
-    if baseline == 'StratDummy':
-        # Title and axis labels
-        plt.title('Algorithms with represenations that achieved statistically better \nperformance than Stratified Dummy Classifier')    
-    elif baseline == 'MFDummy':
-        plt.title('Algorithms with represenations that achieved statistically better \nperformance than Most Frequent Dummy Classifier')
-    else:
-        plt.title('Algorithms with represenations that achieved statistically better \nperformance than both baseline algorithms')
+    plt.title('Algorithms with represenations that achieved statistically better \nperformance than both baseline algorithms')
     plt.xlabel('Edge thresholds for Pearson correlation')
     plt.ylabel('Algorithms with different representations')
-    if baseline == 'StratDummy' or baseline == 'MFDummy':
-        plt.savefig(baseline+".png", bbox_inches='tight') 
+    plt.savefig("bothBaselines.png", bbox_inches='tight')
+
+    # check if the representations are for class or tumor stage
+    temp = '\t'.join(representations)
+    classRes = 'Class' in temp
+    stageRes = 'TumorStage' in temp
+    
+    #keep only the necessary columns
+    filteredDf=df[['sfeatClass','accuracy_per_fold','f1_macro_per_fold']]
+
+    # keep the data that have statistical significant result
+    if classRes and stageRes:
+        filteredDf = filteredDf[(filteredDf['sfeatClass'].isin(representations)) | 
+                (filteredDf['sfeatClass'].str.startswith(("StratDummy", "MFDummy")) & filteredDf['sfeatClass'].str.contains(("Class", "TumorStage")))]
+    elif classRes:
+        filteredDf = filteredDf[(filteredDf['sfeatClass'].isin(representations)) | 
+                (filteredDf['sfeatClass'].str.startswith(("StratDummy", "MFDummy")) & filteredDf['sfeatClass'].str.contains("Class"))]
     else:
-        plt.savefig("bothBaselines.png", bbox_inches='tight')
+        filteredDf = filteredDf[(filteredDf['sfeatClass'].isin(representations)) | 
+                (filteredDf['sfeatClass'].str.startswith(("StratDummy", "MFDummy")) & filteredDf['sfeatClass'].str.contains("TumorStage"))]
+
+    filteredKeys = mostCommoThresholds(representations)
+
+    if classRes and stageRes:
+        filteredDf = filteredDf[(filteredDf['sfeatClass'].isin(representations)) | 
+                (filteredDf['sfeatClass'].str.startswith(("StratDummy", "MFDummy")) & filteredDf['sfeatClass'].str.contains(("Class", "TumorStage")))]
+        for threshold in list(filteredKeys.keys()):
+            barplotsForBaselineComparison(threshold, filteredDf)
+        for threshold in list(filteredKeys.keys()):
+            barplotsForBaselineComparison(threshold, filteredDf, tumorStageClassification=True)   
+    elif classRes:
+        filteredDf = filteredDf[(filteredDf['sfeatClass'].isin(representations)) | 
+                (filteredDf['sfeatClass'].str.startswith(("StratDummy", "MFDummy")) & filteredDf['sfeatClass'].str.contains("Class"))]
+        for threshold in list(filteredKeys.keys()):
+            barplotsForBaselineComparison(threshold, filteredDf)
+    else:
+        filteredDf = filteredDf[(filteredDf['sfeatClass'].isin(representations)) | 
+                (filteredDf['sfeatClass'].str.startswith(("StratDummy", "MFDummy")) & filteredDf['sfeatClass'].str.contains("TumorStage"))]
+        for threshold in list(filteredKeys.keys()):
+            barplotsForBaselineComparison(threshold,filteredDf, tumorStageClassification=True)
+
+
+# def plotResultsFromBaselineComparison(representations, baseline=None):
+#     # X-axis values (range of numbers from 0.3 to 0.8)
+#     x_values = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+
+#     # Apply the function to modify the model names
+#     modified_model_names = [modify_model_names(name) for name in representations]
+
+#     # Create an empty DataFrame with modified model names as index and x_values as columns
+#     heatmap_data = pd.DataFrame(0, index=modified_model_names, columns=x_values)
+
+#     # Populate the DataFrame with 1s if the model name originally contained the corresponding x value
+#     for original_name, modified_name in zip(representations, modified_model_names):
+#         for value in x_values:
+#             if f'_{value}_' in original_name:
+#                 heatmap_data.loc[modified_name, value] = 1
+
+#     # Drop duplicates based on the index
+#     heatmap_data = heatmap_data[~heatmap_data.index.duplicated(keep='first')]
+
+#     plt.clf()
+#     # Plot the heatmap
+#     if baseline == 'MFDummy':
+#         plt.figure(figsize=(9, 15))
+#     else:
+#         plt.figure(figsize=(8, 8))
+#     sns.heatmap(heatmap_data, cmap='Blues', annot=True, cbar=False)
+
+#     # Custom legend
+#     legend_labels = [
+#         mpatches.Patch(facecolor='white', edgecolor='black', label='0: Not statistically\nsignificantly different'),
+#         mpatches.Patch(facecolor='darkblue', edgecolor='black', label='1: Statistically\nsignificantly different')
+#     ]
+
+#     # Add the custom legend
+#     plt.legend(handles=legend_labels, loc='upper right', bbox_to_anchor=(1.3, 1))
+    
+#     if baseline == 'StratDummy':
+#         # Title and axis labels
+#         plt.title('Algorithms with represenations that achieved statistically better \nperformance than Stratified Dummy Classifier')    
+#     elif baseline == 'MFDummy':
+#         plt.title('Algorithms with represenations that achieved statistically better \nperformance than Most Frequent Dummy Classifier')
+#     else:
+#         plt.title('Algorithms with represenations that achieved statistically better \nperformance than both baseline algorithms')
+#     plt.xlabel('Edge thresholds for Pearson correlation')
+#     plt.ylabel('Algorithms with different representations')
+#     if baseline == 'StratDummy' or baseline == 'MFDummy':
+#         plt.savefig(baseline+".png", bbox_inches='tight') 
+#     else:
+#         plt.savefig("bothBaselines.png", bbox_inches='tight')
 
 def featureVectorsComparison(df):
     """
@@ -3225,9 +3461,9 @@ def main(argv):
         new_df = pd.DataFrame.from_dict(savedResults, orient='index').reset_index()
         new_df.rename(columns={'index': 'sfeatClass'}, inplace=True)
 
-        if os.path.exists("testsaved_results.csv"):
+        if os.path.exists("saved_results.csv"):
             # Read the existing CSV file into a DataFrame
-            existing_df = pd.read_csv("testsaved_results.csv")
+            existing_df = pd.read_csv("saved_results.csv")
         else:
             # Create an empty DataFrame if the CSV file does not exist
             existing_df = pd.DataFrame()
@@ -3239,14 +3475,14 @@ def main(argv):
             combined_df = new_df
 
         # Write the updated DataFrame back to the CSV file
-        combined_df.to_csv("testsaved_results.csv", index=False)
+        combined_df.to_csv("saved_results.csv", index=False)
 
     if args.wilcoxonTest and os.path.exists("saved_results.csv"):
         # Read the existing CSV file into a DataFrame
         existing_df = pd.read_csv("saved_results.csv")
-        graphFeatureVectorsComparison(existing_df)
+        # graphFeatureVectorsComparison(existing_df)
         graphBaselineComparison(existing_df)
-        featureVectorsComparison(existing_df)
+        # featureVectorsComparison(existing_df)
 
     # end of main function
     
