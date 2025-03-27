@@ -2429,29 +2429,38 @@ def  plotPreparation(df, best_results):
 
     return concatDf
 
-def graphFeatureVectorsComparison(df):   
+def graphFeatureVectorsComparison(representations, df, classRepresenation=False):   
     """
-    Compares graph vectors with expression feature vectors, plots the metrics of signifficant metrics and save results to csv 
-    Keeps only the number of errors for x_coords and y_coords, because adds 3 zeros at the end of these
+    Compares graph vectors that had statistically better performance than baselines, with expression feature vectors and returns the successful algorithms 
+    :param representations: list with cases that had statistically better performance than baselines
     :param df: df with the results of metrics
+    :param classRepresenation: controls if it uses class results or stage
+    :return: list with algorithms that had statistically better performance than baselines and feature vectors (3 omic levels)
     """ 
+    message("Applying Statistical test for graphs and feature vectors.")
     # Graphs vs feature vectors
     results = []
-    for classificationType in ['Class', 'TumorStage']:
-        for algorithm in ['DT', 'kNN', 'XGB', 'RF', 'NV', 'MLP']:
+    if classRepresenation:
+        classificationType='Class'
+    else:
+        classificationType='TumorStage'
 
-            salgorithm=algorithm+'_GFeatures_'
-            algorithmsDf = df[df['sfeatClass'].str.startswith(salgorithm) & df['sfeatClass'].str.contains(classificationType)]
+    for algorithm in ['DT', 'kNN', 'XGB', 'RF', 'NV', 'MLP']:
 
-            salgorithmForComparison=algorithm+'_FeatureV_'
-            comparisonAlgorithmsDf = df[df['sfeatClass'].str.startswith(salgorithmForComparison) & df['sfeatClass'].str.contains(classificationType)]
+        algorithmsDf = df[df['sfeatClass'].isin(representations) & df['sfeatClass'].str.startswith(algorithm)]
 
-            best_results = statisticalTest(algorithmsDf, comparisonAlgorithmsDf, results)
+        salgorithmForComparison=algorithm+'_FeatureV_'
+        comparisonAlgorithmsDf = df[df['sfeatClass'].str.startswith(salgorithmForComparison) & df['sfeatClass'].str.contains(classificationType) & ~df['sfeatClass'].str.endswith(('miRNA','mRNA','methylation'))]
 
-    concatDf = plotPreparation(df, best_results)
-    message("Results from statistical test for graphs and feature vectors")
-    message(best_results)
-    concatDf.to_csv('graphFeatureVectorsComparison.csv', index=False)
+        best_results = statisticalTest(algorithmsDf, comparisonAlgorithmsDf, results)    
+    
+    best_results.to_csv('graphFeatureVectorsComparison.csv', index=False)
+
+    algorithms = list(best_results['Algorithm'])
+
+    message("Statistical test for graphs and feature vectors...Done")
+    
+    return algorithms
 
     # plt.clf()
     # plt.figure(figsize=(10, 5))
@@ -2572,10 +2581,12 @@ def graphBaselineComparison(df, resetResults=False):
 def modify_model_names(model_name):
     # Function to modify model names
     # Remove 'GFeatures'
-    model_name = model_name.replace('GFeatures', '')
-
-    # Replace 'degs' with 'DEGs/DMGs'
-    model_name = model_name.replace('DEGs', 'DEGs/DMGs')  
+    model_name = model_name.replace('GFeatures', 'G')
+    
+    model_name = model_name.replace('Class', 'C')
+    model_name = model_name.replace('Scaling', 'S')
+    # Replace 'degs' with 'D/Ds'
+    model_name = model_name.replace('DEGs', 'D/Ds')  
 
     # Remove float numbers (e.g., '_0.5_', '_0.6_')
     model_name = re.sub(r'_\d\.\d', '', model_name)
@@ -2636,7 +2647,8 @@ def barplotsForBaselineComparison(threshold, df, tumorStageClassification=False)
     df_melted=df_melted.replace(["accuracy_per_fold", "f1_macro_per_fold"],['Accuracy','F1_macro'])
     
     df_melted["sfeatClass"] = (df_melted["sfeatClass"].str.replace("GFeatures", "G", regex=False).str.replace("Class", "C", regex=False)
-        .str.replace("Scaling", "S", regex=False).str.replace("FeatureV_", "", regex=False).str.replace("TumorStage", "TS", regex=False))
+        .str.replace("Scaling", "S", regex=False).str.replace("FeatureV_", "", regex=False).str.replace("TumorStage", "TS", regex=False)
+        .str.replace("DEGs", "D/Ds", regex=False))
     
     # Filter rows where 'column_name' ends with any value in the tuple
     temp_df = df_melted[df_melted['sfeatClass'].str.startswith(("DT", "RF","kNN", "StratDummy", "MFDummy"))]
@@ -2677,6 +2689,70 @@ def barplotsForBaselineComparison(threshold, df, tumorStageClassification=False)
         plt.savefig(f"bothBaselines2_Stage_{threshold}.png", bbox_inches='tight')
     else:
         plt.savefig(f"bothBaselines2_Class_{threshold}.png", bbox_inches='tight')
+
+def plotResultsFromFeatureVectorComparison(representations, df, tumorStageClassification=False):
+    """
+    Creates the plots for the performances of cases that have statistically better performance from baselines and feature vectors (3 omic levels)
+    :param representations: cases that have statistically better performance from baselines and feature vectors
+    :param df: performance results
+    :param tumorStageClassification: controls the plots for class or tumor stage
+    """
+    #keep only the necessary columns and rows
+    filteredDf=df[['sfeatClass','accuracy_per_fold','f1_macro_per_fold']]
+    
+
+    filteredDf = filteredDf[((filteredDf['sfeatClass'].isin(representations)) | filteredDf['sfeatClass'].str.contains("FeatureV")) &
+                            ~filteredDf['sfeatClass'].str.endswith(('miRNA', 'mRNA', 'methylation'))]
+    
+    if tumorStageClassification:
+        # Filter rows where 'column_name' ends with any value in the tuple
+        filtered_df = filteredDf[filteredDf['sfeatClass'].str.contains("TumorStage")]
+    else:
+        filtered_df = filteredDf[filteredDf['sfeatClass'].str.contains("Class")]
+
+    # Convert string lists to actual lists
+    filtered_df['accuracy_per_fold'] = filtered_df['accuracy_per_fold'].apply(ast.literal_eval)
+    filtered_df['f1_macro_per_fold'] = filtered_df['f1_macro_per_fold'].apply(ast.literal_eval)
+    
+    # Now explode the DataFrame
+    df_exploded = filtered_df.explode(['accuracy_per_fold', 'f1_macro_per_fold']).reset_index(drop=True)
+    
+    # Melt the DataFrame to have one column for values and one for metric type
+    df_melted = df_exploded.melt(id_vars=["sfeatClass"], value_vars=["accuracy_per_fold", "f1_macro_per_fold"], 
+                              var_name="Metric", value_name="Score")
+    
+    # Replace the names of the groups for the plot
+    df_melted=df_melted.replace(["accuracy_per_fold", "f1_macro_per_fold"],['Accuracy','F1_macro'])
+    
+    df_melted["sfeatClass"] = (df_melted["sfeatClass"].str.replace("GFeatures", "G", regex=False).str.replace("Class", "C", regex=False)
+        .str.replace("Scaling", "S", regex=False).str.replace("FeatureV_", "", regex=False).str.replace("TumorStage", "TS", regex=False)
+        .str.replace("featureSelection", "FS", regex=False).str.replace("DEGs", "D/Ds", regex=False))
+
+    if tumorStageClassification:
+        classificationType = 'Tumor Stages'
+    else:
+        classificationType = 'Normal and Tumor Samples'
+
+    # find the algorithms that achieved statistically significanyt greater results 
+    algorithms = ["_".join(s.split("_")[:1]) for s in representations]
+    
+    for algorithm in algorithms:
+        # Filter rows where 'column_name' ends with any value in the tuple
+        temp_df = df_melted[df_melted['sfeatClass'].str.startswith(algorithm)]
+        
+        # Create a bar plot with two bars per category using hue
+        plt.figure(figsize=(10,5))
+        sns.barplot(data=temp_df, x="sfeatClass", y="Score", hue="Metric", errorbar="se", capsize=0.1)  
+        plt.title(f"Performance of {algorithm} for {classificationType}, compared to classical feature vectors")
+        plt.xlabel("Algorithms and Feature Representations")
+        # Rotate x-axis labels
+        plt.xticks(rotation=90)
+        # add legend and set position to upper left
+        plt.legend(loc='lower left')
+        if tumorStageClassification:
+            plt.savefig(f"graph_featureV_stage_{algorithm}.png", bbox_inches='tight')
+        else:
+            plt.savefig(f"graph_featureV_class_{algorithm}.png", bbox_inches='tight')
 
 def plotResultsFromBaselineComparison(representations, df):
     # X-axis values (range of numbers from 0.3 to 0.8)
@@ -2755,6 +2831,22 @@ def plotResultsFromBaselineComparison(representations, df):
         for threshold in list(filteredKeys.keys()):
             barplotsForBaselineComparison(threshold,filteredDf, tumorStageClassification=True)
 
+    
+    if classRes and stageRes:
+        algorithms = graphFeatureVectorsComparison(representations, df, classRepresenation=True)
+        if len(algorithms)>0:
+            plotResultsFromFeatureVectorComparison(representations, df, tumorStageClassification=False)
+        algorithms = graphFeatureVectorsComparison(representations, df)
+        if len(algorithms)>0:
+            plotResultsFromFeatureVectorComparison(representations, df, tumorStageClassification=True)   
+    elif classRes:
+        algorithms = graphFeatureVectorsComparison(representations, df, classRepresenation=True)
+        if len(algorithms)>0:
+            plotResultsFromFeatureVectorComparison(representations, df, tumorStageClassification=False)
+    else:
+        algorithms = graphFeatureVectorsComparison(representations, df)
+        if len(algorithms)>0:
+            plotResultsFromFeatureVectorComparison(representations, df, tumorStageClassification=True)
 
 # def plotResultsFromBaselineComparison(representations, baseline=None):
 #     # X-axis values (range of numbers from 0.3 to 0.8)
