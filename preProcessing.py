@@ -2429,15 +2429,21 @@ def  plotPreparation(df, best_results):
 
     return concatDf
 
-def graphFeatureVectorsComparison(representations, df, classRepresenation=False):   
+def graphComparisons(representations, df, classRepresenation=False, singleOmics=False):   
     """
-    Compares graph vectors that had statistically better performance than baselines, with expression feature vectors and returns the successful algorithms 
+    Compares graph vectors that had statistically better performance than baselines, with multi-omics or single-omics feature vectors 
+    and returns the successful algorithms 
     :param representations: list with cases that had statistically better performance than baselines
     :param df: df with the results of metrics
     :param classRepresenation: controls if it uses class results or stage
+    :param singleOmics: controls if it will compare graph features with multi-omics or single-omics feature vectors 
     :return: list with algorithms that had statistically better performance than baselines and feature vectors (3 omic levels)
+             or df with algorithms that had statistically better performance than baselines and single-omics feature vectors
     """ 
-    message("Applying Statistical test for graphs and feature vectors.")
+    if singleOmics:
+        message("Applying statistical test for graphs and single-omics feature vectors.")
+    else:
+        message("Applying statistical test for graphs and multi-omics feature vectors.")
     # Graphs vs feature vectors
     results = []
     if classRepresenation:
@@ -2450,17 +2456,31 @@ def graphFeatureVectorsComparison(representations, df, classRepresenation=False)
         algorithmsDf = df[df['sfeatClass'].isin(representations) & df['sfeatClass'].str.startswith(algorithm)]
 
         salgorithmForComparison=algorithm+'_FeatureV_'
-        comparisonAlgorithmsDf = df[df['sfeatClass'].str.startswith(salgorithmForComparison) & df['sfeatClass'].str.contains(classificationType) & ~df['sfeatClass'].str.endswith(('miRNA','mRNA','methylation'))]
+        
+        # subset the second df for the comparison
+        if singleOmics:
+            comparisonAlgorithmsDf = df[df['sfeatClass'].str.startswith(salgorithmForComparison) & df['sfeatClass'].str.contains(classificationType) & df['sfeatClass'].str.endswith(('miRNA','mRNA','methylation'))]
+        else:
+            comparisonAlgorithmsDf = df[df['sfeatClass'].str.startswith(salgorithmForComparison) & df['sfeatClass'].str.contains(classificationType) & ~df['sfeatClass'].str.endswith(('miRNA','mRNA','methylation'))]
 
         best_results = statisticalTest(algorithmsDf, comparisonAlgorithmsDf, results)    
     
-    best_results.to_csv('graphFeatureVectorsComparison.csv', index=False)
+    if singleOmics:
+        best_results.to_csv('graphSingleOmicsComparison.csv', index=False)
 
-    algorithms = list(best_results['Algorithm'])
+        message("Statistical test for graphs and single-omics feature vectors...Done")
+        
+        return best_results
 
-    message("Statistical test for graphs and feature vectors...Done")
-    
-    return algorithms
+    else:
+        best_results.to_csv('graphFeatureVectorsComparison.csv', index=False)
+
+        # save the algorithms that have statistical better performance that multi-omics feature representation to list
+        algorithms = list(best_results['Algorithm'])
+
+        message("Statistical test for graphs and multi-omics feature vectors...Done")
+        
+        return algorithms
 
     # plt.clf()
     # plt.figure(figsize=(10, 5))
@@ -2510,6 +2530,8 @@ def graphBaselineComparison(df, resetResults=False):
         message("Loaded the results of statistical tests.")
     
     plotResultsFromBaselineComparison(duplicated_values, df)
+
+
     
     
 # def graphBaselineComparison(df):  
@@ -2700,7 +2722,6 @@ def plotResultsFromFeatureVectorComparison(representations, df, tumorStageClassi
     #keep only the necessary columns and rows
     filteredDf=df[['sfeatClass','accuracy_per_fold','f1_macro_per_fold']]
     
-
     filteredDf = filteredDf[((filteredDf['sfeatClass'].isin(representations)) | filteredDf['sfeatClass'].str.contains("FeatureV")) &
                             ~filteredDf['sfeatClass'].str.endswith(('miRNA', 'mRNA', 'methylation'))]
     
@@ -2742,17 +2763,67 @@ def plotResultsFromFeatureVectorComparison(representations, df, tumorStageClassi
         
         # Create a bar plot with two bars per category using hue
         plt.figure(figsize=(10,5))
-        sns.barplot(data=temp_df, x="sfeatClass", y="Score", hue="Metric", errorbar="se", capsize=0.1)  
-        plt.title(f"Performance of {algorithm} for {classificationType}, compared to classical feature vectors")
+        sns.barplot(data=temp_df, x="sfeatClass", y="Score", hue="Metric", errorbar="se", capsize=0.1) 
         plt.xlabel("Algorithms and Feature Representations")
         # Rotate x-axis labels
         plt.xticks(rotation=90)
         # add legend and set position to upper left
         plt.legend(loc='lower left')
+
+        plt.title(f"Performance of {algorithm} for {classificationType}, compared to multi-omics feature vectors")
+        
         if tumorStageClassification:
             plt.savefig(f"graph_featureV_stage_{algorithm}.png", bbox_inches='tight')
         else:
-            plt.savefig(f"graph_featureV_class_{algorithm}.png", bbox_inches='tight')
+            plt.savefig(f"graph_featureV_class_{algorithm}.png", bbox_inches='tight')  
+
+def plotResultsFromSingleOmicsComparison(singleOmicsdf, df):
+    """
+    Creates the plots for the cases that have statistically better results from single omics feature vectors
+    :param singleOmicsdf: df with the results from statistical test between graphs and single omics feature vectors
+    :param df: df with performance results
+    """
+    algorithms ={'DT':'Decision Tree', 'kNN':'k-Nearest Neighbors', 'NV':'Naive Bayes', 'XGB':'XGBoost', 
+                 'MLP':'MLP Classifier', 'RF':'Random Forest' }
+    
+    for compareAlgorithm in list(set(singleOmicsdf['CompareAlgorithm'])):
+        
+        #subset singleOmicsdf base on the case-algorithm of comparison (second column)
+        algorithmsCases = list(singleOmicsdf.loc[singleOmicsdf['CompareAlgorithm'] == compareAlgorithm, 'Algorithm'])
+        algorithmsCases.append(compareAlgorithm)
+    
+        filteredDf = df[df['sfeatClass'].isin(algorithmsCases)]
+    
+        # Convert string lists to actual lists
+        filteredDf['accuracy_per_fold'] = filteredDf['accuracy_per_fold'].apply(ast.literal_eval)
+        filteredDf['f1_macro_per_fold'] = filteredDf['f1_macro_per_fold'].apply(ast.literal_eval)
+    
+        # Now explode the DataFrame
+        filteredDf = filteredDf.explode(['accuracy_per_fold', 'f1_macro_per_fold']).reset_index(drop=True)
+    
+        # Melt the DataFrame to have one column for values and one for metric type
+        filteredDf = filteredDf.melt(id_vars=["sfeatClass"], value_vars=["accuracy_per_fold", "f1_macro_per_fold"], 
+                                  var_name="Metric", value_name="Score")
+    
+        # Replace the names of the groups for the plot
+        filteredDf=filteredDf.replace(["accuracy_per_fold", "f1_macro_per_fold"],['Accuracy','F1_macro'])
+        
+        filteredDf["sfeatClass"] = (filteredDf["sfeatClass"].str.replace("GFeatures", "G", regex=False).str.replace("Class", "C", regex=False)
+            .str.replace("Scaling", "S", regex=False).str.replace("FeatureV_", "", regex=False).str.replace("TumorStage", "TS", regex=False)
+            .str.replace("featureSelection", "FS", regex=False).str.replace("DEGs", "D/Ds", regex=False))
+    
+        algorithm = compareAlgorithm.split('_')[0]
+        
+        # Create a bar plot with two bars per category using hue
+        plt.figure()
+        sns.barplot(data=filteredDf, x="sfeatClass", y="Score", hue="Metric", errorbar="se", capsize=0.1)  
+        plt.title(f"Performance of {algorithms[algorithm]} for Normal and Tumor Samples,\ncompared to single omics feature vectors")
+        plt.xlabel("Algorithms and Feature Representations")
+        # Rotate x-axis labels
+        plt.xticks(rotation=90)
+        # add legend and set position to upper left
+        plt.legend(loc='lower left')
+        plt.savefig(f"graph_singleOmics_{compareAlgorithm}.png", bbox_inches='tight') 
 
 def plotResultsFromBaselineComparison(representations, df):
     # X-axis values (range of numbers from 0.3 to 0.8)
@@ -2833,20 +2904,41 @@ def plotResultsFromBaselineComparison(representations, df):
 
     
     if classRes and stageRes:
-        algorithms = graphFeatureVectorsComparison(representations, df, classRepresenation=True)
+        # Comparison of graph features with feature vectors (3 omic levels)
+        algorithms = graphComparisons(representations, df, classRepresenation=True)
         if len(algorithms)>0:
-            plotResultsFromFeatureVectorComparison(representations, df, tumorStageClassification=False)
-        algorithms = graphFeatureVectorsComparison(representations, df)
+            plotResultsFromFeatureVectorComparison(algorithms, df, tumorStageClassification=False)
+        algorithms = graphComparisons(representations, df)
         if len(algorithms)>0:
-            plotResultsFromFeatureVectorComparison(representations, df, tumorStageClassification=True)   
+            plotResultsFromFeatureVectorComparison(algorithms, df, tumorStageClassification=True)    
+
+        # Comparison of graph features with single omics feature vectors
+        singleOmicsdf = graphComparisons(representations, df, classRepresenation=True, singleOmics=True)
+        plotResultsFromSingleOmicsComparison(singleOmicsdf, df)
+        singleOmicsdf = graphComparisons(representations, df, classRepresenation=False, singleOmics=True)
+        plotResultsFromSingleOmicsComparison(singleOmicsdf, df)
+        
     elif classRes:
-        algorithms = graphFeatureVectorsComparison(representations, df, classRepresenation=True)
+        # Comparison of graph features with feature vectors (3 omic levels)
+        algorithms = graphComparisons(representations, df, classRepresenation=True)
         if len(algorithms)>0:
-            plotResultsFromFeatureVectorComparison(representations, df, tumorStageClassification=False)
+            plotResultsFromFeatureVectorComparison(algorithms, df, tumorStageClassification=False)
+        
+        # Comparison of graph features with single omics feature vectors
+        singleOmicsdf = graphComparisons(representations, df, classRepresenation=True, singleOmics=True)
+        plotResultsFromSingleOmicsComparison(singleOmicsdf, df)
+
     else:
-        algorithms = graphFeatureVectorsComparison(representations, df)
+        # Comparison of graph features with feature vectors (3 omic levels)
+        algorithms = graphComparisons(representations, df)
         if len(algorithms)>0:
-            plotResultsFromFeatureVectorComparison(representations, df, tumorStageClassification=True)
+            plotResultsFromFeatureVectorComparison(algorithms, df, tumorStageClassification=True)
+
+        # Comparison of graph features with single omics feature vectors
+        singleOmicsdf = graphComparisons(representations, df, classRepresenation=False, singleOmics=True)
+        plotResultsFromSingleOmicsComparison(singleOmicsdf, df)
+    
+
 
 # def plotResultsFromBaselineComparison(representations, baseline=None):
 #     # X-axis values (range of numbers from 0.3 to 0.8)
