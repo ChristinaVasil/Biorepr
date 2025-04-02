@@ -185,7 +185,7 @@ def PCAOnTumor():
     fig.savefig("tumorPCA3D.pdf", bbox_inches='tight')
 
 
-def draw3DPCA(X, pca3DRes, c=None, cmap=plt.cm.gnuplot, spread=False):
+def draw3DPCA(X, pca3DRes, c=None, cmap=plt.cm.gnuplot, spread=False, title=''):
     
     """
     Draw a 3D PCA given, allowing different classes coloring.
@@ -201,7 +201,6 @@ def draw3DPCA(X, pca3DRes, c=None, cmap=plt.cm.gnuplot, spread=False):
     if spread:
         X = QuantileTransformer(output_distribution='uniform').fit_transform(X)
     
-    unique_classes = np.unique(c)
     if len(np.unique(c)) == 2:
         # Define colors and labels that correspond to the classes in your plot
         legend_elements = [
@@ -226,7 +225,9 @@ def draw3DPCA(X, pca3DRes, c=None, cmap=plt.cm.gnuplot, spread=False):
     ax.set_xticklabels([])
     ax.set_yticklabels([])
     ax.set_zticklabels([])
-    ax.set_title('3D PCA Plot for full feature vector for tumor stages', fontsize = 20)
+
+    ax.set_title(title, fontsize = 20)
+    
     
     ax.legend(handles=legend_elements, loc='upper right', fontsize=18)
       
@@ -2498,7 +2499,7 @@ def graphComparisons(representations, df, classRepresenation=False, singleOmics=
     # plt.savefig("graphFeatureVectorsComparison.png", bbox_inches='tight')
 
 
-def graphBaselineComparison(df, resetResults=False):  
+def graphComparison(df, resetResults=False):  
     """
     Compares graph vectors with baseline and save results to csv 
     :param df: df with the results of metrics
@@ -2529,7 +2530,7 @@ def graphBaselineComparison(df, resetResults=False):
             duplicated_values = pickle.load(f)
         message("Loaded the results of statistical tests.")
     
-    plotResultsFromBaselineComparison(duplicated_values, df)
+    plotResultsFromComparison(duplicated_values, df)
 
 
     
@@ -2825,7 +2826,7 @@ def plotResultsFromSingleOmicsComparison(singleOmicsdf, df):
         plt.legend(loc='lower left')
         plt.savefig(f"graph_singleOmics_{compareAlgorithm}.png", bbox_inches='tight') 
 
-def plotResultsFromBaselineComparison(representations, df):
+def plotResultsFromComparison(representations, df):
     # X-axis values (range of numbers from 0.3 to 0.8)
     x_values = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
 
@@ -3154,16 +3155,29 @@ def featureVectorsEvaluation(vSelectedSamplesClasses, mFeatures_noNaNs, metricRe
         # Extract class vector for colors
         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
         X, pca3D = getPCA(mFeatures_noNaNs, 100)
-        fig = draw3DPCA(X, pca3D, c=y)
+        # fig = draw3DPCA(X, pca3D, c=y)
 
-        fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
+        # fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
+        
         if bstdevFiltering:
             label = '_featureSelection'
+            pcaLabel='/Feature Selection'
+            filename = '_featureSelection'
         else:
             label = ''
+            filename = ''
+            pcaLabel = ''
         if omicLevel != None:
             label += f'_{omicLevel}'
+            pcaLabel= f'{pcaLabel}/{omicLevel}'
+            filename = f'{filename}_{omicLevel}'
+
+        filename=f'_Class{filename}'
+        pcaLabel = f'3D PCA Plot for feature vector (Class{pcaLabel})'
+        
+        fig = draw3DPCA(X, pca3D, c=y, title=pcaLabel)
+        fig.savefig(f'{Prefix}FeaturePCA{filename}.pdf')
 
         if bdecisionTree:
             message("Decision tree on feature vectors and classes")
@@ -3208,12 +3222,24 @@ def featureVectorsEvaluation(vSelectedSamplesClasses, mFeatures_noNaNs, metricRe
             fig = draw3DPCA(X, pca3D, c=y)
             fig.savefig(Prefix + "SelectedSamplesGraphFeaturePCA.pdf")
 
+            pcaLabel = ''
             if bstdevFiltering:
                 label = '_featureSelection'
+                pcaLabel='Feature Selection'
+                filename = 'featureSelection'
             else:
                 label = ''
+                filename = ''
             if omicLevel != None:
                 label += f'_{omicLevel}'
+                pcaLabel= f'{pcaLabel}/{omicLevel}'
+                filename = f'{filename}/{omicLevel}'
+
+            filename=f'TumorStage/{filename}'
+            pcaLabelStage = f'3D PCA Plot for feature vector (Tumor Stage/{pcaLabel})'
+            
+            fig = draw3DPCA(X, pca3D, c=y, title=pcaLabelStage)
+            fig.savefig(f'{Prefix}FeaturePCA{filename}.pdf')
 
             if bdecisionTree:
                 message("Decision tree on feature vectors and tumor stages")
@@ -3421,16 +3447,25 @@ def main(argv):
 
 
                 graphLabels = ''
+                pcaLabel = ''
+                filename = ''
                 if args.scalingDeactivation:
                     graphLabels += '_Scaling'
+                    pcaLabel = 'Scaling/'
+                    filename = 'Scaling_'
                 if degFile != '':
                     graphLabels += '_' + os.path.splitext(degFile)[0]
+                    pcaLabel = f'{pcaLabel}{os.path.splitext(degFile)[0]}'
+                    filename = f'{filename}{os.path.splitext(degFile)[0]}'
                 elif isinstance(run, int):
                     graphLabels += '_' + str(run)
-                
+                    pcaLabel = f'{pcaLabel}{run}'
+                    filename = f'{filename}{run}'
                 # graphLabels += '_' + str(args.edgeThreshold) + '_' + str(args.numberOfFeaturesPerLevel)
                 # graphLabels += '_' + str(threshold) + '_' + str(numberOfFeatures)
                 graphLabels += '_' + str(threshold)
+                filename = f'{filename}_{threshold}'
+                pcaLabelClass = f'Correlation {threshold}/Class/{pcaLabel}'
 
 
                 if args.classes or args.tumorStage:
@@ -3479,6 +3514,14 @@ def main(argv):
                         # Extract class vector for colors
                         aCategories, y = np.unique(vSelectedSamplesClasses, return_inverse=True)
                         
+                        filenameClass=f'_Class_{filename}'
+                        pcaLabelClass = f'3D PCA Plot for graph feature vector ({pcaLabelClass})'
+                        
+
+                        X, pca3D = getPCA(mGraphFeatures, 3)
+                        fig = draw3DPCA(X, pca3D, c=y, title=pcaLabelClass)
+                        fig.savefig(f'{Prefix}GraphFeaturePCA{filenameClass}.pdf')
+
                         if args.decisionTree:
                             message("Decision tree on graph feature vectors and classes")
                             classify(mGraphFeatures, y, metricResults, "DT_GFeatures_Class" + graphLabels, savedResults)
@@ -3541,6 +3584,14 @@ def main(argv):
 
                         # Extract tumor stages vector for colors
                         aCategories, y = np.unique(filteredTumorStage, return_inverse=True)
+
+                        filenameStage=f'_Tumor_Stage_{filename}'
+                        pcaLabelStage = f'3D PCA Plot for graph feature vector (Correlation {threshold}/Tumor Stage/{pcaLabel})'
+                        
+                        X, pca3D = getPCA(filteredGraphFeatures, 3)
+                        fig = draw3DPCA(X, pca3D, c=y, title=pcaLabelStage)
+                        fig.savefig(f'{Prefix}GraphFeaturePCA{filenameStage}.pdf')
+
                         if args.decisionTree:
                             message("Decision tree on graph feature vectors and tumor stages")
                             classify(filteredGraphFeatures, y, metricResults, "DT_GFeatures_TumorStage" + graphLabels, savedResults)
@@ -3605,7 +3656,7 @@ def main(argv):
                                                                                                     bNormalize=args.normalization, bNormalizeLog2Scale=args.logScale,
                                                                                                     bShow = False, bSave = False, 
                                                                                                     stdevFeatSelection = args.selectFeatsBySD,
-                                                                                                    nfeat=0, expSelectedFeats=args.exportSelectedFeats,
+                                                                                                    nfeat=150, expSelectedFeats=args.exportSelectedFeats,
                                                                                                     bExportImpMat=args.exportImputatedMatrix, degsFile= 'DEGs150.csv')
             if args.numberOfInstances < 0:
                     vSelectedSamplesClasses = vClass
@@ -3623,7 +3674,7 @@ def main(argv):
                                     bnaivebayes=args.naivebayes, bstratifieddummyclf=args.stratifieddummyclf,
                                     bmostfrequentdummyclf=args.mostfrequentdummyclf, bmlpClassifier=args.mlpClassifier)
 
-            if args.pcaPerLevel:
+            if args.pcaPerLevel and not bstdevFiltering:
                 levels = getOmicLevels(feat_names)
                 for level, indexes in levels.items():
                     modifiedmFeatures_noNaNs = mFeatures_noNaNs[:, indexes[0]:indexes[1]]
@@ -3665,7 +3716,7 @@ def main(argv):
         # Read the existing CSV file into a DataFrame
         existing_df = pd.read_csv("saved_results.csv")
         # graphFeatureVectorsComparison(existing_df)
-        graphBaselineComparison(existing_df)
+        graphComparison(existing_df)
         # featureVectorsComparison(existing_df)
 
     # end of main function
