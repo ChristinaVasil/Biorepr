@@ -184,6 +184,10 @@ def PCAOnTumor():
 
     fig.savefig("tumorPCA3D.pdf", bbox_inches='tight')
 
+def add_jitter(X, scale=0.01):
+    noise = np.random.normal(loc=0.0, scale=scale, size=X.shape)
+    return X + noise
+
 
 def draw3DPCA(X, pca3DRes, c=None, cmap=plt.cm.gnuplot, spread=False, title=''):
     
@@ -199,7 +203,9 @@ def draw3DPCA(X, pca3DRes, c=None, cmap=plt.cm.gnuplot, spread=False, title=''):
             % str(pca3DRes.explained_variance_ratio_))
    
     if spread:
-        X = QuantileTransformer(output_distribution='uniform').fit_transform(X)
+        #X = QuantileTransformer(output_distribution='uniform').fit_transform(X)
+        X = add_jitter(X, scale=0.03)
+
     
     if len(np.unique(c)) == 2:
         # Define colors and labels that correspond to the classes in your plot
@@ -233,7 +239,10 @@ def draw3DPCA(X, pca3DRes, c=None, cmap=plt.cm.gnuplot, spread=False, title=''):
       
 
     fig.show()
-    return fig
+    if spread:
+        return X, fig
+    else:
+        return fig
 
 
 def getPCA(mFeatures_noNaNs, n_components=3):
@@ -249,6 +258,23 @@ def getPCA(mFeatures_noNaNs, n_components=3):
     pca.fit(mFeatures_noNaNs)
     X = pca.transform(mFeatures_noNaNs)
     return X, pca
+
+def getPCAloadings(pca, pcaLabel):
+    """
+    Prints the PCA loadings of the PC1
+    :param pca: pca trained object
+    """
+    # Get PC1 loadings
+    pc1_loadings = pca.components_[0]
+    
+    # Match features with their loadings
+    loadings_df = pd.DataFrame({
+        'Feature': ['Edges', 'Mean degree centrality', 'Number of cliques', 'Average node connectivity', 'Average shortest path'],
+        'PC1 Loading': pc1_loadings,
+        'Abs Loading': np.abs(pc1_loadings)
+    })
+    print(f'PCA loadings of the PC1 ({pcaLabel})')
+    print(loadings_df)
 
 def plotExplainedVariance(mFeatures_noNaNs, n_components=100, featSelection = False):
     """
@@ -3519,8 +3545,19 @@ def main(argv):
                         
 
                         X, pca3D = getPCA(mGraphFeatures, 3)
-                        fig = draw3DPCA(X, pca3D, c=y, title=pcaLabelClass)
+                        getPCAloadings(pca3D, filenameClass[1:])
+                        spreadedX, fig = draw3DPCA(X, pca3D, c=y, title=pcaLabelClass, spread=True)
                         fig.savefig(f'{Prefix}GraphFeaturePCA{filenameClass}.pdf')
+
+                        # Extract class vector for colors
+                        aCategories, ystages = np.unique(vSelectedtumorStage, return_inverse=True)
+                        fig = draw3DPCA(spreadedX, pca3D, c=ystages, title=pcaLabelClass)
+                        fig.savefig(f'{Prefix}GraphFeaturePCA{filenameClass}_with_stages.pdf')
+                        
+                        #DEBUG LINES
+                        np.savetxt('my_array_4.csv', mGraphFeatures, delimiter=',', fmt='%.2f')
+                      
+                        ###############333
 
                         if args.decisionTree:
                             message("Decision tree on graph feature vectors and classes")
@@ -3589,7 +3626,8 @@ def main(argv):
                         pcaLabelStage = f'3D PCA Plot for graph feature vector (Correlation {threshold}/Tumor Stage/{pcaLabel})'
                         
                         X, pca3D = getPCA(filteredGraphFeatures, 3)
-                        fig = draw3DPCA(X, pca3D, c=y, title=pcaLabelStage)
+                        getPCAloadings(pca3D, filenameStage[1:])
+                        fig = draw3DPCA(X, pca3D, c=y, title=pcaLabelStage, spread=True)
                         fig.savefig(f'{Prefix}GraphFeaturePCA{filenameStage}.pdf')
 
                         if args.decisionTree:
