@@ -189,13 +189,15 @@ def add_jitter(X, scale=0.01):
     return X + noise
 
 
-def draw3DPCA(X, pca3DRes, c=None, cmap=plt.cm.gnuplot, spread=False, title=''):
+def draw3DPCA(X, pca3DRes, c=None, cmap=plt.cm.gnuplot, spread=False, stages=False , title=''):
     
     """
     Draw a 3D PCA given, allowing different classes coloring.
-    c: This argument allows for different classes to be color-coded in the scatter plot. 
-    cmap: The colormap to be used for coloring the data points
-    spread:  applies the QuantileTransformer to spread out the data distribution. 
+    :param c: This argument allows for different classes to be color-coded in the scatter plot. 
+    :param cmap: The colormap to be used for coloring the data points
+    :param spread: Adds jitter to spread out the data distribution.
+    :param stages: Returns the spreaded data distribution to plot the stages for the same data
+    :param title: The title of the plot 
     """
     
     # Percentage of variance explained for each components
@@ -204,7 +206,7 @@ def draw3DPCA(X, pca3DRes, c=None, cmap=plt.cm.gnuplot, spread=False, title=''):
    
     if spread:
         #X = QuantileTransformer(output_distribution='uniform').fit_transform(X)
-        X = add_jitter(X, scale=0.03)
+        X = add_jitter(X, scale=0.05)
 
     
     if len(np.unique(c)) == 2:
@@ -239,7 +241,7 @@ def draw3DPCA(X, pca3DRes, c=None, cmap=plt.cm.gnuplot, spread=False, title=''):
       
 
     fig.show()
-    if spread:
+    if stages:
         return X, fig
     else:
         return fig
@@ -3546,7 +3548,7 @@ def main(argv):
 
                         X, pca3D = getPCA(mGraphFeatures, 3)
                         getPCAloadings(pca3D, filenameClass[1:])
-                        spreadedX, fig = draw3DPCA(X, pca3D, c=y, title=pcaLabelClass, spread=True)
+                        spreadedX, fig = draw3DPCA(X, pca3D, c=y, title=pcaLabelClass, spread=True, stages=True)
                         fig.savefig(f'{Prefix}GraphFeaturePCA{filenameClass}.pdf')
 
                         # Extract class vector for colors
@@ -3554,10 +3556,6 @@ def main(argv):
                         fig = draw3DPCA(spreadedX, pca3D, c=ystages, title=pcaLabelClass)
                         fig.savefig(f'{Prefix}GraphFeaturePCA{filenameClass}_with_stages.pdf')
                         
-                        #DEBUG LINES
-                        np.savetxt('my_array_4.csv', mGraphFeatures, delimiter=',', fmt='%.2f')
-                      
-                        ###############333
 
                         if args.decisionTree:
                             message("Decision tree on graph feature vectors and classes")
