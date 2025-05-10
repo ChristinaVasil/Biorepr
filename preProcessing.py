@@ -4,7 +4,7 @@ import numpy as np
 import pickle
 import argparse
 import ast
-# import pydot
+import pydot
 import os
 import time
 import matplotlib.pyplot as plt
@@ -1727,7 +1727,7 @@ def drawAndSaveGraph(gToDraw, sPDFFileName="corrGraph",bShow = True, bSave = Tru
         figure_size = (100, 100)
         
     plt.figure(figsize=figure_size)
-    # plt.figure(figsize=(len(gToDraw.edges()) , len(gToDraw.edges())))## ru8mizei mege8os figure me bash ton ari8mo ton edges
+    
     plt.clf()
 
     pos = nx.nx_agraph.graphviz_layout(gToDraw, prog='circo')
@@ -1972,12 +1972,21 @@ def filterGraphNodes(gMainGraph, dKeepRatio):
     return gMainGraph
         
 
-def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFeatureNames, sampleIDs, feat_names, bShowGraphs, bSaveGraphs):
+def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFeatureNames, sampleIDs, feat_names, bShowGraphs, bSaveGraphs, extractData=True, dEdgeThreshold=0.3, nfeat=50, stdevFeatSelection=True, degsFile=''):
     """
     Generates graph feature vectors for all samples and returns them as a matrix.
     :param gMainGraph: The generic graph of feature correlations.
     :param mAllSamples: The samples to uniquely represent as graph feature vectors.
     :param saRemainingFeatureNames: The useful features subset.
+    :param sampleIDs: list with the sample ids
+    :param feat_names: list with names of genes
+    :param bShowGraphs: boolean to plot graphs
+    :param bSaveGraphs: boolean to save graphs
+    :param extractData: boolean to save names anvalues of nodes 
+    :param dEdgeThreshold: edge threshold
+    :param nfeat: number of selexted features 
+    :param stdevFeatSelection: boolean for selection by standard deviation
+    :param degsFile: name of files with degs/dmgs 
     :return: A matrix representing the samples (rows), based on their graph representation.
     """
     ########################
@@ -1997,6 +2006,7 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     # Init result list
     dResDict = {}
     graphList = []
+    dgraphData = {}
     # Counter for the specific sampleID suffix
     saveCounter = {"11A": 0, "01A": 0} 
     
@@ -2008,7 +2018,7 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     
     # Add all items to queue
     for idx in range (np.shape(mAllSamples)[0]):
-        qTasks.put((sampleIDs[idx], dResDict, gMainGraph, mAllSamples[idx, :], saRemainingFeatureNames, feat_names, next(iCnt), iAllCount, dStartTime, saveCounter, graphList))
+        qTasks.put((sampleIDs[idx], dResDict, gMainGraph, mAllSamples[idx, :], saRemainingFeatureNames, feat_names, next(iCnt), iAllCount, dStartTime, saveCounter, graphList, dgraphData))
     
     message("Waiting for completion...")
     
@@ -2016,12 +2026,49 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
 
     message("Total time (sec): %4.2f" % (perf_counter() - dStartTime))
 
+    if stdevFeatSelection:
+        directory = f'{nfeat}_{dEdgeThreshold}'
+    else:
+        name = degsFile.removesuffix(".csv")
+        directory = f'{name}_{dEdgeThreshold}'
+
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+        message(f"Directory '{directory}' created.")
+    else:
+        message(f"Directory '{directory}' already exists.")
+
+    if extractData:
+        with open(f'{directory}/graphs_data.tsv', 'w', newline='') as tsvfile:
+            writer = csv.writer(tsvfile, delimiter='\t')
+            writer.writerow(['Graph', 'Nodes', 'Weights'])  # Header
+
+            for name, (nodes, weights) in dgraphData.items():
+                node_str = ",".join(map(str, nodes))       # Convert list to comma-separated string
+                weight_str = ",".join(map(str, weights))
+                writer.writerow([name, node_str, weight_str])
+
     #Plot and save the collected graphs
     for gMainGraph, sPDFFileName in graphList:
         drawAndSaveGraph(gMainGraph, sPDFFileName, bShowGraphs, bSaveGraphs)
 
     return dResDict
 
+def getDataOfPersonalisedGraphs(G, sample, graphDict):
+    """
+    Gets the names and the values of nodes from each graph
+    :param G: personalised graph
+    :param sample: sample id
+    :param graphDict: dictionary to save the data of the graphs
+    """
+    lnameOfNodes=[]
+    lweigthOfNodes=[]
+    for node in G.nodes(data=True):
+        lnameOfNodes.append(node[0])
+        lweigthOfNodes.append(node[1].get('weight'))
+     
+    graphDict[sample] = [lnameOfNodes]
+    graphDict[sample].append(lweigthOfNodes)
 
 def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
     """
@@ -2053,7 +2100,7 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
             message("Waited long enough. Reached and of queue... Stopping.")
             break
         
-        sampleID, dResDict, gMainGraph, mSample, saRemainingFeatureNames, feat_names, iCnt, iAllCount, dStartTime, saveCounter, graphList = params
+        sampleID, dResDict, gMainGraph, mSample, saRemainingFeatureNames, feat_names, iCnt, iAllCount, dStartTime, saveCounter, graphList, dgraphData = params
            
         # DEBUG LINES  
         message("Working on instance %d of %d..." % (iCnt, iAllCount))
@@ -2070,6 +2117,8 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
         gMainGraph = filterGraphNodes(gMainGraph, dKeepRatio=0.25)  # TODO: Add parameter, if needed
         # Extract and return features
         vGraphFeatures = getGraphVector(gMainGraph)
+        # Extract name and values from the nodes
+        getDataOfPersonalisedGraphs(gMainGraph, sampleID, dgraphData)
         
         # Save or show the graph if required
         # if sampleID.endswith("01A") or sampleID.endswith("11A"):
@@ -2299,7 +2348,7 @@ def NBayes(X, y, lmetricResults, sfeatClass, savedResults):
 
 
 def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names, bResetFeatures=True, dEdgeThreshold=0.3, nfeat=50,
-                          numOfSelectedSamples=-1, bShowGraphs=True, bSaveGraphs=True, stdevFeatSelection=True, degsFile=''):
+                          numOfSelectedSamples=-1, bShowGraphs=True, bSaveGraphs=True, stdevFeatSelection=True, degsFile='', extractData=False):
     """
     Extracts the graph feature vectors of a given set of instances/cases.
     :param gMainGraph: The overall feature correlation graph.
@@ -2310,6 +2359,11 @@ def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames,
     :param numOfSelectedSamples: Allows working on a subset of the data. If -1, then use all data. Else use the given
     number of instances (half of which are taken from the first instances in mFeatures_noNaNs, while half from the
     last ones). Default: -1 (i.e. all samples).
+    :param bShowGraphs: boolean to plot graph
+    :param bSaveGraphs: boolean to save graph
+    :param stdevFeatSelection: boolean for feature selection with standard deviation
+    :param degsFile: name of file with degs/dmgs
+    :param extractData: boolean to extract data from personalised graphs
     :return: A matrix containing the graph feature vectors of the selected samples.
     """
     # Get all sample graph vectors
@@ -2339,7 +2393,7 @@ def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames,
         message("Extracted selected samples:\n" + str(mSamplesSelected[:][0:10]))
         # Extract vectors
         # TODO pass SampleID to generateAllSampleGraphFeatureVectors
-        dResDict = generateAllSampleGraphFeatureVectors(gMainGraph, mSamplesSelected, saRemainingFeatureNames, sampleIDsSelected, feat_names, bShowGraphs, bSaveGraphs)
+        dResDict = generateAllSampleGraphFeatureVectors(gMainGraph, mSamplesSelected, saRemainingFeatureNames, sampleIDsSelected, feat_names, bShowGraphs, bSaveGraphs, extractData=extractData, dEdgeThreshold=dEdgeThreshold, nfeat=nfeat, stdevFeatSelection=stdevFeatSelection, degsFile=degsFile)
         
         mGraphFeatures = np.array(list(dResDict.values())) 
         reorderedSampleIds = np.array(list(dResDict.keys()))
@@ -3314,6 +3368,8 @@ def main(argv):
     # Graph saving and display
     parser.add_argument("-savg", "--saveGraphs", action="store_true", default=False)
     parser.add_argument("-shg", "--showGraphs", action="store_true", default=False)
+    parser.add_argument("-savData", "--savGraphData", action="store_true", default=False) # save names and values of the nodes from personalised graphs
+    
 
     # Post-processing control
     parser.add_argument("-p", "--postProcessing", action="store_true", default=False)  # If False NO postprocessing occurs
@@ -3455,7 +3511,7 @@ def main(argv):
                 mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
                                                     bResetFeatures=args.resetFeatures, dEdgeThreshold=threshold, 
                                                     nfeat=nfeat, bShowGraphs=args.showGraphs, 
-                                                    bSaveGraphs=args.saveGraphs, stdevFeatSelection = stdevFeatSelection, degsFile=degFile)
+                                                    bSaveGraphs=args.saveGraphs, stdevFeatSelection = stdevFeatSelection, degsFile=degFile, extractData=args.savGraphData)
 
                 #DEBUG LINES
                 message("Number of features: " + str(nfeat) + ", Edge threshold: " + str(threshold))
