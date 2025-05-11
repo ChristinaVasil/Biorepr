@@ -30,7 +30,7 @@ from networkx.drawing.nx_pydot import write_dot
 import logging
 from threading import Thread, Lock
 from scipy.stats import pearsonr, wilcoxon
-from collections import Counter
+from collections import Counter, defaultdict
 
 # WARNING: This line is important for 3d plotting. DO NOT REMOVE
 from mpl_toolkits.mplot3d import Axes3D
@@ -1970,6 +1970,26 @@ def filterGraphNodes(gMainGraph, dKeepRatio):
     gMainGraph.remove_nodes_from(toRemove)
 
     return gMainGraph
+
+def getFullSamples(sampleIds):
+    # Create a dictionary to group by the first 12 characters
+    grouped = defaultdict(list)
+    
+    # Loop through sample IDs and group them by the first 12 characters
+    for sample in sampleIds:
+        prefix = sample[:12]  # First 12 characters
+        grouped[prefix].append(sample)
+    
+    # Filter groups that have more than one element (identical first 12 characters)
+    duplicates = {prefix: samples for prefix, samples in grouped.items() if len(samples) > 1}
+
+    # Get the values (lists of sample IDs) from the dictionary
+    values_list = list(duplicates.values())
+    
+    # Flatten the list of lists
+    flattened_list = [sample for sublist in values_list for sample in sublist]
+    
+    return flattened_list
         
 
 def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFeatureNames, sampleIDs, feat_names, bShowGraphs, bSaveGraphs, extractData=True, dEdgeThreshold=0.3, nfeat=50, stdevFeatSelection=True, degsFile=''):
@@ -2009,6 +2029,8 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     dgraphData = {}
     # Counter for the specific sampleID suffix
     saveCounter = {"11A": 0, "01A": 0} 
+
+    fullSamples = getFullSamples(sampleIDs)
     
     
     threads = [Thread(target=getSampleGraphFeatureVector, args=(i, qTasks,bShowGraphs, bSaveGraphs,)) for i in range(num_worker_threads)]
@@ -2018,7 +2040,7 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     
     # Add all items to queue
     for idx in range (np.shape(mAllSamples)[0]):
-        qTasks.put((sampleIDs[idx], dResDict, gMainGraph, mAllSamples[idx, :], saRemainingFeatureNames, feat_names, next(iCnt), iAllCount, dStartTime, saveCounter, graphList, dgraphData))
+        qTasks.put((sampleIDs[idx], dResDict, gMainGraph, mAllSamples[idx, :], saRemainingFeatureNames, feat_names, next(iCnt), iAllCount, dStartTime, saveCounter, graphList, dgraphData, fullSamples))
     
     message("Waiting for completion...")
     
@@ -2048,9 +2070,12 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
                 weight_str = ",".join(map(str, weights))
                 writer.writerow([name, node_str, weight_str])
 
-    #Plot and save the collected graphs
-    for gMainGraph, sPDFFileName in graphList:
-        drawAndSaveGraph(gMainGraph, sPDFFileName, bShowGraphs, bSaveGraphs)
+        #Plot and save the collected graphs
+        for gMainGraph, sPDFFileName in graphList:
+            # Save the graph to a pickle file
+            with open(f'{directory}/{sPDFFileName}.pkl', 'wb') as f:
+                pickle.dump(gMainGraph, f)
+            #drawAndSaveGraph(gMainGraph, sPDFFileName, bShowGraphs, bSaveGraphs)
 
     return dResDict
 
@@ -2100,7 +2125,7 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
             message("Waited long enough. Reached and of queue... Stopping.")
             break
         
-        sampleID, dResDict, gMainGraph, mSample, saRemainingFeatureNames, feat_names, iCnt, iAllCount, dStartTime, saveCounter, graphList, dgraphData = params
+        sampleID, dResDict, gMainGraph, mSample, saRemainingFeatureNames, feat_names, iCnt, iAllCount, dStartTime, saveCounter, graphList, dgraphData, fullSamples = params
            
         # DEBUG LINES  
         message("Working on instance %d of %d..." % (iCnt, iAllCount))
@@ -2121,12 +2146,12 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
         getDataOfPersonalisedGraphs(gMainGraph, sampleID, dgraphData)
         
         # Save or show the graph if required
-        # if sampleID.endswith("01A") or sampleID.endswith("11A"):
-        #     suffix = sampleID[-3:]  # Extract the suffix (last 3 characters)
-        #     if saveCounter[suffix] < 1:
-        #         saveCounter[suffix] += 1
-        #         with lock:
-        #             graphList.append((gMainGraph, "graph_" + sampleID))
+        if sampleID in fullSamples:
+            # suffix = sampleID[-3:]  # Extract the suffix (last 3 characters)
+            # if saveCounter[suffix] < 1:
+            #     saveCounter[suffix] += 1
+            with lock:
+                graphList.append((gMainGraph, "graph_" + sampleID))
         
         
         # if sampleID=='TCGA-BL-A13J-11A' or sampleID=='TCGA-BL-A13J-01A':
