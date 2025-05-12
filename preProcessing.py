@@ -1972,6 +1972,11 @@ def filterGraphNodes(gMainGraph, dKeepRatio):
     return gMainGraph
 
 def getFullSamples(sampleIds):
+    """
+    Find the cases that have tumor and normal samples
+    :param sampleIDs: list with all the sample ids of the graphs
+    :return: list with saple ids of cases that have tumor and normal samples
+    """
     # Create a dictionary to group by the first 12 characters
     grouped = defaultdict(list)
     
@@ -1990,6 +1995,31 @@ def getFullSamples(sampleIds):
     flattened_list = [sample for sublist in values_list for sample in sublist]
     
     return flattened_list
+
+def getStructureOfGraphs(G, filename, resultsDict):
+    """
+    Extracts the number of unconnected subgraphs and the number of nodes for each subgraph
+    :param G: the input graph
+    :param filename: the filename to get the sample id
+    :param resultsDict: dictionary to add the number of unconnected subgraphs and the number of nodes for each subgraph 
+    """
+    
+    sample_id = filename.removesuffix(".pkl")
+    sample_id = filename.removeprefix("graph_")
+    
+    resultsDict['filenames'].append(sample_id)
+    
+    # Find all connected components (as sets of nodes)
+    components = list(nx.connected_components(G))
+
+    resultsDict['connected_subgraphs'].append(len(components))
+
+    nodes_per_subgraph=[]
+    # Print node count in each subgraph
+    for i, comp in enumerate(components, 1):
+        nodes_per_subgraph.append(len(comp))
+
+    resultsDict['number_of_nodes'].append(nodes_per_subgraph)
         
 
 def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFeatureNames, sampleIDs, feat_names, bShowGraphs, bSaveGraphs, extractData=True, dEdgeThreshold=0.3, nfeat=50, stdevFeatSelection=True, degsFile=''):
@@ -2076,6 +2106,28 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
             with open(f'{directory}/{sPDFFileName}.pkl', 'wb') as f:
                 pickle.dump(gMainGraph, f)
             #drawAndSaveGraph(gMainGraph, sPDFFileName, bShowGraphs, bSaveGraphs)
+        
+        tumorResultsDict={'filenames':[], 'connected_subgraphs':[], 'number_of_nodes':[]}
+        normalResultsDict={'filenames':[], 'connected_subgraphs':[], 'number_of_nodes':[]}
+
+        # List all files in current directory and filter by extension
+        pickle_files = [f for f in os.listdir(directory) if f.endswith('.pkl')]
+
+        for file in pickle_files:
+            with open(f'{directory}/{file}', 'rb') as f:
+                personalisedGraph = pickle.load(f)
+            if '-01' in file:
+                getStructureOfGraphs(personalisedGraph, file, tumorResultsDict)
+            else:
+                getStructureOfGraphs(personalisedGraph, file, normalResultsDict)
+
+        tumordf = pd.DataFrame(tumorResultsDict)
+        normaldf = pd.DataFrame(normalResultsDict)
+
+        # saving as tsv file 
+        tumordf.to_csv(f'{directory}/structure_of_tumor_samples.tsv', sep="\t") 
+        # saving as tsv file 
+        normaldf.to_csv(f'{directory}/structure_of_normal_samples.tsv', sep="\t") 
 
     return dResDict
 
@@ -3393,7 +3445,7 @@ def main(argv):
     # Graph saving and display
     parser.add_argument("-savg", "--saveGraphs", action="store_true", default=False)
     parser.add_argument("-shg", "--showGraphs", action="store_true", default=False)
-    parser.add_argument("-savData", "--savGraphData", action="store_true", default=False) # save names and values of the nodes from personalised graphs
+    parser.add_argument("-extgd", "--extGraphData", action="store_true", default=False) # extract and save names and values of the nodes from personalised graphs
     
 
     # Post-processing control
@@ -3536,7 +3588,7 @@ def main(argv):
                 mGraphFeatures = getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names,
                                                     bResetFeatures=args.resetFeatures, dEdgeThreshold=threshold, 
                                                     nfeat=nfeat, bShowGraphs=args.showGraphs, 
-                                                    bSaveGraphs=args.saveGraphs, stdevFeatSelection = stdevFeatSelection, degsFile=degFile, extractData=args.savGraphData)
+                                                    bSaveGraphs=args.saveGraphs, stdevFeatSelection = stdevFeatSelection, degsFile=degFile, extractData=args.extGraphData)
 
                 #DEBUG LINES
                 message("Number of features: " + str(nfeat) + ", Edge threshold: " + str(threshold))
