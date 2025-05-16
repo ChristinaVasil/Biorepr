@@ -314,10 +314,11 @@ def getPCA(mFeatures_noNaNs, n_components=3):
     X = pca.transform(mFeatures_noNaNs)
     return X, pca
 
-def getPCAloadings(pca, pcaLabel):
+def getPCAloadings(pca, pcaLabel='', return_data=False):
     """
     Prints the PCA loadings of the PC1
     :param pca: pca trained object
+    :param return_data: return the results
     """
     # Get PC1 loadings
     pc1_loadings = pca.components_[0]
@@ -328,8 +329,31 @@ def getPCAloadings(pca, pcaLabel):
         'PC1 Loading': pc1_loadings,
         'Abs Loading': np.abs(pc1_loadings)
     })
-    print(f'PCA loadings of the PC1 ({pcaLabel})')
+    if return_data:
+        return loadings_df
+    else:
+        print(f'PCA loadings of the PC1 ({pcaLabel})')
+        print(loadings_df)
+
+def getPCAloadingsPerClass(mGraphFeatures, y, pcaLabel):
+
+    message("Calculating PCA loadings for each class")
+    # get tumor samples
+    tumor_mask = [val == 0 for val in y]
+    tumor_mGraphFeatures = mGraphFeatures[tumor_mask, :]
+    X, pca3D = getPCA(tumor_mGraphFeatures, 3)
+    loadings_df = getPCAloadings(pca3D, return_data=True)
+    print(f'PCA loadings of the PC1 ({pcaLabel})\nfor tumor samples (n = {np.shape(tumor_mGraphFeatures)[0]})')
     print(loadings_df)
+
+    # get normal samples
+    normal_mask = [val == 1 for val in y]
+    normal_mGraphFeatures = mGraphFeatures[normal_mask, :]
+    X, pca3D = getPCA(normal_mGraphFeatures, 3)
+    loadings_df = getPCAloadings(pca3D, return_data=True)
+    print(f'\nPCA loadings of the PC1 ({pcaLabel})\nfor normal samples (n = {np.shape(normal_mGraphFeatures)[0]})')
+    print(loadings_df)
+    message("Calculating PCA loadings for each class...Done")
 
 def plotExplainedVariance(mFeatures_noNaNs, n_components=100, featSelection = False):
     """
@@ -3733,7 +3757,7 @@ def main(argv):
                         
 
                         X, pca3D = getPCA(mGraphFeatures, 3)
-                        getPCAloadings(pca3D, filenameClass[1:])
+                        getPCAloadings(pca3D, pcaLabel = filenameClass[1:])
                         spreadedX, fig = draw3DPCA(X, pca3D, c=y, title=pcaLabelClass, spread=True, stages=True)
                         fig.savefig(f'{Prefix}GraphFeaturePCA{filenameClass}.pdf')
 
@@ -3741,7 +3765,8 @@ def main(argv):
                         aCategories, ystages = np.unique(vSelectedtumorStage, return_inverse=True)
                         fig = draw3DPCA(spreadedX, pca3D, c=ystages, title=pcaLabelClass)
                         fig.savefig(f'{Prefix}GraphFeaturePCA{filenameClass}_with_stages.pdf')
-                        
+
+                        getPCAloadingsPerClass(mGraphFeatures, y, filenameClass[1:])
 
                         if args.decisionTree:
                             message("Decision tree on graph feature vectors and classes")
@@ -3810,7 +3835,7 @@ def main(argv):
                         pcaLabelStage = f'3D PCA Plot for graph feature vector (Correlation {threshold}/Tumor Stage/{pcaLabel})'
                         
                         X, pca3D = getPCA(filteredGraphFeatures, 3)
-                        getPCAloadings(pca3D, filenameStage[1:])
+                        getPCAloadings(pca3D, pcaLabel = filenameStage[1:])
                         fig = draw3DPCA(X, pca3D, c=y, title=pcaLabelStage, spread=True)
                         fig.savefig(f'{Prefix}GraphFeaturePCA{filenameStage}.pdf')
 
