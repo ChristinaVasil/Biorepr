@@ -189,8 +189,64 @@ def add_jitter(X, scale=0.01):
     return X + noise
 
 
-def draw3DPCA(X, pca3DRes, c=None, cmap=plt.cm.gnuplot, spread=False, stages=False , title=''):
+# def draw3DPCA(X, pca3DRes, c=None, cmap=plt.cm.gnuplot, spread=False, stages=False , title=''):
     
+#     """
+#     Draw a 3D PCA given, allowing different classes coloring.
+#     :param c: This argument allows for different classes to be color-coded in the scatter plot. 
+#     :param cmap: The colormap to be used for coloring the data points
+#     :param spread: Adds jitter to spread out the data distribution.
+#     :param stages: Returns the spreaded data distribution to plot the stages for the same data
+#     :param title: The title of the plot 
+#     """
+    
+#     # Percentage of variance explained for each components
+#     message('explained variance ratio (first 3 components): %s'
+#             % str(pca3DRes.explained_variance_ratio_))
+   
+#     if spread:
+#         #X = QuantileTransformer(output_distribution='uniform').fit_transform(X)
+#         X = add_jitter(X, scale=0.05)
+
+    
+#     if len(np.unique(c)) == 2:
+#         # Define colors and labels that correspond to the classes in your plot
+#         legend_elements = [
+#             Line2D([0], [0], marker='o', color='w', label='Tumor sample', markerfacecolor='black', markersize=18),
+#             Line2D([0], [0], marker='o', color='w', label='Normal sample', markerfacecolor='yellow', markersize=18)
+#         ]
+#     else:
+#         legend_elements = [
+#             Line2D([0], [0], marker='o', color='w', label='Stage I', markerfacecolor='black', markersize=18),
+#             Line2D([0], [0], marker='o', color='w', label='Stage II', markerfacecolor='purple', markersize=18),
+#             Line2D([0], [0], marker='o', color='w', label='Stage III', markerfacecolor='darkorange', markersize=18),
+#             Line2D([0], [0], marker='o', color='w', label='Stage IV', markerfacecolor='yellow', markersize=18)
+#         ]
+
+#     fig = plt.figure(figsize =(20, 20))
+#     plt.clf()
+#     ax = fig.add_subplot(111, projection='3d')
+#     sc = ax.scatter(X[:, 0], X[:, 1], X[:, 2], edgecolor='k', c=c, cmap=cmap, depthshade=False, s=100)
+#     ax.set_xlabel("X coordinate (%4.2f)" % (pca3DRes.explained_variance_ratio_[0]), fontsize=18) 
+#     ax.set_ylabel("Y coordinate (%4.2f)" % (pca3DRes.explained_variance_ratio_[1]), fontsize=18)
+#     ax.set_zlabel("Z coordinate (%4.2f)" % (pca3DRes.explained_variance_ratio_[2]), fontsize=18)
+#     ax.set_xticklabels([])
+#     ax.set_yticklabels([])
+#     ax.set_zticklabels([])
+
+#     ax.set_title(title, fontsize = 20)
+    
+    
+#     ax.legend(handles=legend_elements, loc='upper right', fontsize=18)
+      
+
+#     fig.show()
+#     if stages:
+#         return X, fig
+#     else:
+#         return fig
+
+def draw3DPCA(X, pca3DRes, c=None, cmap=plt.cm.gnuplot, spread=False, stages=False, title=''):
     """
     Draw a 3D PCA given, allowing different classes coloring.
     :param c: This argument allows for different classes to be color-coded in the scatter plot. 
@@ -199,53 +255,50 @@ def draw3DPCA(X, pca3DRes, c=None, cmap=plt.cm.gnuplot, spread=False, stages=Fal
     :param stages: Returns the spreaded data distribution to plot the stages for the same data
     :param title: The title of the plot 
     """
-    
-    # Percentage of variance explained for each components
-    message('explained variance ratio (first 3 components): %s'
-            % str(pca3DRes.explained_variance_ratio_))
-   
+    print("explained variance ratio (first 3 components):", pca3DRes.explained_variance_ratio_)
+
     if spread:
-        #X = QuantileTransformer(output_distribution='uniform').fit_transform(X)
         X = add_jitter(X, scale=0.05)
 
-    
-    if len(np.unique(c)) == 2:
-        # Define colors and labels that correspond to the classes in your plot
-        legend_elements = [
-            Line2D([0], [0], marker='o', color='w', label='Tumor sample', markerfacecolor='black', markersize=18),
-            Line2D([0], [0], marker='o', color='w', label='Normal sample', markerfacecolor='yellow', markersize=18)
-        ]
-    else:
-        legend_elements = [
-            Line2D([0], [0], marker='o', color='w', label='Stage I', markerfacecolor='black', markersize=18),
-            Line2D([0], [0], marker='o', color='w', label='Stage II', markerfacecolor='purple', markersize=18),
-            Line2D([0], [0], marker='o', color='w', label='Stage III', markerfacecolor='darkorange', markersize=18),
-            Line2D([0], [0], marker='o', color='w', label='Stage IV', markerfacecolor='yellow', markersize=18)
-        ]
-
-    fig = plt.figure(figsize =(20, 20))
-    plt.clf()
+    fig = plt.figure(figsize=(20, 20))
     ax = fig.add_subplot(111, projection='3d')
+
     sc = ax.scatter(X[:, 0], X[:, 1], X[:, 2], edgecolor='k', c=c, cmap=cmap, depthshade=False, s=100)
-    ax.set_xlabel("X coordinate (%4.2f)" % (pca3DRes.explained_variance_ratio_[0]), fontsize=18) 
-    ax.set_ylabel("Y coordinate (%4.2f)" % (pca3DRes.explained_variance_ratio_[1]), fontsize=18)
-    ax.set_zlabel("Z coordinate (%4.2f)" % (pca3DRes.explained_variance_ratio_[2]), fontsize=18)
+
+    ax.set_xlabel("X coordinate (%4.2f)" % pca3DRes.explained_variance_ratio_[0], fontsize=18)
+    ax.set_ylabel("Y coordinate (%4.2f)" % pca3DRes.explained_variance_ratio_[1], fontsize=18)
+    ax.set_zlabel("Z coordinate (%4.2f)" % pca3DRes.explained_variance_ratio_[2], fontsize=18)
     ax.set_xticklabels([])
     ax.set_yticklabels([])
     ax.set_zticklabels([])
+    ax.set_title(title, fontsize=20)
 
-    ax.set_title(title, fontsize = 20)
-    
-    
-    ax.legend(handles=legend_elements, loc='upper right', fontsize=18)
-      
+    # Legend setup
+    if c is not None:
+        unique_classes = np.unique(c)
+
+        if len(unique_classes) == 2:
+            class_labels = {0: 'Tumor sample', 1: 'Normal sample'}
+        else:
+            class_labels = {
+                0: 'NA',
+                1: 'Stage I',
+                2: 'Stage II',
+                3: 'Stage III',
+                4: 'Stage IV'
+            }
+
+        colors = [cmap(cls / max(unique_classes)) for cls in unique_classes]
+        legend_elements = [
+            Line2D([0], [0], marker='o', color='w', label=class_labels.get(cls, f"Class {cls}"),
+                   markerfacecolor=col, markersize=18)
+            for cls, col in zip(unique_classes, colors)
+        ]
+        ax.legend(handles=legend_elements, loc='upper right', fontsize=18)
 
     fig.show()
-    if stages:
-        return X, fig
-    else:
-        return fig
 
+    return (X, fig) if stages else fig
 
 def getPCA(mFeatures_noNaNs, n_components=3):
     """
