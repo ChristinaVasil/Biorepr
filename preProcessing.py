@@ -2073,31 +2073,127 @@ def getFullSamples(sampleIds):
     
     return flattened_list
 
-def getStructureOfGraphs(G, filename, resultsDict):
+# def getStructureOfGraphs(G, filename, resultsDict):
+#     """
+#     Extracts the number of unconnected subgraphs and the number of nodes for each subgraph
+#     :param G: the input graph
+#     :param filename: the filename to get the sample id
+#     :param resultsDict: dictionary to add the number of unconnected subgraphs and the number of nodes for each subgraph 
+#     """
+    
+#     sample_id = filename.removesuffix(".pkl")
+#     sample_id = filename.removeprefix("graph_")
+    
+#     resultsDict['filenames'].append(sample_id)
+    
+#     # Find all connected components (as sets of nodes)
+#     components = list(nx.connected_components(G))
+
+#     resultsDict['connected_subgraphs'].append(len(components))
+
+#     nodes_per_subgraph=[]
+#     # Print node count in each subgraph
+#     for i, comp in enumerate(components, 1):
+#         nodes_per_subgraph.append(len(comp))
+
+#     resultsDict['number_of_nodes'].append(nodes_per_subgraph)
+    
+def get_significant_subgraph(graph, threshold=0.7):
     """
-    Extracts the number of unconnected subgraphs and the number of nodes for each subgraph
+    Extracts the significant subgraphs
+    :param graph: the input graph
+    :param threshold: threshold for the percentage of nodes in significant subgraphs
+    :returns: if the first subgraph has >= 70% of the total nodes it returns the first subgraph, else the two first subgraphs
+    """
+    components = sorted(nx.connected_components(graph), key=len, reverse=True)
+    total_nodes = graph.number_of_nodes()
+    
+    # Check if largest component meets the threshold
+    if len(components[0]) >= threshold * total_nodes:
+        return list(components[0])
+    elif len(components) > 1:
+        return list(components[0].union(components[1]))
+    else:
+        return list(components[0])  # Fallback if only one component exists
+    
+def get_data_from_graphs(G, sample, significantSubgraphs, allNodes, connected_subgraphs, nodes_per_subgraph):
+    """
+    Extracts the data from the graphs
     :param G: the input graph
-    :param filename: the filename to get the sample id
-    :param resultsDict: dictionary to add the number of unconnected subgraphs and the number of nodes for each subgraph 
+    :param sample: sample ID
+    :param significantSubgraphs: Dictionary to store significant subgraphs per sample.
+    :param allNodes: Dictionary to store all nodes in the graph per sample.
+    :param connected_subgraphs: Dictionary to store the number of connected components per sample.
+    :param nodes_per_subgraph: Dictionary to store the node counts for each connected component per sample.
     """
     
-    sample_id = filename.removesuffix(".pkl")
-    sample_id = filename.removeprefix("graph_")
+    significantSubgraphs[sample]=get_significant_subgraph(G)
     
-    resultsDict['filenames'].append(sample_id)
-    
+    allNodes[sample] = list(G.nodes())
+
     # Find all connected components (as sets of nodes)
     components = list(nx.connected_components(G))
 
-    resultsDict['connected_subgraphs'].append(len(components))
+    connected_subgraphs[sample] = len(components)
 
-    nodes_per_subgraph=[]
+    nodes_per_subgraph_list =[]
     # Print node count in each subgraph
     for i, comp in enumerate(components, 1):
-        nodes_per_subgraph.append(len(comp))
+        nodes_per_subgraph_list.append(len(comp))
 
-    resultsDict['number_of_nodes'].append(nodes_per_subgraph)
-        
+    nodes_per_subgraph[sample] = nodes_per_subgraph_list
+
+def findCommonGenesGraphs(df, columnName, filename):
+    """
+    Identifies genes that are common across all entries in the specified column of the DataFrame.
+    :param df: dataframe containing genes from personalised graphs.
+    :param columnName: Name of the column in the DataFrame that contains gene lists.
+    :param filename: Output file path for saving the common gene list as a CSV.
+    :return: A sorted list of common gene ids.
+    """
+    # Find common genes from the significant subgraphs 
+    common_elements = set(df[columnName].iloc[0])
+    for lst in df[columnName].iloc[1:]:
+        common_elements &= set(lst)
+
+    # Convert to a sorted list if needed
+    common_elements = sorted(common_elements)
+
+    # Remove version after '.'
+    common_elements = [gene.split('.')[0] for gene in common_elements]
+    
+    print("Unique common elements in contol samples:", common_elements)
+
+    # Creating DataFrame
+    df_common_elements = pd.DataFrame(common_elements, columns=['genes'])
+    # Saving to CSV
+    df_common_elements.to_csv(filename, index=False, header=False)
+    return common_elements
+
+def findAllGenesGraphs(df, columnName, filename):
+    """
+    Collects all unique genes across all entries in the specified column of the DataFrame.
+    :param df: DataFrame containing genes from the graphs.
+    :param columnName: Name of the column in the DataFrame that contains gene lists.
+    :param filename: Output file path for saving the full unique gene list as a CSV.
+    :return: A list of all unique gene ids.
+    """
+    # Find all the genes from the whole graphs of control samples 
+    all_genes_control = set()
+
+    for lst in df[columnName]:
+        all_genes_control.update(lst)
+    print(all_genes_control)
+
+    all_genes_control = list(all_genes_control)
+    # Remove version after '.'
+    all_genes_control = [gene.split('.')[0] for gene in all_genes_control]
+
+    # Creating DataFrame
+    df_control_all_elements = pd.DataFrame(all_genes_control, columns=['genes'])
+    # Saving to CSV
+    df_control_all_elements.to_csv(filename, index=False, header=False)
+    return all_genes_control
 
 def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFeatureNames, sampleIDs, feat_names, bShowGraphs, bSaveGraphs, extractData=True, dEdgeThreshold=0.3, nfeat=50, stdevFeatSelection=True, degsFile=''):
     """
@@ -2134,6 +2230,10 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     dResDict = {}
     graphList = []
     dgraphData = {}
+    significantSubgraphs={}
+    allNodes={}
+    connected_subgraphs={}
+    nodes_per_subgraph={}
     # Counter for the specific sampleID suffix
     saveCounter = {"11A": 0, "01A": 0} 
 
@@ -2147,7 +2247,7 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     
     # Add all items to queue
     for idx in range (np.shape(mAllSamples)[0]):
-        qTasks.put((sampleIDs[idx], dResDict, gMainGraph, mAllSamples[idx, :], saRemainingFeatureNames, feat_names, next(iCnt), iAllCount, dStartTime, saveCounter, graphList, dgraphData, fullSamples))
+        qTasks.put((sampleIDs[idx], dResDict, gMainGraph, mAllSamples[idx, :], saRemainingFeatureNames, feat_names, next(iCnt), iAllCount, dStartTime, saveCounter, graphList, dgraphData, fullSamples, significantSubgraphs, allNodes, connected_subgraphs, nodes_per_subgraph))
     
     message("Waiting for completion...")
     
@@ -2156,57 +2256,155 @@ def generateAllSampleGraphFeatureVectors(gMainGraph, mAllSamples, saRemainingFea
     message("Total time (sec): %4.2f" % (perf_counter() - dStartTime))
 
     if stdevFeatSelection:
-        directory = f'{nfeat}_{dEdgeThreshold}'
+        directory = f'{nfeat}_{dEdgeThreshold}_directory'
     else:
         name = degsFile.removesuffix(".csv")
-        directory = f'{name}_{dEdgeThreshold}'
+        directory = f'{name}_{dEdgeThreshold}_directory'
 
     if not os.path.exists(directory):
         os.makedirs(directory)
         message(f"Directory '{directory}' created.")
+
+        os.makedirs(f'{directory}/saved_graphs')
+        message(f"Directory {directory}/saved_graphs created.")
     else:
         message(f"Directory '{directory}' already exists.")
 
     if extractData:
-        with open(f'{directory}/graphs_data.tsv', 'w', newline='') as tsvfile:
-            writer = csv.writer(tsvfile, delimiter='\t')
-            writer.writerow(['Graph', 'Nodes', 'Weights'])  # Header
+        # with open(f'{directory}/graphs_data.tsv', 'w', newline='') as tsvfile:
+        #     writer = csv.writer(tsvfile, delimiter='\t')
+        #     writer.writerow(['Graph', 'Nodes', 'Weights'])  # Header
 
-            for name, (nodes, weights) in dgraphData.items():
-                node_str = ",".join(map(str, nodes))       # Convert list to comma-separated string
-                weight_str = ",".join(map(str, weights))
-                writer.writerow([name, node_str, weight_str])
+        #     for name, (nodes, weights) in dgraphData.items():
+        #         node_str = ",".join(map(str, nodes))       # Convert list to comma-separated string
+        #         weight_str = ",".join(map(str, weights))
+        #         writer.writerow([name, node_str, weight_str])
 
-        #Plot and save the collected graphs
+        # #Plot and save the collected graphs
         for gMainGraph, sPDFFileName in graphList:
             # Save the graph to a pickle file
-            with open(f'{directory}/{sPDFFileName}.pkl', 'wb') as f:
+            with open(f'{directory}/saved_graphs/{sPDFFileName}.pkl', 'wb') as f:
                 pickle.dump(gMainGraph, f)
-            #drawAndSaveGraph(gMainGraph, sPDFFileName, bShowGraphs, bSaveGraphs)
+        #     #drawAndSaveGraph(gMainGraph, sPDFFileName, bShowGraphs, bSaveGraphs)
         
-        tumorResultsDict={'filenames':[], 'connected_subgraphs':[], 'number_of_nodes':[]}
-        normalResultsDict={'filenames':[], 'connected_subgraphs':[], 'number_of_nodes':[]}
+        # tumorResultsDict={'filenames':[], 'connected_subgraphs':[], 'number_of_nodes':[]}
+        # normalResultsDict={'filenames':[], 'connected_subgraphs':[], 'number_of_nodes':[]}
 
-        # List all files in current directory and filter by extension
-        pickle_files = [f for f in os.listdir(directory) if f.endswith('.pkl')]
+        # # List all files in current directory and filter by extension
+        # pickle_files = [f for f in os.listdir(directory) if f.endswith('.pkl')]
 
-        for file in pickle_files:
-            with open(f'{directory}/{file}', 'rb') as f:
-                personalisedGraph = pickle.load(f)
-            if '-01' in file:
-                getStructureOfGraphs(personalisedGraph, file, tumorResultsDict)
-            else:
-                getStructureOfGraphs(personalisedGraph, file, normalResultsDict)
+        # for file in pickle_files:
+        #     with open(f'{directory}/{file}', 'rb') as f:
+        #         personalisedGraph = pickle.load(f)
+        #     if '-01' in file:
+        #         getStructureOfGraphs(personalisedGraph, file, tumorResultsDict)
+        #     else:
+        #         getStructureOfGraphs(personalisedGraph, file, normalResultsDict)
 
-        tumordf = pd.DataFrame(tumorResultsDict)
-        normaldf = pd.DataFrame(normalResultsDict)
+        # tumordf = pd.DataFrame(tumorResultsDict)
+        # normaldf = pd.DataFrame(normalResultsDict)
 
-        # saving as tsv file 
-        tumordf.to_csv(f'{directory}/structure_of_tumor_samples.tsv', sep="\t") 
-        # saving as tsv file 
-        normaldf.to_csv(f'{directory}/structure_of_normal_samples.tsv', sep="\t") 
+        # # saving as tsv file 
+        # tumordf.to_csv(f'{directory}/structure_of_tumor_samples.tsv', sep="\t") 
+        # # saving as tsv file 
+        # normaldf.to_csv(f'{directory}/structure_of_normal_samples.tsv', sep="\t") 
+        significantSubgraphsList=[]
+        allNodesList=[]
+        connectedSubgraphsForDf=[]
+        nodesPerSubgraphForDf=[]
+        for sample in sampleIDs:
+            significantSubgraphsList.append(significantSubgraphs[sample])
+            allNodesList.append(allNodes[sample])
+            connectedSubgraphsForDf.append(connected_subgraphs[sample])
+            nodesPerSubgraphForDf.append(nodes_per_subgraph[sample])
 
-    return dResDict
+        graphDataDf = pd.DataFrame(
+            {'samples': sampleIDs, 'significant_subgraphs_labels': significantSubgraphsList, 'labels_from_all_nodes': allNodesList,
+            'connected_subgraphs' : connectedSubgraphsForDf, 'nodes_per_subgraph' : nodesPerSubgraphForDf
+            })
+        
+        graphDataDf.to_csv(f'{directory}/graph_data.tsv', sep="\t", index=False) 
+
+        control_data = graphDataDf[graphDataDf['samples'].str.contains(r'-11[A-Z]$', na=False)]
+        tumor_data = graphDataDf[graphDataDf['samples'].str.contains(r'-01[A-Z]$', na=False)]
+
+        # get common genes from subgraphs in control, tumor and both graphs, respectively
+        sub_control_common_elements = findCommonGenesGraphs(control_data, 'significant_subgraphs_labels', f'{directory}/common_genes_from_sub_control.csv')
+        sub_tumor_common_elements = findCommonGenesGraphs(tumor_data, 'significant_subgraphs_labels', f'{directory}/common_genes_from_sub_tumor.csv')
+        sub_all_common_elements = findCommonGenesGraphs(graphDataDf, 'significant_subgraphs_labels', f'{directory}/common_genes_from_sub_all.csv')
+
+        # get all the genes from subgraphs in control, tumor and both graphs, respectively
+        sub_control_all_elements = findAllGenesGraphs(control_data, 'significant_subgraphs_labels', f'{directory}/all_genes_from_sub_control.csv')
+        sub_tumor_all_elements = findAllGenesGraphs(tumor_data, 'significant_subgraphs_labels', f'{directory}/all_genes_from_sub_tumor.csv')
+        sub_all_elements = findAllGenesGraphs(graphDataDf, 'significant_subgraphs_labels', f'{directory}/all_genes_sub_from_all.csv')
+
+        # get the common genes from the total control, tumor and both graphs, respectively
+        control_common_elements = findCommonGenesGraphs(control_data, 'labels_from_all_nodes', f'{directory}/common_genes_from_control.csv')
+        tumor_common_elements = findCommonGenesGraphs(tumor_data, 'labels_from_all_nodes', f'{directory}/common_genes_from_tumor.csv')
+        all_common_elements = findCommonGenesGraphs(graphDataDf, 'labels_from_all_nodes', f'{directory}/common_genes_from_all.csv')
+
+        # get all the genes from the total control, tumor and both graphs, respectively
+        control_all_elements = findAllGenesGraphs(control_data, 'labels_from_all_nodes', f'{directory}/all_genes_from_control.csv')
+        tumor_all_elements = findAllGenesGraphs(tumor_data, 'labels_from_all_nodes', f'{directory}/all_genes_from_tumor.csv')
+        all_elements = findAllGenesGraphs(graphDataDf, 'labels_from_all_nodes', f'{directory}/all_genes_from_all.csv')
+
+        overlap_results=[]
+
+        # percentage of overlap between common genes from subgraphs in control, tumor and both graphs/ all the genes from total control, tumor and both graphs, respectively
+        overlap_sub_control = (len(sub_control_common_elements)/len(sub_control_all_elements))*100
+        overlap_sub_tumor = (len(sub_tumor_common_elements)/len(sub_tumor_all_elements))*100
+        overlap_sub_all = (len(sub_all_common_elements)/len(sub_all_elements))*100
+        overlap_results.append(overlap_sub_control)
+        overlap_results.append(overlap_sub_tumor)
+        overlap_results.append(overlap_sub_all)
+
+        # percentage of overlap between common genes from subgraphs in control, tumor and both graphs/ all the genes from subgraphs in control, tumor and both graphs, respectively
+        overlap_sub_vs_all_control = (len(sub_control_common_elements)/len(control_all_elements))*100
+        overlap_sub_vs_all_tumor = (len(sub_tumor_common_elements)/len(tumor_all_elements))*100
+        overlap_sub_vs_all_all = (len(sub_all_common_elements)/len(all_elements))*100
+        overlap_results.append(overlap_sub_vs_all_control)
+        overlap_results.append(overlap_sub_vs_all_tumor)
+        overlap_results.append(overlap_sub_vs_all_all)
+
+        # percentage of overlap between common genes from the total control, tumor and both graphs/ all the genes from the total control, tumor and both graphs, respectively
+        overlap_control = (len(control_common_elements)/len(control_all_elements))*100
+        overlap_tumor = (len(tumor_common_elements)/len(tumor_all_elements))*100
+        overlap_all = (len(all_common_elements)/len(all_elements))*100
+        overlap_results.append(overlap_control)
+        overlap_results.append(overlap_tumor)
+        overlap_results.append(overlap_all)
+
+        plot_data = {
+            'Overlap': overlap_results,
+            'Group': ['Control/Subgraphs', 'Tumor/Subgraphs', 'Both/Subgraphs', 'Control/Subgraphs/All genes', 
+                        'Tumor/Subgraphs/All genes', 'Both/Subgraphs/All genes', 'Control', 'Tumor', 'Both'], 
+        }
+
+        plot_df = pd.DataFrame(plot_data)
+
+        plt.clf()
+
+        sns.set(style='whitegrid')
+
+        # Horizontal barplot
+        ax = sns.barplot(x='Overlap', y='Group', data=plot_df)
+
+        # Add value labels at the end of each bar
+        for i, row in plot_df.iterrows():
+            ax.text(row['Overlap'] + 1, i, f"{row['Overlap']:.2f}%", va='center', fontsize=9)
+
+        # Formatting
+        ax.set_title('Gene Overlap Percentage by Group')
+        ax.set_xlabel('Overlap')
+        ax.set_ylabel('Group')
+        plt.xlim(0, 115)
+        plt.tight_layout()
+
+        # Save and show
+        plt.savefig(f'{directory}/gene_overlap.png')
+        plt.show()
+
+    return dResDict, directory
 
 def getDataOfPersonalisedGraphs(G, sample, graphDict):
     """
@@ -2254,7 +2452,7 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
             message("Waited long enough. Reached and of queue... Stopping.")
             break
         
-        sampleID, dResDict, gMainGraph, mSample, saRemainingFeatureNames, feat_names, iCnt, iAllCount, dStartTime, saveCounter, graphList, dgraphData, fullSamples = params
+        sampleID, dResDict, gMainGraph, mSample, saRemainingFeatureNames, feat_names, iCnt, iAllCount, dStartTime, saveCounter, graphList, dgraphData, fullSamples, significantSubgraphs, allNodes, connected_subgraphs, nodes_per_subgraph = params
            
         # DEBUG LINES  
         message("Working on instance %d of %d..." % (iCnt, iAllCount))
@@ -2272,15 +2470,16 @@ def getSampleGraphFeatureVector(i, qQueue, bShowGraphs=True, bSaveGraphs=True):
         # Extract and return features
         vGraphFeatures = getGraphVector(gMainGraph)
         # Extract name and values from the nodes
-        getDataOfPersonalisedGraphs(gMainGraph, sampleID, dgraphData)
-        
+        #getDataOfPersonalisedGraphs(gMainGraph, sampleID, dgraphData)
+        get_data_from_graphs(gMainGraph, sampleID, significantSubgraphs, allNodes, connected_subgraphs, nodes_per_subgraph)
+
         # Save or show the graph if required
-        if sampleID in fullSamples:
+        #if sampleID in fullSamples:
             # suffix = sampleID[-3:]  # Extract the suffix (last 3 characters)
             # if saveCounter[suffix] < 1:
             #     saveCounter[suffix] += 1
-            with lock:
-                graphList.append((gMainGraph, "graph_" + sampleID))
+        with lock:
+            graphList.append((gMainGraph, "graph_" + sampleID))
         
         
         # if sampleID=='TCGA-BL-A13J-11A' or sampleID=='TCGA-BL-A13J-01A':
@@ -2499,7 +2698,45 @@ def NBayes(X, y, lmetricResults, sfeatClass, savedResults):
     #cv = LeaveOneOut()
     crossValidation(X, y, cv, gnb, lmetricResults, sfeatClass, savedResults)
 
+def plotTopologicalFeatures(sampleIDs, features, directory, title, filename):
+    """
+    Plots a bar chart of topological features grouped by sample type.
 
+    :param sampleIDs: List of sample ids.
+    :param features: List of numerical values-topological features corresponding to each sample.
+    :param directory: directory path to save the output plot.
+    :param title: Title to display on the plot.
+    :param filename: Name of the output image file (e.g., 'degree_distribution.png').
+    """
+
+    # Create DataFrame
+    df = pd.DataFrame({
+        'sample_id': sampleIDs,
+        'value': features
+    })
+
+    # Extract group from sample ID
+    df['group'] = df['sample_id'].str.extract(r'-(\d{2})[A-Z]$')
+    df['group'] = df['group'].map({'01': 'Primary Tumor', '11': 'Normal Tissue'})
+
+    # Sort by group, then by decreasing value within each group
+    df_sorted = df.sort_values(by=['group', 'value'], ascending=[True, False])
+
+    # Optional: reset index for clean plotting
+    df_sorted = df_sorted.reset_index(drop=True)
+
+    # Plot
+    plt.clf()
+    plt.figure(figsize=(12, 6))
+    sns.barplot(data=df_sorted, x='sample_id', y='value', hue='group', dodge=False, width=0.9)
+    plt.xticks([], [])
+    plt.title(f"{title} Sorted by Group and Value")
+    plt.legend(title='Sample type')
+    plt.xlabel("Sample ID")
+    plt.ylabel("Value")
+    plt.tight_layout()
+    plt.savefig(f'/home/thlamp/tcga/data/{directory}/{filename}')
+    plt.show()
 
 def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames, sampleIDs, feat_names, bResetFeatures=True, dEdgeThreshold=0.3, nfeat=50,
                           numOfSelectedSamples=-1, bShowGraphs=True, bSaveGraphs=True, stdevFeatSelection=True, degsFile='', extractData=False):
@@ -2547,7 +2784,7 @@ def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames,
         message("Extracted selected samples:\n" + str(mSamplesSelected[:][0:10]))
         # Extract vectors
         # TODO pass SampleID to generateAllSampleGraphFeatureVectors
-        dResDict = generateAllSampleGraphFeatureVectors(gMainGraph, mSamplesSelected, saRemainingFeatureNames, sampleIDsSelected, feat_names, bShowGraphs, bSaveGraphs, extractData=extractData, dEdgeThreshold=dEdgeThreshold, nfeat=nfeat, stdevFeatSelection=stdevFeatSelection, degsFile=degsFile)
+        dResDict, directory = generateAllSampleGraphFeatureVectors(gMainGraph, mSamplesSelected, saRemainingFeatureNames, sampleIDsSelected, feat_names, bShowGraphs, bSaveGraphs, extractData=extractData, dEdgeThreshold=dEdgeThreshold, nfeat=nfeat, stdevFeatSelection=stdevFeatSelection, degsFile=degsFile)
         
         mGraphFeatures = np.array(list(dResDict.values())) 
         reorderedSampleIds = np.array(list(dResDict.keys()))
@@ -2557,7 +2794,6 @@ def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames,
         
         # Find the indices that would reorder reorderedSampleIds to match sampleIDsSelected
         order_indices = [index_map[id_] for id_ in sampleIDsSelected]
-        
 
         # Reorder mGraphFeatures using the calculated indices
         mGraphFeatures = mGraphFeatures[order_indices]
@@ -2577,6 +2813,13 @@ def getSampleGraphVectors(gMainGraph, mFeatures_noNaNs, saRemainingFeatureNames,
             with open(Prefix + os.path.splitext(degsFile)[0] + "_" + str(dEdgeThreshold) + ".pickle", "wb") as fOut:
                 pickle.dump(mGraphFeatures, fOut) 
         message("Saving graph feature matrix... Done.")
+
+        # plot barplots with the topologocal features sorted by sample type
+        plotTopologicalFeatures(sampleIDsSelected, mGraphFeatures[:, 0], directory, 'Number of Edges', 'edges.png')
+        plotTopologicalFeatures(sampleIDsSelected, mGraphFeatures[:, 2], directory, 'Mean Degree Centrality', 'degree_centrality.png')
+        plotTopologicalFeatures(sampleIDsSelected, mGraphFeatures[:, 3], directory, 'Number of Cliques', 'cliques_plot.png')
+        plotTopologicalFeatures(sampleIDsSelected, mGraphFeatures[:, 4], directory, 'Average Node Connectivity', 'average_node_connectivity_plot.png')
+        plotTopologicalFeatures(sampleIDsSelected, mGraphFeatures[:, 5], directory, 'Average Shortest Path', 'avg_shortest_path_plot.png')
     return mGraphFeatures
 
 
